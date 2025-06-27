@@ -11,10 +11,15 @@ Database microservice is a 3 container setup with a NodeJS API server, a memcach
 Steps:
 1. `sudo apt update && sudo apt install -y npm docker containerd.io`
 2. `docker compose up --build`
-3. Populate the DB: ```cd tpch/tpch-dbgen;
+3. Populate the DB:
+```
+cd tpch/tpch-dbgen;
 make;
 ./dbgen -s 1;
 mv *.tbl ../
+cd -;
+cd tpch/
+./load\_tpch.sh;
+cd -;
 ```
-4. `cd tpch; ./load\_tpch.sh`
 5. Run `curl http://localhost:3000/tpch/3`
