@@ -1,7 +1,16 @@
 # Ransomware Setups
 
 ## 1. NFS Server Setup
-
+1. Install the NFS server package on storage server: `sudo apt install nfs-kernel-server`
+2. Export directory:
+```
+sudo mkdir -p /srv/nfs/shared
+sudo chown nobody:nogroup /srv/nfs/shared
+```
+3. Add to /etc/exports: `/srv/nfs/shared <client-ip>(rw,sync,no_subtree_check)`
+4. Restart service: `sudo systemctl restart nfs-kernel-server`
+5. Install nfs-client on client server: `sudo apt install nfs-common`
+6. Mount exported directory: `sudo mount <server-ip>:/srv/nfs/shared /mnt`
 
 ## 2. Database Microservice Setup
 
