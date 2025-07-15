@@ -16,10 +16,11 @@ import keras
 
 import tensorflow as tf
 from tensorflow.keras.datasets import imdb
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.layers import Embedding
+from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.preprocessing import sequence
 
 matplotlib.use("Qt5Agg")
@@ -44,7 +45,7 @@ def regression_preproc_transform():
         future_list = []
 
         for trace in trace_list:
-            wdws, futures = form_windows(trace, 10, 1, future_size=3, future_stride=1)
+            wdws, futures = form_windows(trace, WDW_LEN, 1, future_size=FUTURE_LEN, future_stride=1)
             wdw_list.append(wdws)
             future_list.append(futures)
 
@@ -451,6 +452,11 @@ def form_windows(array, window_size, window_stride, future_size=0, future_stride
 
 if __name__ == "__main__":
     MAX_LEN = 1560
+    WDW_LEN = 20
+    FUTURE_LEN = 1
+    LOAD_SAVED = False
+    cwd = Path.cwd()
+    model_path = cwd / "basic_lstm.h5"
 
     # {"zero-padded_trace", "syscall_frequency", "windowed_features","windowed"}
 
@@ -470,18 +476,53 @@ if __name__ == "__main__":
     # benign, malware = window_samples()
     benign_wdws, benign_futures, malware_wdws, malware_futures = regression_preproc_transform()
 
+    unique_vals = np.unique(benign_wdws.reshape(-1))
+    new_labels = np.arange(len(unique_vals))
+    max_val = unique_vals.max()
+    lookup = np.full(max_val + 1, -1, dtype=int)
+    lookup[unique_vals] = new_labels
+
+    mapped_benign_wdws = lookup[benign_wdws]
+    mapped_benign_futures = lookup[benign_futures]
+    mapped_malware_wdws = lookup[malware_wdws]
+    mapped_malware_futures = lookup[malware_futures]
+
     X_train, X_test, y_train, y_test = train_test_split(
-        benign_wdws, benign_futures, test_size=0.3, random_state=42
+        mapped_benign_wdws, mapped_benign_futures, test_size=0.3, random_state=42
     )
 
-    X_test = np.concatenate((X_test, malware_wdws))
-    y_test = np.concatenate((y_test, malware_futures))
+    X_test = np.concatenate((X_test, mapped_malware_wdws))
+    y_test = np.concatenate((y_test, mapped_malware_futures))
+
+    # raise Exception
+
+    enc = mpp.form_one_hot_encoder(X_train)
+
+    # benign_array = X_train
+    # max_syscall = np.max(benign_array)
+    # one_hot_array = np.array(range(max_syscall))
+    # one_hot_array = one_hot_array.reshape(-1, 1)
+    # one_hot_array = one_hot_array.astype(int)
+    # enc = OneHotEncoder(handle_unknown='ignore')
+    # enc.fit(one_hot_array)
+
+    a, b = X_train.shape
+    X_train = enc.transform(X_train.reshape(-1, 1)).toarray()
+    X_train = X_train.reshape(a, b, -1)
+
+    a, b = X_test.shape
+    X_test = enc.transform(X_test.reshape(-1, 1)).toarray()
+    X_test = X_test.reshape(a, b, -1)
+
+    a, b = y_train.shape
+    y_train = enc.transform(y_train.reshape(-1, 1)).toarray()
+    y_train = y_train.reshape(a, b, -1)
+
+    a, b = y_test.shape
+    y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
+    y_test = y_test.reshape(a, b, -1)
 
 
-    # input_scaler = StandardScaler().fit(X_train)
-    # output_scaler
-    # X_train = scaler.transform(X_train)
-    # X_test = scaler.transform(X_test)
 
     # embedding_vector_length = 32
     # model = Sequential()
@@ -511,18 +552,70 @@ if __name__ == "__main__":
     y_test = scaler.transform(y_test.reshape(-1, 1))
     y_test = y_test.reshape(-1, future_len)
 
+    if LOAD_SAVED and os.path.exists(model_path):
+        print(f"Loading model from {model_path}")
+        model = load_model(model_path)
 
-    model = Sequential()
-    model.add(keras.Input(shape=(10, 1)))
-    model.add(LSTM(32))
-    model.add(Dense(3))
-    model.compile(loss='mean_squared_error', optimizer='adam')
+    else:
+        split = int(0.8 * len(X_train))
+        X_train, X_val = X_train[:split], X_train[split:]
+        y_train, y_val = y_train[:split], y_train[split:]
 
-    model.fit(X_train, y_train, epochs=150, batch_size=32, verbose=2)
+        early_stop = EarlyStopping(
+            monitor='val_loss',  # which metric to watch
+            patience=5,  # how many epochs with no improvement to wait
+            min_delta=1e-4,  # minimum change to qualify as improvement
+            restore_best_weights=True  # at end of training, restore the best weights
+        )
+
+        model = Sequential()
+        model.add(keras.Input(shape=(WDW_LEN, 1)))
+        # TODO embedding layer causes issues
+        # model.add(Embedding(int(np.max(X_train)) + 100, 64))
+        model.add(Dense(64))
+        model.add(LSTM(64))
+        model.add(Dense(FUTURE_LEN))
+        model.compile(loss='mean_squared_error', optimizer='adam')
+
+        history = model.fit(X_train, y_train,
+                            validation_data=(X_val, y_val),
+                            epochs=300, batch_size=64, verbose=2,
+                            callbacks=[early_stop]
+                            )
+        model.save(model_path)
 
     y_pred = model.predict(X_test)
+    deltas = abs(y_pred - y_test)
 
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
+    ax.plot(y_pred[:, 0], color="blue")
+    ax.plot(y_test[:, 0], color="red")
+    plt.tight_layout()
+    plt.show()
 
+    fig, ax = plt.subplots(3, 1, figsize=(10, 4), sharey=True)
+    ax[0].plot(deltas[:, 0], color="blue")
+    ax[1].plot(deltas[:, 1], color="red")
+    ax[2].plot(deltas[:, 1], color="green")
+    plt.tight_layout()
+    plt.show()
+
+    from scipy.ndimage import median_filter
+
+    filtered_1d = median_filter(deltas, size=15)
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
+    ax.plot(filtered_1d[:, 0], color="blue")
+    plt.tight_layout()
+    plt.show()
+
+    y_discrete = np.zeros((len(y_test)))
+    y_discrete[len(y_discrete) - len(malware_futures):] = 1
+    classes = np.unique(y_discrete)
+    class_weights = compute_class_weight('balanced', classes=classes, y=y_discrete)
+    sample_weights = class_weights[y_discrete.astype(int)]
+    auc = roc_auc_score(y_discrete, filtered_1d, sample_weight=sample_weights)
+    print(f"ROC AUC Score: {auc:.3f}")
 
     raise Exception
 

@@ -36,7 +36,7 @@ def form_array_from_files(child_path, file_subsample=-1) -> np.array:
     return padded_matrix
 
 
-def form_one_hot_encoder(benign_array) -> OneHotEncoder:
+def form_one_hot_encoder(benign_array: np.array) -> OneHotEncoder:
     max_syscall = np.max(benign_array)
     one_hot_array = np.array(range(max_syscall))
     one_hot_array = one_hot_array.reshape(-1, 1)
