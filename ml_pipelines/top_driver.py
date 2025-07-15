@@ -18,7 +18,7 @@ import tensorflow as tf
 from tensorflow.keras.datasets import imdb
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense
-from tensorflow.keras.layers import LSTM
+from tensorflow.keras.layers import LSTM, Reshape, Input
 from tensorflow.keras.layers import Embedding
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.preprocessing import sequence
@@ -309,7 +309,7 @@ def supervised_detector(preproc_mode: str, model: str):
         )
 
     else: # model == "lstm"
-        tf.random.set_seed(7)
+        tf.random.set_seed(42)
 
         pipeline = LSTMWrapper(X_train)
 
@@ -378,8 +378,7 @@ def unsupervised_detector(preproc_mode: str, model: str):
         "isolation_forest",
         "minimum_covariance_determinant",
         "local_outlier_factor",
-        "svc",
-        "lstm"
+        "svc"
     }
 
     if model not in VALID_MODELS:
@@ -404,9 +403,6 @@ def unsupervised_detector(preproc_mode: str, model: str):
     elif model == "local_outlier_factor":
         model = LocalOutlierFactor(contamination=0.01, novelty=True)
 
-    elif model == "lstm":
-        pass
-
     else: # model == "svc"
         model = OneClassSVM(kernel='rbf', gamma='scale', nu=0.05)
 
@@ -423,6 +419,124 @@ def unsupervised_detector(preproc_mode: str, model: str):
     ax.plot(y_pred, marker='o', linestyle="None")
     plt.tight_layout()
     plt.show()
+
+
+def regression_error():
+    benign_wdws, benign_futures, malware_wdws, malware_futures = regression_preproc_transform()
+
+    unique_vals = np.unique(benign_wdws.reshape(-1))
+    new_labels = np.arange(len(unique_vals))
+    max_val = unique_vals.max()
+    lookup = np.full(max_val + 1, -1, dtype=int)
+    lookup[unique_vals] = new_labels
+
+    mapped_benign_wdws = lookup[benign_wdws]
+    mapped_benign_futures = lookup[benign_futures]
+    mapped_malware_wdws = lookup[malware_wdws]
+    mapped_malware_futures = lookup[malware_futures]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        mapped_benign_wdws, mapped_benign_futures, test_size=0.3, random_state=42
+    )
+
+    X_test = np.concatenate((X_test, mapped_malware_wdws))
+    y_test = np.concatenate((y_test, mapped_malware_futures))
+
+    enc = mpp.form_one_hot_encoder(X_train)
+
+    a, b = X_train.shape
+    X_train = enc.transform(X_train.reshape(-1, 1)).toarray()
+    X_train = X_train.reshape(a, b, -1)
+
+    a, b = X_test.shape
+    X_test = enc.transform(X_test.reshape(-1, 1)).toarray()
+    X_test = X_test.reshape(a, b, -1)
+
+    a, b = y_train.shape
+    y_train = enc.transform(y_train.reshape(-1, 1)).toarray()
+    y_train = y_train.reshape(a, b, -1)
+
+    a, b = y_test.shape
+    y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
+    y_test = y_test.reshape(a, b, -1)
+
+    scaler = StandardScaler().fit(X_train.reshape(-1, 1))
+
+    original_shape = X_train.shape
+    X_train = scaler.transform(X_train.reshape(-1, 1))
+    X_train = X_train.reshape(original_shape)
+
+    original_shape = X_test.shape
+    X_test = scaler.transform(X_test.reshape(-1, 1))
+    X_test = X_test.reshape(original_shape)
+
+    original_shape = y_train.shape
+    y_train = scaler.transform(y_train.reshape(-1, 1))
+    y_train = y_train.reshape(original_shape)
+
+    original_shape = y_test.shape
+    y_test = scaler.transform(y_test.reshape(-1, 1))
+    y_test = y_test.reshape(original_shape)
+
+    if LOAD_SAVED and os.path.exists(model_path):
+        print(f"Loading model from {model_path}")
+        model = load_model(model_path)
+
+    else:
+        tf.random.set_seed(42)
+
+        split = int(0.8 * len(X_train))
+        X_train, X_val = X_train[:split], X_train[split:]
+        y_train, y_val = y_train[:split], y_train[split:]
+
+        early_stop = EarlyStopping(
+            monitor='val_loss',  # which metric to watch
+            patience=5,  # how many epochs with no improvement to wait
+            min_delta=1e-4,  # minimum change to qualify as improvement
+            restore_best_weights=True  # at end of training, restore the best weights
+        )
+
+        model = Sequential([
+            # 1) Declare your input shape: 20 timesteps, 73 features
+            Input(shape=(WDW_LEN, 73)),
+            # 2) (Optional) a Dense layer on each timestep
+            #    This will output (batch, 20, 64)
+            Dense(64, activation='relu'),
+            # 3) LSTM over the 20 timesteps → returns (batch, 64)
+            LSTM(64),
+            # 4) Project that 64-vector up to 73 outputs → (batch, 73)
+            Dense(73, activation='linear'),
+            # 5) Re-insert the time dimension → (batch, 1, 73)
+            Reshape((1, 73))
+        ])
+
+        model.compile(loss='mean_squared_error', optimizer='adam')
+
+        history = model.fit(
+            X_train, y_train,
+            validation_data=(X_val, y_val),
+            epochs=300, batch_size=64, verbose=2,
+            callbacks=[early_stop]
+        )
+        model.save(model_path)
+
+    y_pred = model.predict(X_test)
+    deltas = np.abs(y_pred - y_test)
+    deltas = np.sum(deltas, axis=2)
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
+    ax.plot(deltas, color="blue")
+    plt.tight_layout()
+    plt.show()
+
+    y_discrete = np.zeros((len(y_test)))
+    y_discrete[len(y_discrete) - len(malware_futures):] = 1
+    classes = np.unique(y_discrete)
+    class_weights = compute_class_weight('balanced', classes=classes, y=y_discrete)
+    sample_weights = class_weights[y_discrete.astype(int)]
+    auc = roc_auc_score(y_discrete, deltas, sample_weight=sample_weights)
+    print(f"ROC AUC Score: {auc:.3f}")
+
 
 
 def form_windows(array, window_size, window_stride, future_size=0, future_stride=1):
@@ -452,9 +566,9 @@ def form_windows(array, window_size, window_stride, future_size=0, future_stride
 
 if __name__ == "__main__":
     MAX_LEN = 1560
-    WDW_LEN = 20
-    FUTURE_LEN = 1
-    LOAD_SAVED = False
+    WDW_LEN = 20  # 10
+    FUTURE_LEN = 1  # 3
+    LOAD_SAVED = True
     cwd = Path.cwd()
     model_path = cwd / "basic_lstm.h5"
 
@@ -472,8 +586,8 @@ if __name__ == "__main__":
     # }
     # unsupervised_detector(preproc_mode="windowed_features", model="isolation_forest")
 
-    # benign, malware = preproc_transform("windowed")
-    # benign, malware = window_samples()
+    # regression_error()
+
     benign_wdws, benign_futures, malware_wdws, malware_futures = regression_preproc_transform()
 
     unique_vals = np.unique(benign_wdws.reshape(-1))
@@ -494,118 +608,201 @@ if __name__ == "__main__":
     X_test = np.concatenate((X_test, mapped_malware_wdws))
     y_test = np.concatenate((y_test, mapped_malware_futures))
 
+    # enc = mpp.form_one_hot_encoder(X_train)
+    #
+    # a, b = X_train.shape
+    # X_train = enc.transform(X_train.reshape(-1, 1)).toarray()
+    # X_train = X_train.reshape(a, b, -1)
+    #
+    # a, b = X_test.shape
+    # X_test = enc.transform(X_test.reshape(-1, 1)).toarray()
+    # X_test = X_test.reshape(a, b, -1)
+    #
+    # a, b = y_train.shape
+    # y_train = enc.transform(y_train.reshape(-1, 1)).toarray()
+    # y_train = y_train.reshape(a, b, -1)
+    #
+    # a, b = y_test.shape
+    # y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
+    # y_test = y_test.reshape(a, b, -1)
+
     # raise Exception
 
-    enc = mpp.form_one_hot_encoder(X_train)
+    import torch
+    import torch.nn as nn
+    from torch.utils.data import DataLoader, TensorDataset
+    from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerModel
 
-    # benign_array = X_train
-    # max_syscall = np.max(benign_array)
-    # one_hot_array = np.array(range(max_syscall))
-    # one_hot_array = one_hot_array.reshape(-1, 1)
-    # one_hot_array = one_hot_array.astype(int)
-    # enc = OneHotEncoder(handle_unknown='ignore')
-    # enc.fit(one_hot_array)
+    import torch
+    import torch.nn as nn
+    from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerModel
 
-    a, b = X_train.shape
-    X_train = enc.transform(X_train.reshape(-1, 1)).toarray()
-    X_train = X_train.reshape(a, b, -1)
-
-    a, b = X_test.shape
-    X_test = enc.transform(X_test.reshape(-1, 1)).toarray()
-    X_test = X_test.reshape(a, b, -1)
-
-    a, b = y_train.shape
-    y_train = enc.transform(y_train.reshape(-1, 1)).toarray()
-    y_train = y_train.reshape(a, b, -1)
-
-    a, b = y_test.shape
-    y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
-    y_test = y_test.reshape(a, b, -1)
+    import numpy as np
+    import torch
+    from transformers import (
+        TimeSeriesTransformerConfig,
+        TimeSeriesTransformerForPrediction,
+        Trainer,
+        TrainingArguments,
+    )
+    from torch.utils.data import Dataset
 
 
+    # 1) Define a small Dataset that returns dicts of past/future pairs
+    class TimeSeriesDataset(Dataset):
+        def __init__(self, series: np.ndarray, context_length: int):
+            """
+            series: 1D array of floats, length N = context_length + n_forecast
+            We’ll slice windows of size context_length+1 and treat the last as label.
+            """
+            self.series = series
+            self.context_length = context_length
+            self.windows = [
+                series[i: i + context_length + 1]
+                for i in range(len(series) - context_length)
+            ]
 
-    # embedding_vector_length = 32
-    # model = Sequential()
-    # model.add(Embedding(int(np.max(X_train)) + 100, embedding_vector_length))
-    # model.add(LSTM(100))
-    # model.add(Dense(1, activation='sigmoid'))
-    # model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
+        def __len__(self):
+            return len(self.windows)
 
-    # from tensorflow.keras.layers import Input
-    # input_tensor = Input(shape=(10,))
+        def __getitem__(self, idx):
+            w = self.windows[idx]
+            return {
+                "past_values": torch.tensor(w[: self.context_length], dtype=torch.float32),
+                "future_values": torch.tensor(w[self.context_length:], dtype=torch.float32),
+                # no time features or static features in this simple example
+            }
 
 
-    window_len = X_train.shape[1]
-    future_len = y_train.shape[1]
+    # 2) Hyperparameters and config
+    context_length = 20
+    prediction_length = 1
+    input_size = 1  # univariate
+    d_model = 64
+    encoder_layers = 2
+    encoder_heads = 2
+    encoder_ffn_dim = 32
+    dropout = 0.1
 
-    scaler = StandardScaler().fit(X_train.reshape(-1, 1))
+    config = TimeSeriesTransformerConfig(
+        context_length=context_length,
+        prediction_length=prediction_length,
+        input_size=input_size,
+        lags_sequence=[1],  # only look back 1 step (fits small data)
+        num_time_features=0,  # no extra time‐of‐day features
+        num_static_categorical_features=0,
+        num_static_real_features=0,
+        d_model=d_model,
+        encoder_layers=encoder_layers,
+        encoder_attention_heads=encoder_heads,
+        encoder_ffn_dim=encoder_ffn_dim,
+        dropout=dropout,
+        use_cache=False,
+    )
 
-    X_train = scaler.transform(X_train.reshape(-1, 1))
-    X_train = X_train.reshape(-1, window_len)
+    # 3) Instantiate the for-prediction model
+    model = TimeSeriesTransformerForPrediction(config)  # :contentReference[oaicite:0]{index=0}
 
-    X_test = scaler.transform(X_test.reshape(-1, 1))
-    X_test = X_test.reshape(-1, window_len)
+    # 4) Prepare your synthetic data
+    #    Here we’ll forecast the next point of a sine wave
+    N = 2000
+    data = np.sin(np.linspace(0, 100, N + context_length + prediction_length))
+    dataset = TimeSeriesDataset(data, context_length)
+    # split train/val
+    train_size = int(0.8 * len(dataset))
+    train_ds, val_ds = torch.utils.data.random_split(dataset, [train_size, len(dataset) - train_size])
 
-    y_train = scaler.transform(y_train.reshape(-1, 1))
-    y_train = y_train.reshape(-1, future_len)
+    # 5) Set up Hugging Face Trainer
+    training_args = TrainingArguments(
+        output_dir="ts_transformer_out",
+        per_device_train_batch_size=32,
+        per_device_eval_batch_size=64,
+        num_train_epochs=10,
+        # evaluation_strategy="epoch",
+    )
 
-    y_test = scaler.transform(y_test.reshape(-1, 1))
-    y_test = y_test.reshape(-1, future_len)
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_ds,
+        eval_dataset=val_ds,
+    )
 
-    if LOAD_SAVED and os.path.exists(model_path):
-        print(f"Loading model from {model_path}")
-        model = load_model(model_path)
+    # 6) Train!
+    trainer.train()
 
-    else:
-        split = int(0.8 * len(X_train))
-        X_train, X_val = X_train[:split], X_train[split:]
-        y_train, y_val = y_train[:split], y_train[split:]
+    """
+    import numpy as np
+    import tensorflow as tf
+    from tensorflow.keras import layers, Model, Input
 
-        early_stop = EarlyStopping(
-            monitor='val_loss',  # which metric to watch
-            patience=5,  # how many epochs with no improvement to wait
-            min_delta=1e-4,  # minimum change to qualify as improvement
-            restore_best_weights=True  # at end of training, restore the best weights
-        )
 
-        model = Sequential()
-        model.add(keras.Input(shape=(WDW_LEN, 1)))
-        # TODO embedding layer causes issues
-        # model.add(Embedding(int(np.max(X_train)) + 100, 64))
-        model.add(Dense(64))
-        model.add(LSTM(64))
-        model.add(Dense(FUTURE_LEN))
-        model.compile(loss='mean_squared_error', optimizer='adam')
+    # ——— Positional Encoding Layer ———
+    class PositionalEncoding(layers.Layer):
+        def __init__(self, sequence_length, d_model):
+            super().__init__()
+            pos = np.arange(sequence_length)[:, np.newaxis]
+            i = np.arange(d_model)[np.newaxis, :]
+            angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
+            angle_rads = pos * angle_rates
+            # apply sin to even indices; cos to odd
+            pe = np.zeros((sequence_length, d_model))
+            pe[:, 0::2] = np.sin(angle_rads[:, 0::2])
+            pe[:, 1::2] = np.cos(angle_rads[:, 1::2])
+            self.pos_encoding = tf.cast(pe[np.newaxis, ...], tf.float32)
 
-        history = model.fit(X_train, y_train,
-                            validation_data=(X_val, y_val),
-                            epochs=300, batch_size=64, verbose=2,
-                            callbacks=[early_stop]
-                            )
-        model.save(model_path)
+        def call(self, x):
+            return x + self.pos_encoding[:, : tf.shape(x)[1], :]
+
+
+    # ——— Transformer Encoder Block ———
+    def transformer_encoder(inputs, head_size, num_heads, ff_dim, dropout=0.1):
+        # Multi-Head Self-Attention
+        x = layers.MultiHeadAttention(num_heads=num_heads, key_dim=head_size)(inputs, inputs)
+        x = layers.Dropout(dropout)(x)
+        x = layers.Add()([x, inputs])
+        x = layers.LayerNormalization(epsilon=1e-6)(x)
+        # Feed-Forward
+        y = layers.Dense(ff_dim, activation="relu")(x)
+        y = layers.Dense(inputs.shape[-1])(y)
+        y = layers.Dropout(dropout)(y)
+        out = layers.Add()([y, x])
+        return layers.LayerNormalization(epsilon=1e-6)(out)
+
+
+    # ——— Build the Model ———
+    seq_len = 20
+    feature_dim = 1
+
+    inp = Input(shape=(seq_len, feature_dim))
+    x = PositionalEncoding(sequence_length=seq_len, d_model=32)(inp)
+    x = transformer_encoder(x, head_size=32, num_heads=4, ff_dim=64, dropout=0.1)
+    x = layers.GlobalAveragePooling1D()(x)
+    out = layers.Dense(1, activation="linear")(x)
+
+    model = Model(inputs=inp, outputs=out)
+    model.compile(optimizer="adam", loss="mse", metrics=["mae"])
+    model.summary()
+
+    X_train = X_train[..., np.newaxis]
+    X_test = X_test[..., np.newaxis]
+
+    history = model.fit(
+        X_train, y_train,
+        validation_split=0.2,
+        epochs=100,
+        batch_size=32,
+        verbose=2
+    )
 
     y_pred = model.predict(X_test)
-    deltas = abs(y_pred - y_test)
+    y_pred = y_pred.reshape(-1)
+    y_test = y_test.reshape(-1)
+    deltas = np.abs(y_pred - y_test)
+    # deltas = np.sum(deltas, axis=2)
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
-    ax.plot(y_pred[:, 0], color="blue")
-    ax.plot(y_test[:, 0], color="red")
-    plt.tight_layout()
-    plt.show()
-
-    fig, ax = plt.subplots(3, 1, figsize=(10, 4), sharey=True)
-    ax[0].plot(deltas[:, 0], color="blue")
-    ax[1].plot(deltas[:, 1], color="red")
-    ax[2].plot(deltas[:, 1], color="green")
-    plt.tight_layout()
-    plt.show()
-
-    from scipy.ndimage import median_filter
-
-    filtered_1d = median_filter(deltas, size=15)
-
-    fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
-    ax.plot(filtered_1d[:, 0], color="blue")
+    ax.plot(deltas, color="blue")
     plt.tight_layout()
     plt.show()
 
@@ -614,10 +811,29 @@ if __name__ == "__main__":
     classes = np.unique(y_discrete)
     class_weights = compute_class_weight('balanced', classes=classes, y=y_discrete)
     sample_weights = class_weights[y_discrete.astype(int)]
-    auc = roc_auc_score(y_discrete, filtered_1d, sample_weight=sample_weights)
+    auc = roc_auc_score(y_discrete, deltas, sample_weight=sample_weights)
     print(f"ROC AUC Score: {auc:.3f}")
+    """
 
-    raise Exception
+    """
+    import torch
+    from transformers import TimeSeriesTransformerForPrediction
+
+    configuration = TimeSeriesTransformerConfig(prediction_length=1)
+    model = TimeSeriesTransformerForPrediction(configuration)
+
+    outputs = model(
+        past_values=batch["past_values"],
+        past_time_features=batch["past_time_features"],
+        past_observed_mask=batch["past_observed_mask"],
+        static_categorical_features=batch["static_categorical_features"],
+        static_real_features=batch["static_real_features"],
+        future_values=batch["future_values"],
+        future_time_features=batch["future_time_features"],
+    )
+    """
+
+
 
 
     # TODO
