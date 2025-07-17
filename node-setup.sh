@@ -4,7 +4,7 @@ OS=$(lsb_release -cs)
 
 # Install Docker
 sudo apt-get update
-sudo apt-get install -y ca-certificates apt-transport-https gnupg2 curl lsb-release htop fish inotify-tools cpufrequtils
+sudo apt-get install -y ca-certificates apt-transport-https gnupg2 curl lsb-release htop fish inotify-tools cpufrequtils python3
 
 # Add PPA repos
 sudo mkdir -m 0755 -p /etc/apt/keyrings

