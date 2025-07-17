@@ -10,3 +10,12 @@ data/current_data/
 data/models/
 data/figures/
 data/joblib/
+**/output*
+*.nfs*
+*.out
+*.pem
+*.pid
+*.dat
+*.bin
+*.zip
+*.deb
