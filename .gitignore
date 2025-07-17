@@ -1,2 +1,14 @@
 **/*.tbl
 *.zip
+**/__pycache__/
+**/trace.dat
+**/output*
+*.nfs*
+**/.ipynb*
+*.out
+*.pem
+*.pid
+*.dat
+*.bin
+*.zip
+*.deb
