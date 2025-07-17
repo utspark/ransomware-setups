@@ -1,3 +1,4 @@
+import io
 from importlib.metadata import files
 from pathlib import Path
 
@@ -70,34 +71,38 @@ def write_out_syscalls(syscall_dict: dict, syscall_lines: list) -> None:
     filtered = [s for s in filtered if "trace-cmd" not in s]
 
     syscall_ints = []
+    syscall_time = []
 
     for row in filtered:
         parts = row.split()
 
         syscall_text = parts[3][:-1]
+        syscall_ts = parts[2][:-1]
 
         try:
             syscall_ints.append(syscall_dict[syscall_text])
+            syscall_time.append(float(syscall_ts))
         except KeyError:
             substr = "sys_"
-            first = next((s for s in parts if substr in s), None)
+            index, first = next(((i, s) for i, s in enumerate(parts) if substr in s), (None, None))
 
             if first:
                 first = first[:-1]
-
+                ts = parts[index - 1][:-1]
                 # if first == '112882.623291':
                 #     print("hi")
 
                 syscall_ints.append(syscall_dict[first])
+                syscall_time.append(float(ts))
 
             else:
                 print(f"Invalid syscall {row}")
                 continue
                 # raise ValueError(f"Invalid syscall: {row}")
 
-
-    with open(output_file_path, 'w', encoding='utf-8') as f:
-        f.write(" ".join(map(str, syscall_ints)))
+        with open(output_file_path, 'w', encoding='utf-8') as f:
+            f.write(" ".join(map(str, syscall_ints)) + "\n")
+            f.write(" ".join(map(str, syscall_time)))
 
     return
 
@@ -166,13 +171,17 @@ if __name__ == "__main__":
 
 
     trace_list = []
+    time_list = []
 
     for file in file_list:
         file_path = cwd / file
 
-        with open(file_path, "r", newline="") as f:
-            arr = np.loadtxt(f, dtype=int)
-            trace_list.append(arr)
+        with open(file, "r", newline="") as f:
+            lines = f.readlines()
+            arr1 = np.loadtxt(io.StringIO(lines[0]), dtype=int)
+            arr2 = np.loadtxt(io.StringIO(lines[1]), dtype=float)
+            trace_list.append(arr1)
+            time_list.append(arr2)
 
     # TODO comment exception just to pause the script
     raise Exception
@@ -187,6 +196,13 @@ if __name__ == "__main__":
     ax.plot(trace_list[0][0:2000], color="blue", marker='o', linestyle="None")
     ax.plot(trace_list[1][0:2000], color="red", marker='o', linestyle="None")
     ax.plot(trace_list[2][0:2000], color="green", marker='o', linestyle="None")
+    plt.tight_layout()
+    plt.show()
+
+    fig, ax = plt.subplots(3, 1, figsize=(10, 4), sharey=True)
+    ax[0].plot(time_list[0], trace_list[0], color="blue", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    ax[1].plot(time_list[1], trace_list[1], color="red", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    ax[2].plot(time_list[2], trace_list[2], color="green", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
     plt.tight_layout()
     plt.show()
 
