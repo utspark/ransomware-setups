@@ -65,7 +65,7 @@ def form_syscall_dict() -> dict:
     return syscall_dict
 
 
-def write_out_syscalls(syscall_dict: dict, syscall_lines: list) -> None:
+def write_out_syscalls(syscall_dict: dict, syscall_lines: list, output_file_path: str) -> None:
     filtered = [s.replace("_enter_", "_") for s in syscall_lines if "_exit_" not in s]
     filtered = [s for s in filtered if "monitor_syscall" not in s]
     filtered = [s for s in filtered if "trace-cmd" not in s]
@@ -113,60 +113,52 @@ if __name__ == "__main__":
     if TRANSLATE_SYSCALL_FILES:
         syscall_dict = form_syscall_dict()
 
-        file_list = [
-            "syscall_data/AES_O_noexfil_comb_system",
-            "syscall_data/AES_WA_noexfil_comb_system",
-            "syscall_data/AES_WB_noexfil_comb_system",
-            # "syscall_data/perf_syscalls_ransom",
-            # "syscall_data/strace_syscalls_ransom",
-        ]
+        # file_list = [
+        #     "syscall_data/AES_O_noexfil_comb_system",
+        #     "syscall_data/AES_WA_noexfil_comb_system",
+        #     "syscall_data/AES_WB_noexfil_comb_system",
+        #     # "syscall_data/perf_syscalls_ransom",
+        #     # "syscall_data/strace_syscalls_ransom",
+        # ]
 
         file_list = [
-            "ftrace/AES_O_exfil_aws_comb_system1",
-            "ftrace/AES_O_exfil_aws_comb_system2",
-            "ftrace/AES_O_exfil_none_comb_system",
-            "ftrace/AES_O_exfil_sftp_comb_system1",
-            "ftrace/AES_O_exfil_sftp_comb_system2",
+            "ftrace/idle_20_trace_system_timed",
 
-            "ftrace/AES_WA_exfil_aws_comb_system1",
-            "ftrace/AES_WA_exfil_aws_comb_system2",
-            "ftrace/AES_WA_exfil_none_comb_system",
-            "ftrace/AES_WA_exfil_sftp_comb_system1",
-            "ftrace/AES_WA_exfil_sftp_comb_system2",
-
-            "ftrace/AES_WB_exfil_aws_comb_system",
-            "ftrace/AES_WB_exfil_aws_comb_system",
-            "ftrace/AES_WB_exfil_none_comb_system",
-            "ftrace/AES_WB_exfil_sftp_comb_system",
-            "ftrace/AES_WB_exfil_sftp_comb_system1",
-
-            "ftrace/IDLE_SYSTEM",
-            "ftrace/idle_system_trace_comb_system2",
-            "ftrace/AES_O_exfil_none_comb_system_interval",
-            "ftrace/AES_O_exfil_none_repeat_system_interval",
+            "ftrace/AES_O_exfil_aws1_system_timed",
+            "ftrace/AES_O_exfil_aws2_system_timed",
+            "ftrace/AES_O_exfil_sftp1_system_timed",
+            "ftrace/AES_O_exfil_sftp2_system_timed",
+            "ftrace/gzip_system_timed",
         ]
 
         for base_file in file_list:
             input_file_path = Path("./" + base_file)
             output_file_path = Path("./" + base_file + "_ints.txt")
 
+            directory = Path("/path/to/your/dir")
+            filename = "my_file.txt"
+            file_path = directory / filename
+
+            if output_file_path.is_file():
+                continue
+
             syscall_lines = read_tbl_into_strings(input_file_path)
 
             target = "cpus=32"
             idx = next((i for i, s in enumerate(syscall_lines) if s == target), None) + 1
             syscall_lines = syscall_lines[idx:]
-            write_out_syscalls(syscall_dict, syscall_lines)
+            write_out_syscalls(syscall_dict, syscall_lines, output_file_path)
 
 
     cwd = Path.cwd()
     file_list = [
-        # "ftrace/IDLE_SYSTEM_ints.txt",
-        "ftrace/idle_system_trace_comb_system2_ints.txt",
-        "ftrace/AES_O_exfil_none_repeat_system_interval_ints.txt",
-        # "ftrace/AES_O_exfil_none_comb_system_interval_ints.txt",
-        "ftrace/AES_O_exfil_aws_comb_system1_ints.txt",
-        "ftrace/AES_WB_exfil_none_comb_system_ints.txt",
+        "ftrace/idle_20_trace_system_timed_ints.txt",
 
+        "ftrace/AES_O_exfil_aws1_system_timed_ints.txt",
+        "ftrace/AES_O_exfil_aws2_system_timed_ints.txt",
+        "ftrace/AES_O_exfil_sftp1_system_timed_ints.txt",
+        "ftrace/AES_O_exfil_sftp2_system_timed_ints.txt",
+        "ftrace/gzip_system_timed_ints.txt",
     ]
 
 
@@ -186,25 +178,27 @@ if __name__ == "__main__":
     # TODO comment exception just to pause the script
     raise Exception
 
+    fig, ax = plt.subplots(3, 1, figsize=(10, 4), sharey=True)
+    ax[0].plot(time_list[0], trace_list[0], color="blue", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    ax[1].plot(time_list[1], trace_list[1], color="red", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    ax[2].plot(time_list[5], trace_list[5], color="green", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    plt.tight_layout()
+    plt.show()
+
     fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
     ax.plot(trace_list[1], color="blue", marker='o', linestyle="None")
     ax.plot(trace_list[3], color="green", marker='o', linestyle="None")
     plt.tight_layout()
     plt.show()
 
-    fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
+    fig, ax = plt.subplots(3, 1, figsize=(10, 4), sharey=True)
     ax.plot(trace_list[0][0:2000], color="blue", marker='o', linestyle="None")
     ax.plot(trace_list[1][0:2000], color="red", marker='o', linestyle="None")
-    ax.plot(trace_list[2][0:2000], color="green", marker='o', linestyle="None")
+    ax.plot(trace_list[5][0:2000], color="green", marker='o', linestyle="None")
     plt.tight_layout()
     plt.show()
 
-    fig, ax = plt.subplots(3, 1, figsize=(10, 4), sharey=True)
-    ax[0].plot(time_list[0], trace_list[0], color="blue", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
-    ax[1].plot(time_list[1], trace_list[1], color="red", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
-    ax[2].plot(time_list[2], trace_list[2], color="green", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
-    plt.tight_layout()
-    plt.show()
+
 
     fig, ax = plt.subplots(3, 1, figsize=(10, 4), sharey=True)
     ax[0].plot(trace_list[0], color="blue", marker='o', linestyle="None")
