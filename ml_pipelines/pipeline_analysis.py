@@ -3,8 +3,10 @@ from sklearn.covariance import EllipticEnvelope
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import roc_auc_score
 from sklearn.neighbors import LocalOutlierFactor
-from sklearn.svm import OneClassSVM
+from sklearn.pipeline import make_pipeline
+from sklearn.svm import OneClassSVM, SVC
 from sklearn.utils import compute_class_weight
+from xgboost import XGBClassifier
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -14,11 +16,17 @@ import os
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, classification_report
+from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, classification_report, log_loss
+from sklearn.tree import DecisionTreeClassifier
+
+from tensorflow.keras.utils import to_categorical
+
 
 from ml_pipelines.processing import form_one_hot_encoder
 from ml_pipelines.timeseries_processing import ModelSettings, RegressionData
 import numpy as np
+import pandas as pd
+import seaborn as sns
 
 import tensorflow as tf
 from tensorflow.keras.datasets import imdb
@@ -28,6 +36,42 @@ from tensorflow.keras.layers import LSTM, Reshape, Input
 from tensorflow.keras.layers import Embedding
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.preprocessing import sequence
+
+
+def roc_auc_plot(y_test: np.array, y_scores: np.array, sample_weight=None) -> None:
+    auc = roc_auc_score(y_test, y_scores, sample_weight=sample_weight)
+
+    fpr, tpr, thresholds = roc_curve(y_test, y_scores)
+
+    plt.figure()
+    plt.plot(fpr, tpr, label=f"ROC curve (area = {auc:.3f})")
+    plt.plot([0, 1], [0, 1], linestyle="--", label="Random chance")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("Receiver Operating Characteristic (ROC) Curve")
+    plt.legend(loc="lower right")
+    plt.grid(True)
+    plt.show(block=True)
+
+    return
+
+
+def score_plot(y_pred: np.array, malware_test: np.array):
+    len_benign = len(y_pred) - len(malware_test)
+    benign_x = [i for i in range(len_benign)]
+    benign_y = y_pred[benign_x]
+
+    len_malware = len(malware_test)
+    malware_x = [i for i in range(len_benign, len_benign + len_malware)]
+    malware_y = y_pred[malware_x]
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
+    ax.plot(benign_x, benign_y, color="blue")
+    ax.plot(malware_x, malware_y, color="red")
+    plt.tight_layout()
+    plt.show(block=True)
+
+    return
 
 
 def regression_error(model_settings: ModelSettings, regression_data: RegressionData):
@@ -137,31 +181,72 @@ def regression_error(model_settings: ModelSettings, regression_data: RegressionD
     deltas = np.sum(deltas, axis=2)
 
     if model_settings.plot:
-        len_benign = len(y_test) - len(mapped_malware_wdws)
-        benign_x = [i for i in range(len_benign)]
-        benign_y = deltas[benign_x]
+        score_plot(deltas, mapped_malware_wdws)
 
-        len_malware = len(mapped_malware_wdws)
-        malware_x = [i for i in range(len_benign, len_benign + len_malware)]
-        malware_y = deltas[malware_x]
-
-        fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
-        # ax.plot(range(0, len(len_benign)), deltas[:len_benign], color="blue")
-        ax.plot(benign_x, benign_y, color="blue")
-        ax.plot(malware_x, malware_y, color="red")
-        plt.tight_layout()
-        plt.show()
+        # len_benign = len(y_test) - len(mapped_malware_wdws)
+        # benign_x = [i for i in range(len_benign)]
+        # benign_y = deltas[benign_x]
+        #
+        # len_malware = len(mapped_malware_wdws)
+        # malware_x = [i for i in range(len_benign, len_benign + len_malware)]
+        # malware_y = deltas[malware_x]
+        #
+        # fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
+        # # ax.plot(range(0, len(len_benign)), deltas[:len_benign], color="blue")
+        # ax.plot(benign_x, benign_y, color="blue")
+        # ax.plot(malware_x, malware_y, color="red")
+        # plt.tight_layout()
+        # plt.show(block=True)
 
     y_discrete = np.zeros((len(y_test)))
     y_discrete[len(y_discrete) - len(malware_futures):] = 1
     classes = np.unique(y_discrete)
     class_weights = compute_class_weight('balanced', classes=classes, y=y_discrete)
     sample_weights = class_weights[y_discrete.astype(int)]
-    auc = roc_auc_score(y_discrete, deltas, sample_weight=sample_weights)
+
+    y_test = y_discrete
+    y_scores = deltas
+    auc = roc_auc_score(y_test, y_scores, sample_weight=sample_weights)
     print(f"ROC AUC Score: {auc:.3f}")
 
+    if model_settings.plot:
+        roc_auc_plot(y_test, y_scores, sample_weights)
 
-def supervised_error(model_settings: ModelSettings, benign: np.array, malware: np.array):
+    return
+
+
+class LSTMWrapper:
+    """
+    A simple example class.
+
+    Attributes:
+        name (str): a descriptive name.
+        value (int): some numeric value.
+    """
+
+    def __init__(self, X_train: np.array):
+        embedding_vector_length = 32
+        self.model = Sequential()
+        self.model.add(Embedding(int(np.max(X_train)) + 100, embedding_vector_length))
+        self.model.add(LSTM(100))
+        self.model.add(Dense(1, activation='sigmoid'))
+        self.model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+    def fit(self, X: np.array, y: np.array) -> None:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.3, random_state=42, stratify=y
+        )
+        self.model.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=5, batch_size=64)
+
+    def predict(self, X_test: np.array) -> np.array:
+        probas = self.model.predict(X_test)
+        return (probas > 0.5).astype(int).reshape(-1)
+
+    def predict_proba(self, X_test: np.array) -> np.array:
+        return self.model.predict(X_test)
+
+
+def binary_supervised_error(model_settings: ModelSettings, benign: np.array, malware: np.array) -> None:
     model = model_settings.model_type
 
     VALID_MODELS = {"svc", "xgb", "lstm"}
@@ -204,18 +289,7 @@ def supervised_error(model_settings: ModelSettings, benign: np.array, malware: n
 
     else: # model == "lstm"
         tf.random.set_seed(42)
-
         pipeline = LSTMWrapper(X_train)
-
-        # embedding_vector_length = 32
-        # model = Sequential()
-        # model.add(Embedding(int(np.max(X)) + 1, embedding_vector_length))
-        # model.add(LSTM(100))
-        # model.add(Dense(1, activation='sigmoid'))
-        # model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-        # model.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=10, batch_size=64)
-        # print(model.summary())
-
 
     pipeline.fit(X_train, y_train)
 
@@ -235,17 +309,9 @@ def supervised_error(model_settings: ModelSettings, benign: np.array, malware: n
     print(f"ROC AUC Score: {auc:.3f}")
 
     if model_settings.plot:
-        fpr, tpr, thresholds = roc_curve(y_test, y_scores)
+        roc_auc_plot(y_test, y_scores, sample_weights)
 
-        plt.figure()
-        plt.plot(fpr, tpr, label=f"ROC curve (area = {auc:.3f})")
-        plt.plot([0, 1], [0, 1], linestyle="--", label="Random chance")
-        plt.xlabel("False Positive Rate")
-        plt.ylabel("True Positive Rate")
-        plt.title("Receiver Operating Characteristic (ROC) Curve")
-        plt.legend(loc="lower right")
-        plt.grid(True)
-        plt.show()
+    return
 
 
 def unsupervised_error(model_settings: ModelSettings, benign: np.array, malware: np.array):
@@ -262,8 +328,6 @@ def unsupervised_error(model_settings: ModelSettings, benign: np.array, malware:
     if model_settings.preproc_approach != "windowed" and model_settings.model_type == "lstm":
         raise ValueError(f"preproc mode must be one of windowed when using lstm")
 
-    # X_train, X_test, y_test = unsupervised_preproc(preproc_mode)
-
     X_train, X_test = train_test_split(
         benign, test_size=0.3, random_state=42
     )
@@ -275,7 +339,6 @@ def unsupervised_error(model_settings: ModelSettings, benign: np.array, malware:
     scaler = StandardScaler().fit(X_train)
     X_train = scaler.transform(X_train)
     X_test = scaler.transform(X_test)
-
 
     if model_settings.model_type == "isolation_forest":
         model = IsolationForest(contamination=0.01)
@@ -298,7 +361,74 @@ def unsupervised_error(model_settings: ModelSettings, benign: np.array, malware:
     auc = roc_auc_score(y_test, y_pred, sample_weight=sample_weights)
     print(f"ROC AUC Score: {auc:.3f}")
 
-    fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
-    ax.plot(y_pred, marker='o', linestyle="None")
-    plt.tight_layout()
-    plt.show()
+    if model_settings.plot:
+        score_plot(y_pred, malware)
+        roc_auc_plot(y_test, y_pred, sample_weights)
+
+    return
+
+
+def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.3, random_state=42, stratify=y
+    )
+
+    classes = np.unique(y_train)
+    class_weights = compute_class_weight('balanced', classes=classes, y=y_train)
+    sample_weights = class_weights[y_train.astype(int)]
+
+    from sklearn.preprocessing import label_binarize
+    from sklearn.preprocessing import LabelBinarizer
+
+    lb = LabelBinarizer()
+    y_train_ohe = lb.fit(y_train)
+
+    y_train_ohe = lb.transform(y_train)
+    y_test_ohe = lb.transform(y_test)
+    # encoded_y_train = to_categorical(y_train, num_classes=len(np.unique(y_train)))
+    # encoded_y_test = to_categorical(y_test, num_classes=len(np.unique(y_test)))
+
+    dtree_model = DecisionTreeClassifier(max_depth=5).fit(X_train, y_train_ohe, sample_weight=sample_weights)
+    y_pred_ohe = dtree_model.predict_proba(X_test)
+
+    nu = [arr[:, 0] for arr in y_pred_ohe]
+    nu = np.concatenate((nu), axis=1)
+
+    classes = np.unique(y_test)
+    class_weights = compute_class_weight('balanced', classes=classes, y=y_test)
+    sample_weights = class_weights[y_test.astype(int)]
+
+    # cm = confusion_matrix(y_test, y_pred)
+
+    loss_ohe = log_loss(y_test_ohe, y_pred_ohe, sample_weight=sample_weights)
+    print(f"Log Loss Score: {loss_ohe:.3f}")
+
+    y_pred = lb.inverse_transform(y_pred_ohe)
+
+    print(classification_report(y_test, y_pred, sample_weight=sample_weights))
+
+    if model_settings.plot:
+        cm = confusion_matrix(y_test, y_pred)
+
+
+        cm_df = pd.DataFrame(cm)
+
+        # 4) Plot with seaborn
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(
+            cm_df,
+            annot=True,  # write the counts (or rates) in each cell
+            fmt='d',  # integer format; use '.2f' if you normalized
+            cmap='Blues',  # color map
+            cbar_kws={'label': 'Count'}
+        )
+        plt.ylabel('Actual')
+        plt.xlabel('Predicted')
+        plt.title('Confusion Matrix')
+        plt.tight_layout()
+        plt.show()
+
+    return
+
+
+

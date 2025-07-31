@@ -29,8 +29,8 @@ class ModelSettings:
     future_length: int = 1
     max_trace_length: int = None
     system_calls: np.ndarray = field(default_factory=lambda: np.empty((0,)))
-    model_path: Path = None
     model_type: str = None
+    model_path: Path = None
     new_model: bool = False
     plot: bool = False
 
