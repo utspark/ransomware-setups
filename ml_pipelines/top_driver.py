@@ -569,7 +569,15 @@ if __name__ == "__main__":
 
     # regression_error()
 
-    raise Exception
+    # raise Exception
+
+    # TODO start here
+    # https://huggingface.co/blog/time-series-transformers
+    # https://docs.pytorch.org/tutorials/beginner/basics/quickstart_tutorial.html
+    # https://www.geeksforgeeks.org/python/start-learning-pytorch-for-beginners/
+
+
+    # raise Exception
 
     from datasets import load_dataset
 
@@ -577,8 +585,6 @@ if __name__ == "__main__":
 
     train_dataset = dataset["train"]
     test_dataset = dataset["test"]
-
-    # raise Exception
 
     train_example = dataset['train'][0]
     train_example.keys()
@@ -595,6 +601,14 @@ if __name__ == "__main__":
         validation_example["target"]
     )
 
+    # import matplotlib.pyplot as plt
+    #
+    # figure, axes = plt.subplots()
+    # axes.plot(train_example["target"], color="blue")
+    # axes.plot(validation_example["target"], color="red", alpha=0.5)
+    #
+    # plt.show()
+
     from functools import lru_cache
 
     import pandas as pd
@@ -609,7 +623,7 @@ if __name__ == "__main__":
         batch["start"] = [convert_to_pandas_period(date, freq) for date in batch["start"]]
         return batch
 
-    ### *** Model definition
+
 
     from functools import partial
 
@@ -618,9 +632,9 @@ if __name__ == "__main__":
 
     from gluonts.time_feature import get_lags_for_frequency
 
-    # lags_sequence = get_lags_for_frequency(freq)
+    lags_sequence = get_lags_for_frequency(freq)
     # lags_sequence = [i for i in range(prediction_length)]
-    lags_sequence = [1]
+    # lags_sequence = [1]
     print(lags_sequence)
 
     from gluonts.time_feature import time_features_from_frequency_str
@@ -961,6 +975,8 @@ if __name__ == "__main__":
     batch = next(iter(train_dataloader))
     for k, v in batch.items():
         print(k, v.shape, v.type())
+
+    raise Exception
 
     ### *** Single forward pass
     outputs = model(
