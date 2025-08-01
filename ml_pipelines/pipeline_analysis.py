@@ -28,6 +28,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from sklearn.preprocessing import label_binarize
+from sklearn.preprocessing import LabelBinarizer
+
 import tensorflow as tf
 from tensorflow.keras.datasets import imdb
 from tensorflow.keras.models import Sequential, load_model
@@ -369,6 +372,8 @@ def unsupervised_error(model_settings: ModelSettings, benign: np.array, malware:
 
 
 def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
+    y = y.astype(int)
+
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.3, random_state=42, stratify=y
     )
@@ -377,40 +382,25 @@ def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
     class_weights = compute_class_weight('balanced', classes=classes, y=y_train)
     sample_weights = class_weights[y_train.astype(int)]
 
-    from sklearn.preprocessing import label_binarize
-    from sklearn.preprocessing import LabelBinarizer
-
     lb = LabelBinarizer()
-    y_train_ohe = lb.fit(y_train)
-
-    y_train_ohe = lb.transform(y_train)
+    lb.fit(y_train)
     y_test_ohe = lb.transform(y_test)
-    # encoded_y_train = to_categorical(y_train, num_classes=len(np.unique(y_train)))
-    # encoded_y_test = to_categorical(y_test, num_classes=len(np.unique(y_test)))
 
-    dtree_model = DecisionTreeClassifier(max_depth=5).fit(X_train, y_train_ohe, sample_weight=sample_weights)
+    dtree_model = DecisionTreeClassifier(max_depth=5).fit(X_train, y_train, sample_weight=sample_weights)
     y_pred_ohe = dtree_model.predict_proba(X_test)
-
-    nu = [arr[:, 0] for arr in y_pred_ohe]
-    nu = np.concatenate((nu), axis=1)
 
     classes = np.unique(y_test)
     class_weights = compute_class_weight('balanced', classes=classes, y=y_test)
     sample_weights = class_weights[y_test.astype(int)]
 
-    # cm = confusion_matrix(y_test, y_pred)
-
     loss_ohe = log_loss(y_test_ohe, y_pred_ohe, sample_weight=sample_weights)
     print(f"Log Loss Score: {loss_ohe:.3f}")
-
     y_pred = lb.inverse_transform(y_pred_ohe)
 
     print(classification_report(y_test, y_pred, sample_weight=sample_weights))
 
     if model_settings.plot:
-        cm = confusion_matrix(y_test, y_pred)
-
-
+        cm = confusion_matrix(y_test, y_pred, sample_weight=sample_weights, normalize='true')
         cm_df = pd.DataFrame(cm)
 
         # 4) Plot with seaborn
@@ -418,15 +408,15 @@ def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
         sns.heatmap(
             cm_df,
             annot=True,  # write the counts (or rates) in each cell
-            fmt='d',  # integer format; use '.2f' if you normalized
+            fmt='.2f',  # integer format; use '.2f' if you normalized
             cmap='Blues',  # color map
-            cbar_kws={'label': 'Count'}
+            cbar_kws={'label': 'Normalized Count'}
         )
         plt.ylabel('Actual')
         plt.xlabel('Predicted')
         plt.title('Confusion Matrix')
         plt.tight_layout()
-        plt.show()
+        plt.show(block=True)
 
     return
 

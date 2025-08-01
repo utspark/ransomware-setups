@@ -194,29 +194,20 @@ if __name__ == "__main__":
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     benign_path = cwd / "ftrace/benign"
-    # benign_list = [
-    #     "idle_20_trace_system_timed_ints.txt",
-    #     # gzip_system_timed_ints.txt",
-    # ]
     benign_dict = {
         "idle_20_trace_system_timed_ints.txt": 0,
-        # gzip_system_timed_ints.txt",
+        # "gzip_system_timed_ints.txt": 1,
     }
-
+    benign_list = list(benign_dict.keys())
 
     malware_path = cwd / "ftrace/malware"
-    # malware_list = [
-    #     "AES_O_exfil_aws1_system_timed_ints.txt",
-    #     # "AES_O_exfil_aws2_system_timed_ints.txt",
-    #     # "AES_O_exfil_sftp1_system_timed_ints.txt",
-    #     # "AES_O_exfil_sftp2_system_timed_ints.txt",
-    # ]
     malware_dict = {
         "AES_O_exfil_aws1_system_timed_ints.txt": 1,
         # "AES_O_exfil_aws2_system_timed_ints.txt",
         "AES_O_exfil_sftp1_system_timed_ints.txt": 2,
         # "AES_O_exfil_sftp2_system_timed_ints.txt",
     }
+    malware_list = list(malware_dict.keys())
 
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # *** Pipeline Execution ++++++++++++++++++++++++++++++++++++++++++++++++++++++
