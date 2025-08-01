@@ -1,5 +1,30 @@
+import matplotlib
+from xgboost import XGBClassifier
+
+matplotlib.use("Qt5Agg")
+import matplotlib.pyplot as plt
+plt.ion()
+
+import os
+import io
+
+from pathlib import Path
+
 import numpy as np
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, classification_report
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.utils import compute_class_weight
+
+import tensorflow as tf
+from tensorflow.keras.datasets import imdb
+from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import LSTM, Reshape, Input
+from tensorflow.keras.layers import Embedding
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.preprocessing import sequence
+
 
 
 def form_array_from_files(child_path, file_subsample=-1) -> np.array:
@@ -52,6 +77,28 @@ def increase_padding(pad_target, max_len) -> np.array:
     padded = np.concatenate((pad_target, pad_array), axis=1)
 
     return padded
+
+
+def unsupervised_preproc(mode: str) -> (np.array, np.array, np.array):
+    benign, malware = preproc_transform(mode)
+
+    X = benign
+    y = np.zeros(len(X)) + 1
+
+    X_train, X_test, _, y_test = train_test_split(
+        X, y, test_size=0.3, random_state=42, stratify=y
+    )
+
+    X_test = np.concatenate((X_test, malware))
+
+    malware_labels = np.zeros((len(malware))) - 1
+    y_test = np.concatenate((y_test, malware_labels))
+
+    return X_train, X_test, y_test
+
+
+
+
 
 
 

@@ -176,7 +176,7 @@ def window_samples():
         wdw_list = []
 
         for trace in trace_list:
-            wdws, _ = form_windows(trace, 10, 1, future_size=0, future_stride=1)
+            wdws, _ = mpp.form_windows(trace, 10, 1, future_size=0, future_stride=1)
             wdw_list.append(wdws)
 
         wdws = np.concatenate(wdw_list)
@@ -539,27 +539,7 @@ def regression_error():
 
 
 
-def form_windows(array, window_size, window_stride, future_size=0, future_stride=1):
-    """
-    Returns Numpy array of sliding windows of a Numpy array (timeseries).
-    https://towardsdatascience.com/fast-and-robust-sliding-window-vectorization-with-numpy-3ad950ed62f5
-    """
 
-    last_window = len(array) - window_size - future_size * future_stride + 1
-
-    future_idxs = (
-            np.expand_dims(np.arange(0, future_size * future_stride, future_stride), 0)
-            + np.expand_dims(np.arange(window_size, window_size + last_window, window_stride), 1)
-    )
-    futures = array[future_idxs]
-
-    window_idxs = (
-            np.expand_dims(np.arange(window_size), 0)
-            + np.expand_dims(np.arange(0, last_window, window_stride), 1)
-    )
-    windows = array[window_idxs]
-
-    return windows, futures
 
 
 

@@ -1,0 +1,173 @@
+from pathlib import Path
+from dataclasses import dataclass, field
+
+import numpy as np
+import io
+
+
+
+@dataclass
+class RegressionData:
+    """
+    A simple data container for four NumPy arrays.
+    Each array defaults to an empty 1D float array if not provided.
+    """
+    benign_windows: np.ndarray = field(default_factory=lambda: np.empty((0,)))
+    benign_futures: np.ndarray = field(default_factory=lambda: np.empty((0,)))
+    malware_windows: np.ndarray = field(default_factory=lambda: np.empty((0,)))
+    malware_futures: np.ndarray = field(default_factory=lambda: np.empty((0,)))
+
+
+@dataclass
+class ModelSettings:
+    """
+    A simple data container for model preprocessing settings.
+    """
+    problem_formulation: str = "regression"
+    preproc_approach: str = None
+    window_length: int = 20
+    future_length: int = 1
+    max_trace_length: int = None
+    system_calls: np.ndarray = field(default_factory=lambda: np.empty((0,)))
+    model_type: str = None
+    model_path: Path = None
+    new_model: bool = False
+    plot: bool = False
+
+
+def get_file_arrays(file_path: Path, file_list=None) -> list:
+    trace_list = []
+
+    paths = [p for p in file_path.iterdir() if p.is_file()]
+    paths.sort()
+
+    if file_list is not None:
+        file_set = set(file_list)
+        filtered = [path for path in paths if path.name in file_set]
+        paths = filtered
+
+    for file_name in paths:
+        print(file_name.name)
+        file_path = str(file_name)
+
+        with open(file_path, "r", newline="") as f:
+            lines = f.readlines()
+            arr1 = np.loadtxt(io.StringIO(lines[0]), dtype=int)
+            # arr2 = np.loadtxt(io.StringIO(lines[1]), dtype=float)
+            trace_list.append(arr1)
+
+    return trace_list
+
+
+def trace_list_to_windows(model_settings: ModelSettings, trace_list: list):
+    def form_windows(array, window_size, window_stride, future_size=0, future_stride=1):
+        """
+        Returns Numpy array of sliding windows of a Numpy array (timeseries).
+        https://towardsdatascience.com/fast-and-robust-sliding-window-vectorization-with-numpy-3ad950ed62f5
+        """
+
+        last_window = len(array) - window_size - future_size * future_stride + 1
+
+        future_idxs = (
+                np.expand_dims(np.arange(0, future_size * future_stride, future_stride), 0)
+                + np.expand_dims(np.arange(window_size, window_size + last_window, window_stride), 1)
+        )
+        futures = array[future_idxs]
+
+        window_idxs = (
+                np.expand_dims(np.arange(window_size), 0)
+                + np.expand_dims(np.arange(0, last_window, window_stride), 1)
+        )
+        windows = array[window_idxs]
+
+        return windows, futures
+
+    wdw_list = []
+    future_list = []
+
+    for trace in trace_list:
+        wdws, futures = form_windows(
+            trace,
+            model_settings.window_length,
+            1,
+            model_settings.future_length,
+            future_stride=1)
+
+        wdw_list.append(wdws)
+        future_list.append(futures)
+
+    if len(wdw_list) > 1:
+        wdws = np.concatenate(wdw_list)
+        futures = np.concatenate(future_list)
+
+    else:
+        wdws = wdw_list[0]
+        futures = future_list[0]
+
+    return wdws, futures
+
+
+def get_windows_and_futures(model_settings: ModelSettings, file_dir: Path, file_list=None):
+    trace_list = get_file_arrays(file_dir, file_list)
+    windows, futures = trace_list_to_windows(model_settings, trace_list)
+
+    return windows, futures
+
+
+def full_trace_samples(model_settings: ModelSettings, file_dir: Path, file_list=None):
+    trace_list = get_file_arrays(file_dir, file_list)
+    trace_list = [arr[:model_settings.max_trace_length] for arr in trace_list]
+
+    # TODO think of proper padding approach
+    padded = [
+        np.pad(a,
+               pad_width=(0, model_settings.max_trace_length - a.shape[0]),
+               mode='constant',
+               constant_values=0)
+        for a in trace_list
+    ]
+
+    padded_matrix = np.vstack(padded)
+
+    return padded_matrix
+
+
+def preproc_transform(model_settings: ModelSettings, file_dir: Path, file_list=None) -> tuple:
+    mode = model_settings.preproc_approach
+    VALID_MODES = {"zero-padded_trace", "syscall_frequency", "windowed_features", "windowed"}
+
+    if mode not in VALID_MODES:
+        raise ValueError(f"mode must be one of {sorted(VALID_MODES)!r}, got {mode!r}")
+
+    if mode == "zero-padded_trace":
+        transformed = full_trace_samples(model_settings, file_dir, file_list)
+
+    elif mode == "syscall_frequency":
+        transformed = full_trace_samples(model_settings, file_dir, file_list)
+        transformed = np.sum(transformed[..., None] == model_settings.syscalls, axis=1)
+
+    elif mode == "windowed_features":
+        windows, _ = get_windows_and_futures(model_settings, file_dir, file_list)
+
+        feature_array = np.zeros((windows.shape[0], 6))
+        feature_array[:, 0] = np.max(windows, axis=1)
+        feature_array[:, 1] = np.min(windows, axis=1)
+        feature_array[:, 2] = np.median(windows, axis=1)
+        feature_array[:, 3] = np.mean(windows, axis=1)
+        feature_array[:, 4] = np.ptp(windows, axis=1)
+        feature_array[:, 5] = np.std(windows, axis=1)
+
+        transformed = feature_array
+
+    else:  # mode == "windowed"
+        windows, futures = get_windows_and_futures(model_settings, file_dir, file_list)
+        transformed = (windows, futures)
+
+    return transformed
+
+
+def get_system_call_map(model_settings: ModelSettings, file_dir: Path, file_list=None) -> np.array:
+    transformed = full_trace_samples(model_settings, file_dir, file_list)
+    system_calls = np.unique(transformed)
+
+    return np.sort(system_calls)
