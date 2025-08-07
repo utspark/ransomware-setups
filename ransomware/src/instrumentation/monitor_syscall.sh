@@ -6,8 +6,9 @@ exfil=(aws)
 order=()
 
 target_dir='/mnt/home/Data'
+output_dir='../outputs'
 
-mkdir -p outputs
+mkdir -p $output_dir
 
 idle=$1
 
@@ -31,7 +32,7 @@ run_ransomware() {
 	else
 		run_num=""
 	fi
-	sudo trace-cmd report > outputs/$1_$2_$4${run_num}_system_marker
+	sudo trace-cmd report > ${output_dir}/$1_$2_$4${run_num}_system_marker
 	if [ $1 != "idle" ]; then
 		./main.py -p $target_dir -a $1 -w $2 -d -v 24184
 	fi
@@ -57,7 +58,7 @@ run_ransomware_timed() {
 	
 	sudo trace-cmd record -e syscalls -o trace.dat sleep 15
 	sleep 5
-	sudo trace-cmd report trace.dat > outputs/$1_$2_$4${run_num}_system_timed
+	sudo trace-cmd report trace.dat > ${output_dir}/$1_$2_$4${run_num}_system_timed
 	
 	wait $prog_pid
 	if [ $1 != "idle" ]; then
@@ -86,7 +87,7 @@ run_ransomware_interleave() {
 	fi
 	sudo kill -INT $trace_pid
 	sleep 5
-	sudo trace-cmd report > outputs/$1_$2_$4_repeat_system_interval
+	sudo trace-cmd report > ${output_dir}/$1_$2_$4_repeat_system_interval
 	echo
 }
 

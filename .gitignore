@@ -3,5 +3,7 @@
 **/__pycache__/
 **/trace.dat
 **/outputs*
-**/.nfs*
-**/.ipynb*
+*.nfs*
+*.ipynb*
+*.out
+*.pem
