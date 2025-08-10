@@ -1,7 +1,9 @@
 import io
+import pathlib
 from importlib.metadata import files
 from pathlib import Path
 
+from tqdm import tqdm
 import requests
 import pandas as pd
 import numpy as np
@@ -107,37 +109,43 @@ def write_out_syscalls(syscall_dict: dict, syscall_lines: list, output_file_path
     return
 
 
+def find_non_txt_files(root: Path = Path.cwd()) -> list[Path]:
+    """Return all files under `root` (recursively) that do NOT have a .txt extension."""
+    return [p for p in root.rglob('*') if p.is_file() and p.suffix.lower() != '.txt']
+
+
+
 if __name__ == "__main__":
     TRANSLATE_SYSCALL_FILES = True
+    SPECIFY_FILES = False
+    DATA_DIR = Path.cwd() / "ftrace_results"
 
     if TRANSLATE_SYSCALL_FILES:
+
         syscall_dict = form_syscall_dict()
 
-        # file_list = [
-        #     "syscall_data/AES_O_noexfil_comb_system",
-        #     "syscall_data/AES_WA_noexfil_comb_system",
-        #     "syscall_data/AES_WB_noexfil_comb_system",
-        #     # "syscall_data/perf_syscalls_ransom",
-        #     # "syscall_data/strace_syscalls_ransom",
-        # ]
+        if SPECIFY_FILES:
+            file_list = [
+                "ftrace/idle_20_trace_system_timed",
 
-        file_list = [
-            "ftrace/idle_20_trace_system_timed",
+                "ftrace/AES_O_exfil_aws1_system_timed",
+                "ftrace/AES_O_exfil_aws2_system_timed",
+                "ftrace/AES_O_exfil_sftp1_system_timed",
+                "ftrace/AES_O_exfil_sftp2_system_timed",
+                "ftrace/gzip_system_timed",
+            ]
 
-            "ftrace/AES_O_exfil_aws1_system_timed",
-            "ftrace/AES_O_exfil_aws2_system_timed",
-            "ftrace/AES_O_exfil_sftp1_system_timed",
-            "ftrace/AES_O_exfil_sftp2_system_timed",
-            "ftrace/gzip_system_timed",
-        ]
+        else:
+            file_list = find_non_txt_files(DATA_DIR)
 
-        for base_file in file_list:
-            input_file_path = Path("./" + base_file)
-            output_file_path = Path("./" + base_file + "_ints.txt")
+        for base_file in tqdm(file_list):
+            if type(base_file) == pathlib.PosixPath:
+                input_file_path = base_file
+                output_file_path = base_file.with_name(base_file.name + "_ints.txt")
 
-            directory = Path("/path/to/your/dir")
-            filename = "my_file.txt"
-            file_path = directory / filename
+            else:
+                input_file_path = Path("./" + base_file)
+                output_file_path = Path("./" + base_file + "_ints.txt")
 
             if output_file_path.is_file():
                 continue
@@ -145,10 +153,12 @@ if __name__ == "__main__":
             syscall_lines = read_tbl_into_strings(input_file_path)
 
             target = "cpus=32"
-            idx = next((i for i, s in enumerate(syscall_lines) if s == target), None) + 1
+            idx = next((i for i, s in enumerate(syscall_lines) if s == target), -1) + 1
             syscall_lines = syscall_lines[idx:]
             write_out_syscalls(syscall_dict, syscall_lines, output_file_path)
 
+
+    raise Exception
 
     cwd = Path.cwd()
     file_list = [
