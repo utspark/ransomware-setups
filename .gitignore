@@ -4,6 +4,6 @@
 **/trace.dat
 **/outputs*
 *.nfs*
-*.ipynb*
+**/.ipynb*
 *.out
 *.pem
