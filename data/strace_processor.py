@@ -10,6 +10,10 @@ import numpy as np
 import csv
 from typing import List
 
+from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor, as_completed  # or ThreadPoolExecutor
+import os
+
 import matplotlib
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -114,48 +118,101 @@ def find_non_txt_files(root: Path = Path.cwd()) -> list[Path]:
     return [p for p in root.rglob('*') if p.is_file() and p.suffix.lower() != '.txt']
 
 
+def process_one_file(input_file_path: Path, syscall_dict: dict) -> None:
+    """
+    Read a text file -> parse into a NumPy array -> transform -> write .txt.
+    Does not return anything; writes to disk.
+    """
+    try:
+        output_file_path = input_file_path.with_name(input_file_path.name + "_ints.txt")
+
+        syscall_lines = read_tbl_into_strings(input_file_path)
+
+        idx = next((i for i, s in enumerate(syscall_lines) if s.startswith("cpus=")), -1) + 1
+        syscall_lines = syscall_lines[idx:]
+        write_out_syscalls(syscall_dict, syscall_lines, output_file_path)
+
+    except Exception as e:
+        # Bubble up with file context to see which file failed
+        raise RuntimeError(f"Failed on {input_file_path}") from e
+
+    return
+
+
+def process_files_in_parallel(files, syscall_dict: dict, n_workers: int | None = None) -> None:
+    """
+    Process each file in parallel using up to n_workers processes.
+    files: iterable of paths (str or Path) to input .txt files
+    out_dir: directory to write outputs
+    """
+    paths = [Path(p) for p in files]
+
+    n = n_workers or (os.cpu_count() or 1)
+    with ProcessPoolExecutor(max_workers=n) as ex:
+        futures = {ex.submit(process_one_file, p, syscall_dict): p for p in paths}
+        for fut in as_completed(futures):
+            p = futures[fut]  # the input file for this future
+            try:
+                fut.result()  # raises if the worker failed
+                print(f"OK: {p}")
+            except Exception as e:
+                print(f"FAILED: {p} → {e}")
+
+    return
+
 
 if __name__ == "__main__":
     TRANSLATE_SYSCALL_FILES = True
     SPECIFY_FILES = False
     DATA_DIR = Path.cwd() / "ftrace_results"
 
-    if TRANSLATE_SYSCALL_FILES:
+    syscall_dict = form_syscall_dict()
+    file_list = find_non_txt_files(DATA_DIR)
 
-        syscall_dict = form_syscall_dict()
+    # process_one_file(file_list[0], syscall_dict)
 
-        if SPECIFY_FILES:
-            file_list = [
-                "ftrace/idle_20_trace_system_timed",
+    process_files_in_parallel(file_list, syscall_dict, n_workers=8)
 
-                "ftrace/AES_O_exfil_aws1_system_timed",
-                "ftrace/AES_O_exfil_aws2_system_timed",
-                "ftrace/AES_O_exfil_sftp1_system_timed",
-                "ftrace/AES_O_exfil_sftp2_system_timed",
-                "ftrace/gzip_system_timed",
-            ]
 
-        else:
-            file_list = find_non_txt_files(DATA_DIR)
 
-        for base_file in tqdm(file_list):
-            if type(base_file) == pathlib.PosixPath:
-                input_file_path = base_file
-                output_file_path = base_file.with_name(base_file.name + "_ints.txt")
 
-            else:
-                input_file_path = Path("./" + base_file)
-                output_file_path = Path("./" + base_file + "_ints.txt")
-
-            if output_file_path.is_file():
-                continue
-
-            syscall_lines = read_tbl_into_strings(input_file_path)
-
-            target = "cpus=32"
-            idx = next((i for i, s in enumerate(syscall_lines) if s == target), -1) + 1
-            syscall_lines = syscall_lines[idx:]
-            write_out_syscalls(syscall_dict, syscall_lines, output_file_path)
+    # if TRANSLATE_SYSCALL_FILES:
+    #
+    #     syscall_dict = form_syscall_dict()
+    #
+    #     if SPECIFY_FILES:
+    #         file_list = [
+    #             "ftrace/idle_20_trace_system_timed",
+    #
+    #             "ftrace/AES_O_exfil_aws1_system_timed",
+    #             "ftrace/AES_O_exfil_aws2_system_timed",
+    #             "ftrace/AES_O_exfil_sftp1_system_timed",
+    #             "ftrace/AES_O_exfil_sftp2_system_timed",
+    #             "ftrace/gzip_system_timed",
+    #         ]
+    #
+    #     else:
+    #         file_list = find_non_txt_files(DATA_DIR)
+    #
+    #
+    #     for base_file in tqdm(file_list):
+    #         if type(base_file) == pathlib.PosixPath:
+    #             input_file_path = base_file
+    #             output_file_path = base_file.with_name(base_file.name + "_ints.txt")
+    #
+    #         else:
+    #             input_file_path = Path("./" + base_file)
+    #             output_file_path = Path("./" + base_file + "_ints.txt")
+    #
+    #         if output_file_path.is_file():
+    #             continue
+    #
+    #         syscall_lines = read_tbl_into_strings(input_file_path)
+    #
+    #         target = "cpus=32"
+    #         idx = next((i for i, s in enumerate(syscall_lines) if s == target), -1) + 1
+    #         syscall_lines = syscall_lines[idx:]
+    #         write_out_syscalls(syscall_dict, syscall_lines, output_file_path)
 
 
     raise Exception
