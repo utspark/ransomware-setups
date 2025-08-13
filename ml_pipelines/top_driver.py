@@ -578,43 +578,76 @@ if __name__ == "__main__":
 
 
     # raise Exception
-
     from datasets import load_dataset
 
     dataset = load_dataset("monash_tsf", "tourism_monthly")
 
-    train_dataset = dataset["train"]
-    test_dataset = dataset["test"]
+    """As can be seen, the dataset contains 3 splits: train, validation and test."""
 
-    train_example = dataset['train'][0]
+    dataset
+
+    """Each example contains a few keys, of which `start` and `target` are the most important ones. Let us have a look at the first time series in the dataset:"""
+
+    train_example = dataset["train"][0]
     train_example.keys()
 
-    validation_example = dataset['validation'][0]
+    """The `start` simply indicates the start of the time series (as a datetime), and the `target` contains the actual values of the time series.
+
+    The `start` will be useful to add time related features to the time series values, as extra input to the model (such as "month of year"). Since we know the frequency of the data is `monthly`, we know for instance that the second value has the timestamp `1979-02-01`, etc.
+    """
+
+    print(train_example["start"])
+    print(train_example["target"])
+
+    """The validation set contains the same data as the training set, just for a `prediction_length` longer amount of time. This allows us to validate the model's predictions against the ground truth.
+
+    The test set is again one `prediction_length` longer data compared to the validation set (or some multiple of  `prediction_length` longer data compared to the training set for testing on multiple rolling windows).
+    """
+
+    validation_example = dataset["validation"][0]
     validation_example.keys()
 
-    # raise Exception
+    """The initial values are exactly the same as the corresponding training example:"""
 
-    freq = "1S"
+    print(validation_example["start"])
+    print(validation_example["target"])
+
+    """However, this example has `prediction_length=24` additional values compared to the training example. Let us verify it."""
+
+    freq = "1M"
     prediction_length = 24
 
     assert len(train_example["target"]) + prediction_length == len(
         validation_example["target"]
     )
 
-    # import matplotlib.pyplot as plt
-    #
-    # figure, axes = plt.subplots()
-    # axes.plot(train_example["target"], color="blue")
-    # axes.plot(validation_example["target"], color="red", alpha=0.5)
-    #
-    # plt.show()
+    """Let's visualize this:"""
+
+    import matplotlib.pyplot as plt
+
+    figure, axes = plt.subplots()
+    axes.plot(train_example["target"], color="blue")
+    axes.plot(validation_example["target"], color="red", alpha=0.5)
+
+    plt.show()
+
+    """Let's split up the data:"""
+
+    train_dataset = dataset["train"]
+    test_dataset = dataset["test"]
+
+    """## Update `start` to `pd.Period`
+
+    The first thing we'll do is convert the `start` feature of each time series to a pandas `Period` index using the data's `freq`:
+    """
 
     from functools import lru_cache
 
     import pandas as pd
     import numpy as np
 
-    @lru_cache(maxsize=10_000)
+
+    @lru_cache(10_000)
     def convert_to_pandas_period(date, freq):
         return pd.Period(date, freq)
 
@@ -624,23 +657,50 @@ if __name__ == "__main__":
         return batch
 
 
+    """We now use `datasets`' [`set_transform`](https://huggingface.co/docs/datasets/v2.7.0/en/package_reference/main_classes#datasets.Dataset.set_transform) functionality to do this on-the-fly in place:"""
 
     from functools import partial
+
+    # raise Exception
 
     train_dataset.set_transform(partial(transform_start_field, freq=freq))
     test_dataset.set_transform(partial(transform_start_field, freq=freq))
 
+    """## Define the model
+
+    Next, let's instantiate a model. The model will be trained from scratch, hence we won't use the `from_pretrained` method here, but rather randomly initialize the model from a [`config`](https://huggingface.co/docs/transformers/model_doc/time_series_transformer#transformers.TimeSeriesTransformerConfig).
+
+    We specify a couple of additional parameters to the model:
+    - `prediction_length` (in our case, `24` months): this is the horizon that the decoder of the Transformer will learn to predict for;
+    - `context_length`: the model will set the `context_length` (input of the encoder) equal to the `prediction_length`, if no `context_length` is specified;
+    - `lags` for a given frequency: these specify how much we "look back", to be added as additional features. e.g. for a `Daily` frequency we might consider a look back of `[1, 2, 7, 30, ...]` or in other words look back 1, 2, ... days while for `Minute` data we might consider `[1, 30, 60, 60*24, ...]` etc.;
+    - the number of time features: in our case, this will be `2` as we'll add `MonthOfYear` and `Age` features;
+    - the number of static categorical features: in our case, this will be just `1` as we'll add a single "time series ID" feature;
+    - the cardinality: the number of values of each static categorical feature, as a list which for our case will be `[366]` as we have 366 different time series
+    - the embedding dimension: the embedding dimension for each static categorical feature, as a list, for example `[3]` meaning the model will learn an embedding vector of size `3` for each of the `366` time series (regions).
+
+    Let's use the default lags provided by GluonTS for the given frequency ("monthly"):
+    """
+
     from gluonts.time_feature import get_lags_for_frequency
 
     lags_sequence = get_lags_for_frequency(freq)
-    # lags_sequence = [i for i in range(prediction_length)]
-    # lags_sequence = [1]
     print(lags_sequence)
+
+    """This means that we'll look back up to 37 months for each time step, as additional features.
+
+    Let's also check the default time features which GluonTS provides us:
+    """
 
     from gluonts.time_feature import time_features_from_frequency_str
 
     time_features = time_features_from_frequency_str(freq)
     print(time_features)
+
+    """In this case, there's only a single feature, namely "month of year". This means that for each time step, we'll add the month as a scalar value (e.g. `1` in case the timestamp is "january", `2` in case the timestamp is "february", etc.).
+
+    We now have everything to define the model:
+    """
 
     from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerForPrediction
 
@@ -649,7 +709,7 @@ if __name__ == "__main__":
         # context length:
         context_length=prediction_length * 2,
         # lags coming from helper given the freq:
-        # lags_sequence=lags_sequence,
+        lags_sequence=lags_sequence,
         # we'll add 2 time features ("month of year" and "age", see further):
         num_time_features=len(time_features) + 1,
         # we have a single static categorical feature, namely time series ID:
@@ -667,7 +727,19 @@ if __name__ == "__main__":
 
     model = TimeSeriesTransformerForPrediction(config)
 
-    ### *** Define transformations
+    """Note that, similar to other models in the 🤗 Transformers library, [`TimeSeriesTransformerModel`](https://huggingface.co/docs/transformers/model_doc/time_series_transformer#transformers.TimeSeriesTransformerModel) corresponds to the encoder-decoder Transformer without any head on top, and [`TimeSeriesTransformerForPrediction`](https://huggingface.co/docs/transformers/model_doc/time_series_transformer#transformers.TimeSeriesTransformerForPrediction) corresponds to `TimeSeriesTransformerModel` with a **distribution head** on top. By default, the model uses a Student-t distribution (but this is configurable):"""
+
+    model.config.distribution_output
+
+    """This is an important difference with Transformers for NLP, where the head typically consists of a fixed categorical distribution implemented as an `nn.Linear` layer.
+
+    ## Define Transformations
+
+    Next, we define the transformations for the data, in particular for the creation of the time features (based on the dataset or universal ones).
+
+    Again, we'll use the GluonTS library for this. We define a `Chain` of transformations (which is a bit comparable to `torchvision.transforms.Compose` for images). It allows us to combine several transformations into a single pipeline.
+    """
+
     from gluonts.time_feature import (
         time_features_from_frequency_str,
         TimeFeature,
@@ -691,6 +763,8 @@ if __name__ == "__main__":
         VstackFeatures,
         RenameFields,
     )
+
+    """The transformations below are annotated with comments, to explain what they do. At a high level, we will iterate over the individual time series of our dataset and add/remove fields or features:"""
 
     from transformers import PretrainedConfig
 
@@ -756,8 +830,8 @@ if __name__ == "__main__":
                     pred_length=config.prediction_length,
                 ),
                 # step 5: add another temporal feature (just a single number)
-                # tells the model where in its life the value of the time series is,
-                # sort of a running counter
+                # tells the model where in the life the value of the time series is
+                # sort of running counter
                 AddAgeFeature(
                     target_field=FieldName.TARGET,
                     output_field=FieldName.FEAT_AGE,
@@ -788,7 +862,16 @@ if __name__ == "__main__":
         )
 
 
-    ### *** Define Instance Splitter
+    """## Define `InstanceSplitter`
+
+    For training/validation/testing we next create an `InstanceSplitter` which is used to sample windows from the dataset (as, remember, we can't pass the entire history of values to the Transformer due to time- and memory constraints).
+
+    The instance splitter samples random `context_length` sized and subsequent `prediction_length` sized windows from the data, and appends a `past_` or `future_` key to any temporal keys in `time_series_fields` for the respective windows. The instance splitter can be configured into three different modes:
+    1. `mode="train"`: Here we sample the context and prediction length windows randomly from the dataset given to it (the training dataset)
+    2. `mode="validation"`: Here we sample the very last context length window and prediction window from the dataset given to it (for the back-testing or validation likelihood calculations)
+    3. `mode="test"`: Here we sample the very last context length window only (for the prediction use case)
+    """
+
     from gluonts.transform.sampler import InstanceSampler
     from typing import Optional
 
@@ -818,17 +901,20 @@ if __name__ == "__main__":
             forecast_start_field=FieldName.FORECAST_START,
             instance_sampler=instance_sampler,
             past_length=config.context_length + max(config.lags_sequence),
-            # past_length=config.context_length,
             future_length=config.prediction_length,
             time_series_fields=["time_features", "observed_mask"],
         )
 
 
-    ### *** Create Dataloaders
+    """## Create DataLoaders
+
+    Next, it's time to create the DataLoaders, which allow us to have batches of (input, output pairs) - or in other words (`past_values`, `future_values`).
+    """
+
     from typing import Iterable
 
     import torch
-    from gluonts.itertools import Cached, Cyclic
+    from gluonts.itertools import Cyclic, Cached
     from gluonts.dataset.loader import as_stacked_batches
 
 
@@ -905,7 +991,7 @@ if __name__ == "__main__":
         transformation = create_transformation(freq, config)
         transformed_data = transformation.apply(data)
 
-        # we create a Validation Instance splitter which will sample the very last
+        # We create a Validation Instance splitter which will sample the very last
         # context window seen during training only for the encoder.
         instance_sampler = create_instance_splitter(config, "validation")
 
@@ -918,6 +1004,9 @@ if __name__ == "__main__":
             output_type=torch.tensor,
             field_names=PREDICTION_INPUT_NAMES,
         )
+
+
+    """We have a test dataloader helper for completion, even though we will not use it here. This is useful in a production setting where we want to start forecasting from the end of a given time series. Thus, the test dataloader will sample the very last context window from the dataset provided and pass it to the model."""
 
 
     def create_test_dataloader(
@@ -972,13 +1061,24 @@ if __name__ == "__main__":
         batch_size=64,
     )
 
+    """Let's check the first batch:"""
+
     batch = next(iter(train_dataloader))
     for k, v in batch.items():
         print(k, v.shape, v.type())
 
-    raise Exception
+    """As can be seen, we don't feed `input_ids` and `attention_mask` to the encoder (as would be the case for NLP models), but rather `past_values`, along with `past_observed_mask`, `past_time_features`, and `static_categorical_features`.
 
-    ### *** Single forward pass
+    The decoder inputs consist of `future_values`, `future_observed_mask` and `future_time_features`. The `future_values` can be seen as the equivalent of `decoder_input_ids` in NLP.
+
+    We refer to the [docs](https://huggingface.co/docs/transformers/model_doc/time_series_transformer#transformers.TimeSeriesTransformerForPrediction.forward.past_values) for a detailed explanation for each of them.
+
+    ## Forward pass
+
+    Let's perform a single forward pass with the batch we just created:
+    """
+
+    # perform forward pass
     outputs = model(
         past_values=batch["past_values"],
         past_time_features=batch["past_time_features"],
@@ -997,7 +1097,17 @@ if __name__ == "__main__":
 
     print("Loss:", outputs.loss.item())
 
-    ### *** Train Model
+    """Note that the model is returning a loss. This is possible as the decoder automatically shifts the `future_values` one position to the right in order to have the labels. This allows computing a loss between the predicted values and the labels.
+
+    Also note that the decoder uses a causal mask to not look into the future as the values it needs to predict are in the `future_values` tensor.
+
+    ## Train the Model
+
+    It's time to train the model! We'll use a standard PyTorch training loop.
+
+    We will use the 🤗 [Accelerate](https://huggingface.co/docs/accelerate/index) library here, which automatically places the model, optimizer and dataloader on the appropriate `device`.
+    """
+
     from accelerate import Accelerator
     from torch.optim import AdamW
 
@@ -1040,7 +1150,15 @@ if __name__ == "__main__":
             if idx % 100 == 0:
                 print(loss.item())
 
-    ### *** Inference
+    """## Inference
+
+    At inference time, it's recommended to use the `generate()` method for autoregressive generation, similar to NLP models.
+
+    Forecasting involves getting data from the test instance sampler, which will sample the very last `context_length` sized window of values from each time series in the dataset, and pass it to the model. Note that we pass `future_time_features`, which are known ahead of time, to the decoder.
+
+    The model will autoregressively sample a certain number of values from the predicted distribution and pass them back to the decoder to return the prediction outputs:
+    """
+
     model.eval()
 
     forecasts = []
@@ -1060,10 +1178,23 @@ if __name__ == "__main__":
         )
         forecasts.append(outputs.sequences.cpu().numpy())
 
+    """The model outputs a tensor of shape (`batch_size`, `number of samples`, `prediction length`).
+
+    In this case, we get `100` possible values for the next `24` months (for each example in the batch which is of size `64`):
+    """
+
+    forecasts[0].shape
+
+    """We'll stack them vertically, to get forecasts for all time-series in the test dataset:"""
+
     forecasts = np.vstack(forecasts)
     print(forecasts.shape)
 
-    ### *** Results
+    """We can evaluate the resulting forecast with respect to the ground truth out of sample values present in the test set. For that, we'll use the 🤗 [Evaluate](https://huggingface.co/docs/evaluate/index) library, which includes the [MASE](https://huggingface.co/spaces/evaluate-metric/mase) and [sMAPE](https://huggingface.co/spaces/evaluate-metric/smape) metrics.
+
+    We calculate both metrics for each time series in the dataset:
+    """
+
     from evaluate import load
     from gluonts.time_feature import get_seasonality
 
@@ -1073,7 +1204,7 @@ if __name__ == "__main__":
     forecast_median = np.median(forecasts, 1)
 
     mase_metrics = []
-    # smape_metrics = []
+    smape_metrics = []
     for item_id, ts in enumerate(test_dataset):
         training_data = ts["target"][:-prediction_length]
         ground_truth = ts["target"][-prediction_length:]
@@ -1081,7 +1212,8 @@ if __name__ == "__main__":
             predictions=forecast_median[item_id],
             references=np.array(ground_truth),
             training=np.array(training_data),
-            periodicity=get_seasonality(freq))
+            periodicity=get_seasonality(freq),
+        )
         mase_metrics.append(mase["mase"])
 
         # smape = smape_metric.compute(
@@ -1091,9 +1223,18 @@ if __name__ == "__main__":
         # smape_metrics.append(smape["smape"])
 
     print(f"MASE: {np.mean(mase_metrics)}")
+
     # print(f"sMAPE: {np.mean(smape_metrics)}")
 
-    ### *** Plotting
+    """We can also plot the individual metrics of each time series in the dataset and observe that a handful of time series contribute a lot to the final test metric:"""
+
+    # plt.scatter(mase_metrics, smape_metrics, alpha=0.3)
+    # plt.xlabel("MASE")
+    # plt.ylabel("sMAPE")
+    # plt.show()
+
+    """To plot the prediction for any time series with respect the ground truth test data we define the following helper:"""
+
     import matplotlib.dates as mdates
 
 
@@ -1134,270 +1275,11 @@ if __name__ == "__main__":
         plt.show()
 
 
+    """For example:"""
+
     plot(334)
 
     raise Exception
-
-    # {"zero-padded_trace", "syscall_frequency", "windowed_features","windowed"}
-
-    # {"svc", "xgb", "lstm"}
-    # supervised_detector(preproc_mode="windowed", model="lstm")
-
-    # {
-    #     "isolation_forest",
-    #     "minimum_covariance_determinant",
-    #     "local_outlier_factor",
-    #     "svc"
-    #     "lstm"
-    # }
-    # unsupervised_detector(preproc_mode="windowed_features", model="isolation_forest")
-
-    # regression_error()
-
-    benign_wdws, benign_futures, malware_wdws, malware_futures = regression_preproc_transform()
-
-    unique_vals = np.unique(benign_wdws.reshape(-1))
-    new_labels = np.arange(len(unique_vals))
-    max_val = unique_vals.max()
-    lookup = np.full(max_val + 1, -1, dtype=int)
-    lookup[unique_vals] = new_labels
-
-    mapped_benign_wdws = lookup[benign_wdws]
-    mapped_benign_futures = lookup[benign_futures]
-    mapped_malware_wdws = lookup[malware_wdws]
-    mapped_malware_futures = lookup[malware_futures]
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        mapped_benign_wdws, mapped_benign_futures, test_size=0.3, random_state=42
-    )
-
-    X_test = np.concatenate((X_test, mapped_malware_wdws))
-    y_test = np.concatenate((y_test, mapped_malware_futures))
-
-    # enc = mpp.form_one_hot_encoder(X_train)
-    #
-    # a, b = X_train.shape
-    # X_train = enc.transform(X_train.reshape(-1, 1)).toarray()
-    # X_train = X_train.reshape(a, b, -1)
-    #
-    # a, b = X_test.shape
-    # X_test = enc.transform(X_test.reshape(-1, 1)).toarray()
-    # X_test = X_test.reshape(a, b, -1)
-    #
-    # a, b = y_train.shape
-    # y_train = enc.transform(y_train.reshape(-1, 1)).toarray()
-    # y_train = y_train.reshape(a, b, -1)
-    #
-    # a, b = y_test.shape
-    # y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
-    # y_test = y_test.reshape(a, b, -1)
-
-    # raise Exception
-
-    import torch
-    import torch.nn as nn
-    from torch.utils.data import DataLoader, TensorDataset
-    from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerModel
-
-    import torch
-    import torch.nn as nn
-    from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerModel
-
-    import numpy as np
-    import torch
-    from transformers import (
-        TimeSeriesTransformerConfig,
-        TimeSeriesTransformerForPrediction,
-        Trainer,
-        TrainingArguments,
-    )
-    from torch.utils.data import Dataset
-
-
-    # 1) Define a small Dataset that returns dicts of past/future pairs
-    class TimeSeriesDataset(Dataset):
-        def __init__(self, series: np.ndarray, context_length: int):
-            """
-            series: 1D array of floats, length N = context_length + n_forecast
-            We’ll slice windows of size context_length+1 and treat the last as label.
-            """
-            self.series = series
-            self.context_length = context_length
-            self.windows = [
-                series[i: i + context_length + 1]
-                for i in range(len(series) - context_length)
-            ]
-
-        def __len__(self):
-            return len(self.windows)
-
-        def __getitem__(self, idx):
-            w = self.windows[idx]
-            return {
-                "past_values": torch.tensor(w[: self.context_length], dtype=torch.float32),
-                "future_values": torch.tensor(w[self.context_length:], dtype=torch.float32),
-                # no time features or static features in this simple example
-            }
-
-
-    # 2) Hyperparameters and config
-    context_length = 20
-    prediction_length = 1
-    input_size = 1  # univariate
-    d_model = 64
-    encoder_layers = 2
-    encoder_heads = 2
-    encoder_ffn_dim = 32
-    dropout = 0.1
-
-    config = TimeSeriesTransformerConfig(
-        context_length=context_length,
-        prediction_length=prediction_length,
-        input_size=input_size,
-        lags_sequence=[1],  # only look back 1 step (fits small data)
-        num_time_features=0,  # no extra time‐of‐day features
-        num_static_categorical_features=0,
-        num_static_real_features=0,
-        d_model=d_model,
-        encoder_layers=encoder_layers,
-        encoder_attention_heads=encoder_heads,
-        encoder_ffn_dim=encoder_ffn_dim,
-        dropout=dropout,
-        use_cache=False,
-    )
-
-    # 3) Instantiate the for-prediction model
-    model = TimeSeriesTransformerForPrediction(config)  # :contentReference[oaicite:0]{index=0}
-
-    # 4) Prepare your synthetic data
-    #    Here we’ll forecast the next point of a sine wave
-    N = 2000
-    data = np.sin(np.linspace(0, 100, N + context_length + prediction_length))
-    dataset = TimeSeriesDataset(data, context_length)
-    # split train/val
-    train_size = int(0.8 * len(dataset))
-    train_ds, val_ds = torch.utils.data.random_split(dataset, [train_size, len(dataset) - train_size])
-
-    # 5) Set up Hugging Face Trainer
-    training_args = TrainingArguments(
-        output_dir="ts_transformer_out",
-        per_device_train_batch_size=32,
-        per_device_eval_batch_size=64,
-        num_train_epochs=10,
-        # evaluation_strategy="epoch",
-    )
-
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_ds,
-        eval_dataset=val_ds,
-    )
-
-    # 6) Train!
-    trainer.train()
-
-    """
-    import numpy as np
-    import tensorflow as tf
-    from tensorflow.keras import layers, Model, Input
-
-
-    # ——— Positional Encoding Layer ———
-    class PositionalEncoding(layers.Layer):
-        def __init__(self, sequence_length, d_model):
-            super().__init__()
-            pos = np.arange(sequence_length)[:, np.newaxis]
-            i = np.arange(d_model)[np.newaxis, :]
-            angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
-            angle_rads = pos * angle_rates
-            # apply sin to even indices; cos to odd
-            pe = np.zeros((sequence_length, d_model))
-            pe[:, 0::2] = np.sin(angle_rads[:, 0::2])
-            pe[:, 1::2] = np.cos(angle_rads[:, 1::2])
-            self.pos_encoding = tf.cast(pe[np.newaxis, ...], tf.float32)
-
-        def call(self, x):
-            return x + self.pos_encoding[:, : tf.shape(x)[1], :]
-
-
-    # ——— Transformer Encoder Block ———
-    def transformer_encoder(inputs, head_size, num_heads, ff_dim, dropout=0.1):
-        # Multi-Head Self-Attention
-        x = layers.MultiHeadAttention(num_heads=num_heads, key_dim=head_size)(inputs, inputs)
-        x = layers.Dropout(dropout)(x)
-        x = layers.Add()([x, inputs])
-        x = layers.LayerNormalization(epsilon=1e-6)(x)
-        # Feed-Forward
-        y = layers.Dense(ff_dim, activation="relu")(x)
-        y = layers.Dense(inputs.shape[-1])(y)
-        y = layers.Dropout(dropout)(y)
-        out = layers.Add()([y, x])
-        return layers.LayerNormalization(epsilon=1e-6)(out)
-
-
-    # ——— Build the Model ———
-    seq_len = 20
-    feature_dim = 1
-
-    inp = Input(shape=(seq_len, feature_dim))
-    x = PositionalEncoding(sequence_length=seq_len, d_model=32)(inp)
-    x = transformer_encoder(x, head_size=32, num_heads=4, ff_dim=64, dropout=0.1)
-    x = layers.GlobalAveragePooling1D()(x)
-    out = layers.Dense(1, activation="linear")(x)
-
-    model = Model(inputs=inp, outputs=out)
-    model.compile(optimizer="adam", loss="mse", metrics=["mae"])
-    model.summary()
-
-    X_train = X_train[..., np.newaxis]
-    X_test = X_test[..., np.newaxis]
-
-    history = model.fit(
-        X_train, y_train,
-        validation_split=0.2,
-        epochs=100,
-        batch_size=32,
-        verbose=2
-    )
-
-    y_pred = model.predict(X_test)
-    y_pred = y_pred.reshape(-1)
-    y_test = y_test.reshape(-1)
-    deltas = np.abs(y_pred - y_test)
-    # deltas = np.sum(deltas, axis=2)
-
-    fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
-    ax.plot(deltas, color="blue")
-    plt.tight_layout()
-    plt.show()
-
-    y_discrete = np.zeros((len(y_test)))
-    y_discrete[len(y_discrete) - len(malware_futures):] = 1
-    classes = np.unique(y_discrete)
-    class_weights = compute_class_weight('balanced', classes=classes, y=y_discrete)
-    sample_weights = class_weights[y_discrete.astype(int)]
-    auc = roc_auc_score(y_discrete, deltas, sample_weight=sample_weights)
-    print(f"ROC AUC Score: {auc:.3f}")
-    """
-
-    """
-    import torch
-    from transformers import TimeSeriesTransformerForPrediction
-
-    configuration = TimeSeriesTransformerConfig(prediction_length=1)
-    model = TimeSeriesTransformerForPrediction(configuration)
-
-    outputs = model(
-        past_values=batch["past_values"],
-        past_time_features=batch["past_time_features"],
-        past_observed_mask=batch["past_observed_mask"],
-        static_categorical_features=batch["static_categorical_features"],
-        static_real_features=batch["static_real_features"],
-        future_values=batch["future_values"],
-        future_time_features=batch["future_time_features"],
-    )
-    """
 
 
 
@@ -1405,31 +1287,5 @@ if __name__ == "__main__":
     # TODO
     #  - START HERE
     #  - ADFA-IDS LD dictionary approach
-    #  - one-hot-encode then temporal models
-
-
-
-
-    # max_len = benign_array.shape[1]
-    # padded_matrix = benign_array.reshape(-1, 1)
-    # padded_matrix = padded_matrix.reshape(-1, max_len)
-    # enc = mpp.form_one_hot_encoder(benign_array)
-    # X = enc.transform(padded_matrix).toarray()
-    # X = X.reshape(-1, max_len, max_syscall)
-
-
-    # """
-    # The words have been replaced by integers that indicate the ordered frequency of each word in the dataset.
-    # The sentences in each review are therefore comprised of a sequence of integers.
-    # """
-    # from collections import Counter
-    # all_vals = X.ravel()
-    # counts = Counter(all_vals)
-    # sorted_vals = [val for val, _ in counts.most_common()]
-    # mapping = {val: rank for rank, val in enumerate(sorted_vals)}
-    # X = np.vectorize(mapping.__getitem__)(X)
-
-
-
 
 
