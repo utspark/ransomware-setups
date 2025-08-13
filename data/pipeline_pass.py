@@ -110,7 +110,7 @@ def unsupervised_analysis(model_settings, benign_path, benign_list, malware_path
     return
 
 
-def multiclass_analysis(model_settings, benign_path, benign_list, malware_path, malware_list):
+def multiclass_analysis(model_settings, benign_path, benign_dict: dict, malware_path, malware_dict: dict):
     transformed_data = []
     labels = []
 
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     # TODO hardcode options here
     problem_formulation = "multiclass_supervised"
     preproc_approach = "windowed_features"
-    window_len = 20  # 10
+    window_len = 40  # 10
     future_len = 1  # 3
     max_trace_length = 500000
     system_calls = None
@@ -195,17 +195,38 @@ if __name__ == "__main__":
 
     benign_path = cwd / "ftrace/benign"
     benign_dict = {
-        "idle_20_trace_system_timed_ints.txt": 0,
+        # "idle_20_trace_system_timed_ints.txt": 0,
         # "gzip_system_timed_ints.txt": 1,
     }
     benign_list = list(benign_dict.keys())
 
-    malware_path = cwd / "ftrace/malware"
+    malware_path = cwd / "ftrace_results/out_exec_parsed"
     malware_dict = {
-        "AES_O_exfil_aws1_system_timed_ints.txt": 1,
-        # "AES_O_exfil_aws2_system_timed_ints.txt",
-        "AES_O_exfil_sftp1_system_timed_ints.txt": 2,
-        # "AES_O_exfil_sftp2_system_timed_ints.txt",
+        # "asymm_0_ints.txt": 0,
+        # "asymm_1_ints.txt": 0,
+        # "asymm_2_ints.txt": 0,
+        # "asymm_3_ints.txt": 0,
+        # "asymm_4_ints.txt": 0,
+
+        "symm_AES_128t_0_ints.txt": 0,
+        "symm_AES_128t_1_ints.txt": 0,
+        "symm_AES_128t_2_ints.txt": 0,
+        "symm_AES_128t_3_ints.txt": 0,
+        "symm_AES_128t_4_ints.txt": 0,
+
+        # "symm_AES_256t_0_ints.txt": 0,
+        # "symm_AES_256t_1_ints.txt": 0,
+        # "symm_AES_256t_2_ints.txt": 0,
+        # "symm_AES_256t_3_ints.txt": 0,
+        # "symm_AES_256t_4_ints.txt": 0,
+
+        "symm_Salsa20_256t_0_ints.txt": 1,
+        "symm_Salsa20_256t_1_ints.txt": 1,
+        "symm_Salsa20_256t_2_ints.txt": 1,
+        "symm_Salsa20_256t_3_ints.txt": 1,
+        "symm_Salsa20_256t_4_ints.txt": 1,
+
+
     }
     malware_list = list(malware_dict.keys())
 
@@ -240,83 +261,5 @@ if __name__ == "__main__":
         multiclass_analysis(
             model_settings, benign_path, benign_dict, malware_path, malware_dict
         )
-
-
-
-
-    raise Exception
-
-    base_svc = SVC(kernel='rbf', C=1.0, gamma='scale', probability=False)
-
-    pipeline = make_pipeline(
-        StandardScaler(),
-        base_svc
-    )
-
-    # 4a) Train the default multiclass SVC (OvO)
-    pipeline.fit(X_train, y_train)
-    y_pred = pipeline.predict(X_test)
-
-    print("=== Default SVC (one‐vs‐one) ===")
-    print(classification_report(y_test, y_pred))
-    print("Confusion matrix:\n", confusion_matrix(y_test, y_pred))
-
-    # 4b) Explicit One‐vs‐Rest wrapper
-    ovr = make_pipeline(
-        StandardScaler(),
-        OneVsRestClassifier(base_svc)
-    )
-    ovr.fit(X_train, y_train)
-    y_pred_ovr = ovr.predict(X_test)
-
-    print("\n=== One‐vs‐Rest SVC ===")
-    print(classification_report(y_test, y_pred_ovr))
-
-    # 4c) Explicit One‐vs‐One wrapper (same as default)
-    ovo = make_pipeline(
-        StandardScaler(),
-        OneVsOneClassifier(base_svc)
-    )
-    ovo.fit(X_train, y_train)
-    y_pred_ovo = ovo.predict(X_test)
-
-    print("\n=== One‐vs‐One SVC ===")
-    print(classification_report(y_test, y_pred_ovo))
-
-    # 5) (Optional) Hyperparameter tuning with GridSearchCV
-    # param_grid = {
-    #     'svc__C': [0.1, 1, 10],
-    #     'svc__gamma': ['scale', 0.1, 1]
-    # }
-    # grid = GridSearchCV(pipeline, param_grid, cv=5, scoring='accuracy')
-    # grid.fit(X_train, y_train)
-    # print("\nBest params:", grid.best_params_)
-    # print("Best CV accuracy:", grid.best_score_)
-    # print("Test set accuracy:", grid.score(X_test, y_test))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

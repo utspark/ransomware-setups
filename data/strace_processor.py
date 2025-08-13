@@ -108,7 +108,7 @@ def write_out_syscalls(syscall_dict: dict, syscall_lines: list, output_file_path
 
 
 if __name__ == "__main__":
-    TRANSLATE_SYSCALL_FILES = True
+    TRANSLATE_SYSCALL_FILES = False
 
     if TRANSLATE_SYSCALL_FILES:
         syscall_dict = form_syscall_dict()
@@ -122,7 +122,7 @@ if __name__ == "__main__":
         # ]
 
         file_list = [
-            "ftrace/idle_20_trace_system_timed",
+
 
             "ftrace/AES_O_exfil_aws1_system_timed",
             "ftrace/AES_O_exfil_aws2_system_timed",
@@ -152,13 +152,18 @@ if __name__ == "__main__":
 
     cwd = Path.cwd()
     file_list = [
-        "ftrace/idle_20_trace_system_timed_ints.txt",
+        "ftrace_results/out_exec_parsed/asymm_0_ints.txt",
+        "ftrace_results/out_exec_parsed/symm_AES_128t_0_ints.txt",
+        "ftrace_results/out_exec_parsed/symm_AES_256t_0_ints.txt",
+        "ftrace_results/out_exec_parsed/symm_Salsa20_128t_0_ints.txt",
+        "ftrace_results/out_exec_parsed/symm_Salsa20_256t_0_ints.txt",
 
-        "ftrace/AES_O_exfil_aws1_system_timed_ints.txt",
-        "ftrace/AES_O_exfil_aws2_system_timed_ints.txt",
-        "ftrace/AES_O_exfil_sftp1_system_timed_ints.txt",
-        "ftrace/AES_O_exfil_sftp2_system_timed_ints.txt",
-        "ftrace/gzip_system_timed_ints.txt",
+
+        # "ftrace/AES_O_exfil_aws1_system_timed_ints.txt",
+        # "ftrace/AES_O_exfil_aws2_system_timed_ints.txt",
+        # "ftrace/AES_O_exfil_sftp1_system_timed_ints.txt",
+        # "ftrace/AES_O_exfil_sftp2_system_timed_ints.txt",
+        # "ftrace/gzip_system_timed_ints.txt",
     ]
 
 
@@ -176,17 +181,18 @@ if __name__ == "__main__":
             time_list.append(arr2)
 
     # TODO comment exception just to pause the script
-    raise Exception
+    # raise Exception
 
     fig, ax = plt.subplots(3, 1, figsize=(10, 4), sharey=True)
-    ax[0].plot(time_list[0], trace_list[0], color="blue", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
-    ax[1].plot(time_list[1], trace_list[1], color="red", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
-    ax[2].plot(time_list[5], trace_list[5], color="green", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    ax[0].plot(time_list[0], trace_list[0], color="blue", marker='.', linestyle="None", markersize=4, markeredgecolor='none')
+    ax[1].plot(time_list[1], trace_list[1], color="red", marker='.', linestyle="None", markersize=4, markeredgecolor='none')
+    ax[2].plot(time_list[3], trace_list[3], color="green", marker='.', linestyle="None", markersize=4, markeredgecolor='none')
     plt.tight_layout()
     plt.show()
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
-    ax.plot(trace_list[1], color="blue", marker='o', linestyle="None")
+    ax.plot(trace_list[0], color="blue", marker='o', linestyle="None")
+    ax.plot(trace_list[1], color="red", marker='o', linestyle="None")
     ax.plot(trace_list[3], color="green", marker='o', linestyle="None")
     plt.tight_layout()
     plt.show()
