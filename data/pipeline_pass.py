@@ -226,7 +226,16 @@ if __name__ == "__main__":
         "compress_gzip_1t_3_ints.txt": 2,
         "compress_gzip_1t_4_ints.txt": 2,
 
+        "compress_zstd_1t_0_ints.txt": 2,
+        "compress_zstd_1t_1_ints.txt": 2,
+        "compress_zstd_1t_2_ints.txt": 2,
+        "compress_zstd_1t_3_ints.txt": 2,
         "compress_zstd_1t_4_ints.txt": 2,
+
+        "compress_zstd_8t_0_ints.txt": 2,
+        "compress_zstd_8t_1_ints.txt": 2,
+        "compress_zstd_8t_2_ints.txt": 2,
+        "compress_zstd_8t_3_ints.txt": 2,
         "compress_zstd_8t_4_ints.txt": 2,
 
         "compress_gzip_8t_0_ints.txt": 3,

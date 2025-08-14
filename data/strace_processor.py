@@ -245,6 +245,16 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
 
+
+    fig, ax = plt.subplots(5, 1, figsize=(10, 4), sharey=True)
+    ax[0].plot(trace_list[0], color="blue", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    ax[1].plot(trace_list[1], color="red", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    ax[2].plot(trace_list[2], color="green", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    ax[3].plot(trace_list[3], color="orange", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    ax[4].plot(trace_list[4], color="purple", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    plt.tight_layout()
+    plt.show()
+
     raise Exception
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
