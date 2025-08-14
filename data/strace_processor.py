@@ -21,16 +21,30 @@ plt.ion()
 
 
 
-def read_tbl_into_strings(path: Path) -> List[str]:
+def read_tbl_into_strings(path: Path, file_line_subsample: int | None = None) -> List[str]:
     """
     Reads a .tbl file (or any text file) and returns a list of strings,
     one per row (line), without the trailing newline.
     """
     lines: List[str] = []
-    with path.open('r', encoding='utf-8') as f:
-        for line in f:
-            # strip only the newline; preserve any other whitespace
-            lines.append(line.rstrip('\n'))
+    count = 0
+
+    if file_line_subsample is None:
+        with path.open('r', encoding='utf-8') as f:
+            for line in f:
+                # strip only the newline; preserve any other whitespace
+                lines.append(line.rstrip('\n'))
+
+    else:
+        with path.open('r', encoding='utf-8') as f:
+            for line in f:
+                # strip only the newline; preserve any other whitespace
+                lines.append(line.rstrip('\n'))
+                count += 1
+
+                if count >= file_line_subsample:
+                    break
+
     return lines
 
 
@@ -118,7 +132,7 @@ def find_non_txt_files(root: Path = Path.cwd()) -> list[Path]:
     return [p for p in root.rglob('*') if p.is_file() and p.suffix.lower() != '.txt']
 
 
-def process_one_file(input_file_path: Path, syscall_dict: dict) -> None:
+def process_one_file(input_file_path: Path, syscall_dict: dict, file_line_subsample: int | None = None) -> None:
     """
     Read a text file -> parse into a NumPy array -> transform -> write .txt.
     Does not return anything; writes to disk.
@@ -126,7 +140,7 @@ def process_one_file(input_file_path: Path, syscall_dict: dict) -> None:
     try:
         output_file_path = input_file_path.with_name(input_file_path.name + "_ints.txt")
 
-        syscall_lines = read_tbl_into_strings(input_file_path)
+        syscall_lines = read_tbl_into_strings(input_file_path, file_line_subsample)
 
         idx = next((i for i, s in enumerate(syscall_lines) if s.startswith("cpus=")), -1) + 1
         syscall_lines = syscall_lines[idx:]
@@ -139,7 +153,8 @@ def process_one_file(input_file_path: Path, syscall_dict: dict) -> None:
     return
 
 
-def process_files_in_parallel(files, syscall_dict: dict, n_workers: int | None = None) -> None:
+def process_files_in_parallel(files, syscall_dict: dict, n_workers: int | None = None,
+                              file_line_subsample: int | None = None) -> None:
     """
     Process each file in parallel using up to n_workers processes.
     files: iterable of paths (str or Path) to input .txt files
@@ -149,7 +164,7 @@ def process_files_in_parallel(files, syscall_dict: dict, n_workers: int | None =
 
     n = n_workers or (os.cpu_count() or 1)
     with ProcessPoolExecutor(max_workers=n) as ex:
-        futures = {ex.submit(process_one_file, p, syscall_dict): p for p in paths}
+        futures = {ex.submit(process_one_file, p, syscall_dict, file_line_subsample): p for p in paths}
         for fut in as_completed(futures):
             p = futures[fut]  # the input file for this future
             try:
@@ -165,13 +180,13 @@ if __name__ == "__main__":
     TRANSLATE_SYSCALL_FILES = True
     SPECIFY_FILES = False
     DATA_DIR = Path.cwd() / "ftrace_results"
+    FILE_LINE_SUBSAMPLE = 100_000
 
     syscall_dict = form_syscall_dict()
     file_list = find_non_txt_files(DATA_DIR)
 
     # process_one_file(file_list[0], syscall_dict)
-
-    process_files_in_parallel(file_list, syscall_dict, n_workers=8)
+    process_files_in_parallel(file_list, syscall_dict, n_workers=10, file_line_subsample=FILE_LINE_SUBSAMPLE)
 
 
 
