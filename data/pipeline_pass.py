@@ -166,7 +166,7 @@ if __name__ == "__main__":
     preproc_approach = "windowed_features"
     window_len = 40  # 10
     future_len = 1  # 3
-    max_trace_length = 500000
+    max_trace_length = 500_000
     system_calls = None
     # model_path = cwd / "basic_lstm.h5"
     model_type = "svc"
@@ -200,31 +200,106 @@ if __name__ == "__main__":
     }
     benign_list = list(benign_dict.keys())
 
-    malware_path = cwd / "ftrace_results/out_exec_parsed"
+    malware_path = cwd / "pipeline_ints"
     malware_dict = {
-        # "asymm_0_ints.txt": 0,
-        # "asymm_1_ints.txt": 0,
-        # "asymm_2_ints.txt": 0,
-        # "asymm_3_ints.txt": 0,
-        # "asymm_4_ints.txt": 0,
+        "asymm_0_ints.txt": 0,
+        "asymm_1_ints.txt": 0,
+        "asymm_2_ints.txt": 0,
+        "asymm_3_ints.txt": 0,
+        "asymm_4_ints.txt": 0,
 
-        "symm_AES_128t_0_ints.txt": 0,
-        "symm_AES_128t_1_ints.txt": 0,
-        "symm_AES_128t_2_ints.txt": 0,
-        "symm_AES_128t_3_ints.txt": 0,
-        "symm_AES_128t_4_ints.txt": 0,
-
-        # "symm_AES_256t_0_ints.txt": 0,
-        # "symm_AES_256t_1_ints.txt": 0,
-        # "symm_AES_256t_2_ints.txt": 0,
-        # "symm_AES_256t_3_ints.txt": 0,
-        # "symm_AES_256t_4_ints.txt": 0,
+        "symm_AES_128t_0_ints.txt": 1,
+        "symm_AES_128t_1_ints.txt": 1,
+        "symm_AES_128t_2_ints.txt": 1,
+        "symm_AES_128t_3_ints.txt": 1,
+        "symm_AES_128t_4_ints.txt": 1,
 
         "symm_Salsa20_256t_0_ints.txt": 1,
         "symm_Salsa20_256t_1_ints.txt": 1,
         "symm_Salsa20_256t_2_ints.txt": 1,
         "symm_Salsa20_256t_3_ints.txt": 1,
         "symm_Salsa20_256t_4_ints.txt": 1,
+
+        "compress_gzip_1t_0_ints.txt": 2,
+        "compress_gzip_1t_1_ints.txt": 2,
+        "compress_gzip_1t_2_ints.txt": 2,
+        "compress_gzip_1t_3_ints.txt": 2,
+        "compress_gzip_1t_4_ints.txt": 2,
+
+        "compress_zstd_1t_4_ints.txt": 2,
+        "compress_zstd_8t_4_ints.txt": 2,
+
+        "compress_gzip_8t_0_ints.txt": 3,
+        "compress_gzip_8t_1_ints.txt": 3,
+        "compress_gzip_8t_2_ints.txt": 3,
+        "compress_gzip_8t_3_ints.txt": 3,
+        "compress_gzip_8t_4_ints.txt": 3,
+
+        # "compress_zstd_1t_0_ints.txt": 4,
+        # "compress_zstd_1t_1_ints.txt": 4,
+        # "compress_zstd_1t_2_ints.txt": 4,
+        # "compress_zstd_1t_3_ints.txt": 4,
+        # "compress_zstd_1t_4_ints.txt": 4,
+
+        # "compress_zstd_8t_0_ints.txt": 5,
+        # "compress_zstd_8t_1_ints.txt": 5,
+        # "compress_zstd_8t_2_ints.txt": 5,
+        # "compress_zstd_8t_3_ints.txt": 5,
+        # "compress_zstd_8t_4_ints.txt": 5,
+
+        # "compress_zstd_8t_0_ints.txt": 5,
+        # "compress_zstd_8t_1_ints.txt": 5,
+        # "compress_zstd_8t_2_ints.txt": 5,
+        # "compress_zstd_8t_3_ints.txt": 5,
+        # "compress_zstd_8t_4_ints.txt": 5,
+
+        # "fscan_0_ints.txt": 4,
+        # "fscan_1_ints.txt": 4,
+        # "fscan_2_ints.txt": 4,
+        # "fscan_3_ints.txt": 4,
+        # "fscan_4_ints.txt": 4,
+
+        "transfer_aws_1t_0_ints.txt": 4,
+        "transfer_aws_1t_1_ints.txt": 4,
+        "transfer_aws_1t_2_ints.txt": 4,
+        "transfer_aws_1t_3_ints.txt": 4,
+        "transfer_aws_1t_4_ints.txt": 4,
+
+        "transfer_aws_8t_0_ints.txt": 4,
+        "transfer_aws_8t_1_ints.txt": 4,
+        "transfer_aws_8t_2_ints.txt": 4,
+        "transfer_aws_8t_3_ints.txt": 4,
+        "transfer_aws_8t_4_ints.txt": 4,
+
+        "transfer_sftp_1t_0_ints.txt": 5,
+        "transfer_sftp_1t_1_ints.txt": 5,
+        "transfer_sftp_1t_2_ints.txt": 5,
+        "transfer_sftp_1t_3_ints.txt": 5,
+        "transfer_sftp_1t_4_ints.txt": 5,
+
+        "transfer_sftp_8t_0_ints.txt": 5,
+        "transfer_sftp_8t_1_ints.txt": 5,
+        "transfer_sftp_8t_2_ints.txt": 5,
+        "transfer_sftp_8t_3_ints.txt": 5,
+        "transfer_sftp_8t_4_ints.txt": 5,
+
+        "recon_mount_1_ints.txt": 6,
+        "recon_mount_2_ints.txt": 6,
+        "recon_mount_3_ints.txt": 6,
+        "recon_mount_4_ints.txt": 6,
+        "recon_mount_5_ints.txt": 6,
+
+        "recon_net_1_ints.txt": 7,
+        "recon_net_2_ints.txt": 7,
+        "recon_net_3_ints.txt": 7,
+        "recon_net_4_ints.txt": 7,
+        "recon_net_5_ints.txt": 7,
+
+        # "recon_system_1_ints.txt": 8,
+        # "recon_system_2_ints.txt": 8,
+        # "recon_system_3_ints.txt": 8,
+        # "recon_system_4_ints.txt": 8,
+        # "recon_system_5_ints.txt": 8,
 
 
     }

@@ -173,70 +173,50 @@ def process_files_in_parallel(files, syscall_dict: dict, n_workers: int | None =
 
 
 if __name__ == "__main__":
-    TRANSLATE_SYSCALL_FILES = True
+    TRANSLATE_SYSCALL_FILES = False
     SPECIFY_FILES = False
     DATA_DIR = Path.cwd() / "ftrace_results"
     FILE_LINE_SUBSAMPLE = 100_000
 
-    syscall_dict = form_syscall_dict()
-    file_list = find_non_txt_files(DATA_DIR)
+    if TRANSLATE_SYSCALL_FILES:
 
-    # process_one_file(file_list[0], syscall_dict)
-    process_files_in_parallel(file_list, syscall_dict, n_workers=10, file_line_subsample=FILE_LINE_SUBSAMPLE)
+        syscall_dict = form_syscall_dict()
 
+        if SPECIFY_FILES:
+            file_list = [
+                "ftrace/idle_20_trace_system_timed",
 
+                "ftrace/AES_O_exfil_aws1_system_timed",
+                "ftrace/AES_O_exfil_aws2_system_timed",
+                "ftrace/AES_O_exfil_sftp1_system_timed",
+                "ftrace/AES_O_exfil_sftp2_system_timed",
+                "ftrace/gzip_system_timed",
+            ]
 
+        else:
+            file_list = find_non_txt_files(DATA_DIR)
 
-    # if TRANSLATE_SYSCALL_FILES:
-    #
-    #     syscall_dict = form_syscall_dict()
-    #
-    #     if SPECIFY_FILES:
-    #         file_list = [
-    #             "ftrace/idle_20_trace_system_timed",
-    #
-    #             "ftrace/AES_O_exfil_aws1_system_timed",
-    #             "ftrace/AES_O_exfil_aws2_system_timed",
-    #             "ftrace/AES_O_exfil_sftp1_system_timed",
-    #             "ftrace/AES_O_exfil_sftp2_system_timed",
-    #             "ftrace/gzip_system_timed",
-    #         ]
-    #
-    #     else:
-    #         file_list = find_non_txt_files(DATA_DIR)
-    #
-    #
-    #     for base_file in tqdm(file_list):
-    #         if type(base_file) == pathlib.PosixPath:
-    #             input_file_path = base_file
-    #             output_file_path = base_file.with_name(base_file.name + "_ints.txt")
-    #
-    #         else:
-    #             input_file_path = Path("./" + base_file)
-    #             output_file_path = Path("./" + base_file + "_ints.txt")
-    #
-    #         if output_file_path.is_file():
-    #             continue
-    #
-    #         syscall_lines = read_tbl_into_strings(input_file_path)
-    #
-    #         target = "cpus=32"
-    #         idx = next((i for i, s in enumerate(syscall_lines) if s == target), -1) + 1
-    #         syscall_lines = syscall_lines[idx:]
-    #         write_out_syscalls(syscall_dict, syscall_lines, output_file_path)
+        # process_one_file(file_list[0], syscall_dict)
+        process_files_in_parallel(file_list, syscall_dict, n_workers=10, file_line_subsample=FILE_LINE_SUBSAMPLE)
 
 
-    raise Exception
 
     cwd = Path.cwd()
     file_list = [
-        "ftrace/idle_20_trace_system_timed_ints.txt",
+        # "ftrace_results_subsampled_ints/out_exec_parsed/asymm_0_ints.txt",
 
-        "ftrace/AES_O_exfil_aws1_system_timed_ints.txt",
-        "ftrace/AES_O_exfil_aws2_system_timed_ints.txt",
-        "ftrace/AES_O_exfil_sftp1_system_timed_ints.txt",
-        "ftrace/AES_O_exfil_sftp2_system_timed_ints.txt",
-        "ftrace/gzip_system_timed_ints.txt",
+        # "ftrace_results_subsampled_ints/out_exfil_parsed/compress_gzip_1t_0_ints.txt",
+
+
+
+        "pipeline_ints/recon_system_1_ints.txt",
+        "pipeline_ints/recon_system_2_ints.txt",
+
+        "pipeline_ints/recon_net_1_ints.txt",
+        "pipeline_ints/recon_net_2_ints.txt",
+
+        "pipeline_ints/recon_mount_3_ints.txt",
+
     ]
 
 
@@ -254,14 +234,18 @@ if __name__ == "__main__":
             time_list.append(arr2)
 
     # TODO comment exception just to pause the script
-    raise Exception
 
-    fig, ax = plt.subplots(3, 1, figsize=(10, 4), sharey=True)
+
+    fig, ax = plt.subplots(5, 1, figsize=(10, 4), sharey=True)
     ax[0].plot(time_list[0], trace_list[0], color="blue", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
     ax[1].plot(time_list[1], trace_list[1], color="red", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
-    ax[2].plot(time_list[5], trace_list[5], color="green", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    ax[2].plot(time_list[2], trace_list[2], color="green", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    ax[3].plot(time_list[3], trace_list[3], color="orange", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
+    ax[4].plot(time_list[4], trace_list[4], color="purple", marker='.', linestyle="None", markersize=2.5, markeredgecolor='none')
     plt.tight_layout()
     plt.show()
+
+    raise Exception
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
     ax.plot(trace_list[1], color="blue", marker='o', linestyle="None")

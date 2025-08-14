@@ -386,7 +386,7 @@ def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
     lb.fit(y_train)
     y_test_ohe = lb.transform(y_test)
 
-    dtree_model = DecisionTreeClassifier(max_depth=5).fit(X_train, y_train, sample_weight=sample_weights)
+    dtree_model = DecisionTreeClassifier(max_depth=7).fit(X_train, y_train, sample_weight=sample_weights)
     y_pred_ohe = dtree_model.predict_proba(X_test)
 
     classes = np.unique(y_test)
