@@ -1,4 +1,6 @@
+import io
 from pathlib import Path
+
 
 import matplotlib
 from sklearn.metrics import classification_report, confusion_matrix
@@ -8,6 +10,8 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.utils import compute_class_weight
+
+import re
 
 
 
@@ -19,7 +23,7 @@ plt.ion()
 import numpy as np
 
 from ml_pipelines.timeseries_processing import RegressionData, ModelSettings, get_windows_and_futures, \
-    preproc_transform, get_system_call_map
+    preproc_transform, get_system_call_map, first_int, concat_short_traces
 from ml_pipelines.pipeline_analysis import regression_error, binary_supervised_error, unsupervised_error, \
     multiclass_error
 
@@ -138,6 +142,9 @@ def multiclass_analysis(model_settings, benign_path, benign_dict: dict, malware_
     return
 
 
+
+
+
 if __name__ == "__main__":
     cwd = Path.cwd()
 
@@ -160,7 +167,6 @@ if __name__ == "__main__":
     # "full_trace", "syscall_frequency", "windowed_features", "windowed"
     # "isolation_forest", "minimum_covariance_determinant", "local_outlier_factor", "svc"
 
-
     # TODO hardcode options here
     problem_formulation = "multiclass_supervised"
     preproc_approach = "windowed_features"
@@ -169,14 +175,18 @@ if __name__ == "__main__":
     max_trace_length = 500_000
     system_calls = None
     # model_path = cwd / "basic_lstm.h5"
-    model_type = "svc"
+    model_type = "decision_tree"
     # model_filename = problem_formulation + "_" + preproc_approach + "_" + "lstm.h5"
-    model_filename = problem_formulation + "_" + preproc_approach + "_" + "svc.json"
+    model_filename = problem_formulation + "_" + preproc_approach + "_" + model_type + ".json"
+    settings_filename = problem_formulation + "_" + preproc_approach + "_" + model_type + "_settings.json"
     model_path = cwd / model_filename
+    settings_path = cwd / settings_filename
+
     new_model = True
     plot = True
 
     model_settings = ModelSettings(
+        settings_path=settings_path,
         problem_formulation=problem_formulation,
         preproc_approach=preproc_approach,
         window_length=window_len,
@@ -201,7 +211,19 @@ if __name__ == "__main__":
     benign_list = list(benign_dict.keys())
 
     malware_path = cwd / "pipeline_ints"
+
+    parent_dir = malware_path
+    paths = [p for p in parent_dir.iterdir() if p.is_file()]
+    paths = [path.name for path in paths if "fscan" in str(path)]
+
+    paths.sort(key=first_int)
+    paths = [str(malware_path) + "/" + p for p in paths]
+
+    # concat_short_traces(paths, concat_size=3, allow_partial=True)
+
+    malware_path = cwd / "pipeline_ints"
     malware_dict = {
+
         "asymm_0_ints.txt": 0,
         "asymm_1_ints.txt": 0,
         "asymm_2_ints.txt": 0,
@@ -262,12 +284,6 @@ if __name__ == "__main__":
         # "compress_zstd_8t_3_ints.txt": 5,
         # "compress_zstd_8t_4_ints.txt": 5,
 
-        # "fscan_0_ints.txt": 4,
-        # "fscan_1_ints.txt": 4,
-        # "fscan_2_ints.txt": 4,
-        # "fscan_3_ints.txt": 4,
-        # "fscan_4_ints.txt": 4,
-
         "transfer_aws_1t_0_ints.txt": 4,
         "transfer_aws_1t_1_ints.txt": 4,
         "transfer_aws_1t_2_ints.txt": 4,
@@ -310,8 +326,14 @@ if __name__ == "__main__":
         # "recon_system_4_ints.txt": 8,
         # "recon_system_5_ints.txt": 8,
 
+        "fscan_group_1.txt": 8,
+        "fscan_group_2.txt": 8,
+        "fscan_group_3.txt": 8,
+        "fscan_group_4.txt": 8,
+        "fscan_group_5.txt": 8,
 
     }
+
     malware_list = list(malware_dict.keys())
 
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

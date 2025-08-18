@@ -1,3 +1,4 @@
+import joblib
 import matplotlib
 from sklearn.covariance import EllipticEnvelope
 from sklearn.ensemble import IsolationForest
@@ -417,6 +418,9 @@ def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
         plt.title('Confusion Matrix')
         plt.tight_layout()
         plt.show(block=True)
+
+    joblib.dump(dtree_model, model_settings.model_path)
+    joblib.dump(model_settings, model_settings.settings_path)
 
     return
 
