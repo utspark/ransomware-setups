@@ -177,8 +177,10 @@ if __name__ == "__main__":
     # model_path = cwd / "basic_lstm.h5"
     model_type = "decision_tree"
     # model_filename = problem_formulation + "_" + preproc_approach + "_" + "lstm.h5"
-    model_filename = problem_formulation + "_" + preproc_approach + "_" + model_type + ".json"
-    settings_filename = problem_formulation + "_" + preproc_approach + "_" + model_type + "_settings.json"
+    model_filename = ("saved_models/" +
+                      problem_formulation + "_" + preproc_approach + "_" + model_type + ".joblib")
+    settings_filename = ("saved_models/" +
+                         problem_formulation + "_" + preproc_approach + "_" + model_type + "_settings.joblib")
     model_path = cwd / model_filename
     settings_path = cwd / settings_filename
 
@@ -236,7 +238,7 @@ if __name__ == "__main__":
         "symm_AES_128t_3_ints.txt": 1,
         "symm_AES_128t_4_ints.txt": 1,
 
-        "symm_lsa20_256t_0_ints.txt": 1,
+        "symm_Salsa20_256t_0_ints.txt": 1,
         "symm_Salsa20_256t_1_ints.txt": 1,
         "symm_Salsa20_256t_2_ints.txt": 1,
         "symm_Salsa20_256t_3_ints.txt": 1,

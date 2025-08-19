@@ -1,9 +1,14 @@
+from itertools import groupby
 from pathlib import Path
 
 import joblib
 import numpy as np
+from hmmlearn import hmm
 
-from ml_pipelines.timeseries_processing import preproc_transform
+
+from ml_pipelines.timeseries_processing import preproc_transform, ModelSettings
+
+from ml_pipelines import config
 
 
 def form_lifecycle_sequence(attack_stages: dict, benign=False):
@@ -38,185 +43,99 @@ def form_lifecycle_sequence(attack_stages: dict, benign=False):
     return stage_keys, stage_windows
 
 
-if __name__ == "__main__":
-    cwd = Path.cwd()
+class LifecycleDetector:
+    def __init__(self):
+        self.hmm = self._get_markov()
 
-    settings_path = "../data/saved_models/multiclass_supervised_windowed_features_decision_tree_settings.json"
-    model_settings = joblib.load(settings_path)
-    model_settings.model_path = "../data/saved_models/multiclass_supervised_windowed_features_decision_tree.json"
-    classifier = joblib.load(model_settings.model_path)
+    @staticmethod
+    def _get_markov() -> hmm.CategoricalHMM:
+        s_c = 0.6  # start confidence, confidence that sequence will start at first stage
+        alternate_start_weights = [i * 1.5 for i in range(1, 3)][::-1]
+        alternate_start_weights = np.array(alternate_start_weights) / np.sum(alternate_start_weights) * (1 - s_c)
+        alternate_start_weights = alternate_start_weights.tolist()
+        alternate_start_weights.insert(0, s_c)
 
-    malware_path = cwd / "../data/pipeline_ints"
-    malware_dict = {
+        start_matrix = alternate_start_weights
 
-        "asymm_0_ints.txt": 0,
-        "asymm_1_ints.txt": 0,
-        "asymm_2_ints.txt": 0,
-        "asymm_3_ints.txt": 0,
-        "asymm_4_ints.txt": 0,
+        f_b_ratio = 2  # ratio of confidence of forward transition over backward transition
+        t_f0 = 1 / (3 * f_b_ratio + 0) * f_b_ratio
+        t_f1 = 1 / (2 * f_b_ratio + 1) * f_b_ratio
+        t_f2 = 1 / (1 * f_b_ratio + 2) * f_b_ratio
 
-        "symm_AES_128t_0_ints.txt": 1,
-        "symm_AES_128t_1_ints.txt": 1,
-        "symm_AES_128t_2_ints.txt": 1,
-        "symm_AES_128t_3_ints.txt": 1,
-        "symm_AES_128t_4_ints.txt": 1,
+        t_b1 = 1 / (2 * f_b_ratio + 1)
+        t_b2 = 1 / (1 * f_b_ratio + 2)
 
-        "symm_Salsa20_256t_0_ints.txt": 1,
-        "symm_Salsa20_256t_1_ints.txt": 1,
-        "symm_Salsa20_256t_2_ints.txt": 1,
-        "symm_Salsa20_256t_3_ints.txt": 1,
-        "symm_Salsa20_256t_4_ints.txt": 1,
+        transition_matrix = [
+            [t_f0, t_f0, t_f0],
+            [t_b1, t_f1, t_f1],
+            [t_b2, t_b2, t_f2],
+        ]
 
-        "compress_gzip_1t_0_ints.txt": 2,
-        "compress_gzip_1t_1_ints.txt": 2,
-        "compress_gzip_1t_2_ints.txt": 2,
-        "compress_gzip_1t_3_ints.txt": 2,
-        "compress_gzip_1t_4_ints.txt": 2,
+        e0 = 1  # 0.7  # confidence in detection at this stage 1
+        e1 = 1  # 0.7
+        e2 = 1  # 0.7
 
-        "compress_zstd_1t_0_ints.txt": 2,
-        "compress_zstd_1t_1_ints.txt": 2,
-        "compress_zstd_1t_2_ints.txt": 2,
-        "compress_zstd_1t_3_ints.txt": 2,
-        "compress_zstd_1t_4_ints.txt": 2,
+        emission_matrix = [
+            [e0, 0, 0],
+            [0, e1, 0],
+            [0, 0, e2],
+        ]
 
-        "compress_zstd_8t_0_ints.txt": 2,
-        "compress_zstd_8t_1_ints.txt": 2,
-        "compress_zstd_8t_2_ints.txt": 2,
-        "compress_zstd_8t_3_ints.txt": 2,
-        "compress_zstd_8t_4_ints.txt": 2,
+        model = hmm.CategoricalHMM(n_components=3, n_features=3)
+        model.startprob_ = np.array(start_matrix)
+        model.transmat_ = np.array(transition_matrix)
+        model.emissionprob_ = np.array(emission_matrix)
 
-        "compress_gzip_8t_0_ints.txt": 3,
-        "compress_gzip_8t_1_ints.txt": 3,
-        "compress_gzip_8t_2_ints.txt": 3,
-        "compress_gzip_8t_3_ints.txt": 3,
-        "compress_gzip_8t_4_ints.txt": 3,
+        return model
 
-        # "compress_zstd_1t_0_ints.txt": 4,
-        # "compress_zstd_1t_1_ints.txt": 4,
-        # "compress_zstd_1t_2_ints.txt": 4,
-        # "compress_zstd_1t_3_ints.txt": 4,
-        # "compress_zstd_1t_4_ints.txt": 4,
+    def score_sequence(self, seq_classes: np.array, seq_values: np.array) -> float:
+        var_classifier_conf = 0.6
+        var_uniform_subseq_len = 2
 
-        # "compress_zstd_8t_0_ints.txt": 5,
-        # "compress_zstd_8t_1_ints.txt": 5,
-        # "compress_zstd_8t_2_ints.txt": 5,
-        # "compress_zstd_8t_3_ints.txt": 5,
-        # "compress_zstd_8t_4_ints.txt": 5,
+        # *** filter confidence
+        confidence_mask = np.nonzero(seq_values > var_classifier_conf)[0]
+        seq_classes = seq_classes[confidence_mask]
 
-        # "compress_zstd_8t_0_ints.txt": 5,
-        # "compress_zstd_8t_1_ints.txt": 5,
-        # "compress_zstd_8t_2_ints.txt": 5,
-        # "compress_zstd_8t_3_ints.txt": 5,
-        # "compress_zstd_8t_4_ints.txt": 5,
+        # *** filter classifications
+        new_sequence = []
+        for key, group in groupby(seq_classes):
+            emission_len = len([_ for _ in group])
+            new_sequence.append((key, emission_len))
 
-        "transfer_aws_1t_0_ints.txt": 4,
-        "transfer_aws_1t_1_ints.txt": 4,
-        "transfer_aws_1t_2_ints.txt": 4,
-        "transfer_aws_1t_3_ints.txt": 4,
-        "transfer_aws_1t_4_ints.txt": 4,
+        prune_list = []
 
-        "transfer_aws_8t_0_ints.txt": 4,
-        "transfer_aws_8t_1_ints.txt": 4,
-        "transfer_aws_8t_2_ints.txt": 4,
-        "transfer_aws_8t_3_ints.txt": 4,
-        "transfer_aws_8t_4_ints.txt": 4,
+        for i, technique in enumerate(new_sequence):
+            if technique[1] < var_uniform_subseq_len:
+                prune_list.append(i)
 
-        "transfer_sftp_1t_0_ints.txt": 5,
-        "transfer_sftp_1t_1_ints.txt": 5,
-        "transfer_sftp_1t_2_ints.txt": 5,
-        "transfer_sftp_1t_3_ints.txt": 5,
-        "transfer_sftp_1t_4_ints.txt": 5,
+        new_sequence = np.array(new_sequence)
+        new_sequence = np.delete(new_sequence, prune_list, axis=0)
 
-        "transfer_sftp_8t_0_ints.txt": 5,
-        "transfer_sftp_8t_1_ints.txt": 5,
-        "transfer_sftp_8t_2_ints.txt": 5,
-        "transfer_sftp_8t_3_ints.txt": 5,
-        "transfer_sftp_8t_4_ints.txt": 5,
+        # techniques = []
+        # for key, group in groupby(new_sequence, lambda row: row[0]):
+        #     data = np.sum(np.array([item[1] for item in group]))
+        #     techniques.append((key, data))
+        techniques = new_sequence
 
-        "recon_mount_1_ints.txt": 6,
-        "recon_mount_2_ints.txt": 6,
-        "recon_mount_3_ints.txt": 6,
-        "recon_mount_4_ints.txt": 6,
-        "recon_mount_5_ints.txt": 6,
+        # *** get emissions
+        human_techniques = [config.LABEL_NAMES[technique[0]] for technique in techniques]
 
-        "recon_net_1_ints.txt": 7,
-        "recon_net_2_ints.txt": 7,
-        "recon_net_3_ints.txt": 7,
-        "recon_net_4_ints.txt": 7,
-        "recon_net_5_ints.txt": 7,
+        emissions = []
+        for technique in human_techniques:
+            for i, stage in enumerate(config.HMM_ATTACK_STAGES):
+                if technique in config.HMM_ATTACK_STAGES[stage]:
+                    emissions.append(i)
+                    break
 
-        # "recon_system_1_ints.txt": 8,
-        # "recon_system_2_ints.txt": 8,
-        # "recon_system_3_ints.txt": 8,
-        # "recon_system_4_ints.txt": 8,
-        # "recon_system_5_ints.txt": 8,
+        # *** hmm score
+        x = np.array(emissions).reshape(-1, 1)
 
-        "fscan_group_1.txt": 8,
-        "fscan_group_2.txt": 8,
-        "fscan_group_3.txt": 8,
-        "fscan_group_4.txt": 8,
-        "fscan_group_5.txt": 8,
+        proba = np.exp(self.hmm.score(np.array(x)))
+        proba = np.power(proba, 1 / len(x))  # normalization
 
-    }
+        # TODO punish longer stage sequences
+        # proba = np.power(proba, 1 / len(x) * 0.2)
 
-    ttp_dict = {
-        "recon_mount": [
-            "recon_mount_1_ints.txt",
-            "recon_mount_2_ints.txt",
-            "recon_mount_3_ints.txt",
-            "recon_mount_4_ints.txt",
-            "recon_mount_5_ints.txt",
-        ],
-        "recon_net": [
-            "recon_net_1_ints.txt",
-            "recon_net_2_ints.txt",
-            "recon_net_3_ints.txt",
-            "recon_net_4_ints.txt",
-            "recon_net_5_ints.txt",
-        ],
-    }
+        return proba
 
-    # malware_list = list(malware_dict.keys())
-    # malware_list = malware_list[0:4]
-
-    for ttp in ttp_dict:
-        malware_list = ttp_dict[ttp]
-        transformed = preproc_transform(model_settings, malware_path, malware_list)
-
-        y_pred_ohe = classifier.predict_proba(transformed)
-        label_class = np.argmax(y_pred_ohe, axis=1)
-        label_val = y_pred_ohe[np.arange(y_pred_ohe.shape[0]), label_class]
-
-
-
-
-
-
-    raise Exception
-
-    attack_stages = {
-        "recon": [
-            "recon_mount",
-            "recon_net",
-        ],
-        "exfil": [
-            "transfer_aws_1t",
-            "transfer_aws_8t",
-            "transfer_sftp_1t",
-            "transfer_sftp_8t",
-            "fscan_group",
-        ],
-        "exec" : [
-            "asymm",
-            "symm_AES_128t",
-            "symm_Salsa20_256t",
-            "compress_gzip_1t",
-            "compress_zstd_1t",
-            "compress_zstd_8t",
-            "compress_gzip_8t_0_ints",
-        ],
-
-    }
-
-    stage_keys, stage_windows = form_lifecycle_sequence(attack_stages, benign=False)
 

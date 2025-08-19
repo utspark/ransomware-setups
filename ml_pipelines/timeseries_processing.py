@@ -98,7 +98,7 @@ def concat_short_traces(files: Iterable[str | Path],
     return out_paths
 
 
-def get_file_arrays(file_path: Path, file_list=None) -> list:
+def get_file_arrays(file_path: Path, file_list=None, verbose=False) -> list:
     trace_list = []
 
     paths = [p for p in file_path.iterdir() if p.is_file()]
@@ -110,7 +110,9 @@ def get_file_arrays(file_path: Path, file_list=None) -> list:
         paths = filtered
 
     for file_name in paths:
-        print(file_name.name)
+        if verbose:
+            print(file_name.name)
+
         file_path = str(file_name)
 
         with open(file_path, "r", newline="") as f:

@@ -419,8 +419,8 @@ def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
         plt.tight_layout()
         plt.show(block=True)
 
-    joblib.dump(dtree_model, model_settings.model_path)
-    joblib.dump(model_settings, model_settings.settings_path)
+    joblib.dump(dtree_model, model_settings.model_path, compress=("zlib", 3))
+    joblib.dump(model_settings, model_settings.settings_path, compress=("zlib", 3))
 
     return
 
