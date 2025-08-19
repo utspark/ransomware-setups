@@ -41,12 +41,12 @@ def form_lifecycle_sequence(attack_stages: dict, benign=False):
 if __name__ == "__main__":
     cwd = Path.cwd()
 
-    settings_path = "saved_models/multiclass_supervised_windowed_features_decision_tree_settings.json"
+    settings_path = "../data/saved_models/multiclass_supervised_windowed_features_decision_tree_settings.json"
     model_settings = joblib.load(settings_path)
-    model_settings.model_path = "saved_models/multiclass_supervised_windowed_features_decision_tree.json"
+    model_settings.model_path = "../data/saved_models/multiclass_supervised_windowed_features_decision_tree.json"
     classifier = joblib.load(model_settings.model_path)
 
-    malware_path = cwd / "pipeline_ints"
+    malware_path = cwd / "../data/pipeline_ints"
     malware_dict = {
 
         "asymm_0_ints.txt": 0,
@@ -159,14 +159,35 @@ if __name__ == "__main__":
 
     }
 
-    malware_list = list(malware_dict.keys())
-    malware_list = malware_list[0:4]
+    ttp_dict = {
+        "recon_mount": [
+            "recon_mount_1_ints.txt",
+            "recon_mount_2_ints.txt",
+            "recon_mount_3_ints.txt",
+            "recon_mount_4_ints.txt",
+            "recon_mount_5_ints.txt",
+        ],
+        "recon_net": [
+            "recon_net_1_ints.txt",
+            "recon_net_2_ints.txt",
+            "recon_net_3_ints.txt",
+            "recon_net_4_ints.txt",
+            "recon_net_5_ints.txt",
+        ],
+    }
 
-    transformed = preproc_transform(model_settings, malware_path, malware_list)
+    # malware_list = list(malware_dict.keys())
+    # malware_list = malware_list[0:4]
 
-    y_pred_ohe = classifier.predict_proba(transformed)
-    label_class = np.argmax(y_pred_ohe, axis=1)
-    label_val = y_pred_ohe[np.arange(y_pred_ohe.shape[0]), label_class]
+    for ttp in ttp_dict:
+        malware_list = ttp_dict[ttp]
+        transformed = preproc_transform(model_settings, malware_path, malware_list)
+
+        y_pred_ohe = classifier.predict_proba(transformed)
+        label_class = np.argmax(y_pred_ohe, axis=1)
+        label_val = y_pred_ohe[np.arange(y_pred_ohe.shape[0]), label_class]
+
+
 
 
 

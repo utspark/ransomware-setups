@@ -219,7 +219,7 @@ if __name__ == "__main__":
     paths.sort(key=first_int)
     paths = [str(malware_path) + "/" + p for p in paths]
 
-    # concat_short_traces(paths, concat_size=3, allow_partial=True)
+    # out_paths = concat_short_traces(paths, concat_size=3, allow_partial=True)
 
     malware_path = cwd / "pipeline_ints"
     malware_dict = {
@@ -236,7 +236,7 @@ if __name__ == "__main__":
         "symm_AES_128t_3_ints.txt": 1,
         "symm_AES_128t_4_ints.txt": 1,
 
-        "symm_Salsa20_256t_0_ints.txt": 1,
+        "symm_lsa20_256t_0_ints.txt": 1,
         "symm_Salsa20_256t_1_ints.txt": 1,
         "symm_Salsa20_256t_2_ints.txt": 1,
         "symm_Salsa20_256t_3_ints.txt": 1,
