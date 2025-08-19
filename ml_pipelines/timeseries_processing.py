@@ -1,10 +1,10 @@
-from pathlib import Path
+import io
+import re
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Iterable
 
 import numpy as np
-import io
-from typing import Iterable
-import re
 
 
 @dataclass

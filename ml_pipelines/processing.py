@@ -1,30 +1,12 @@
 import matplotlib
-from xgboost import XGBClassifier
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 plt.ion()
 
-import os
-import io
-
-from pathlib import Path
-
 import numpy as np
-from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, classification_report
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.utils import compute_class_weight
-
-import tensorflow as tf
-from tensorflow.keras.datasets import imdb
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.layers import LSTM, Reshape, Input
-from tensorflow.keras.layers import Embedding
-from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.preprocessing import sequence
-
+from sklearn.preprocessing import OneHotEncoder
 
 
 def form_array_from_files(child_path, file_subsample=-1) -> np.array:

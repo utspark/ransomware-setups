@@ -2,7 +2,6 @@ import joblib
 import matplotlib
 from sklearn.covariance import EllipticEnvelope
 from sklearn.ensemble import IsolationForest
-from sklearn.metrics import roc_auc_score
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.pipeline import make_pipeline
 from sklearn.svm import OneClassSVM, SVC
@@ -20,26 +19,20 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, classification_report, log_loss
 from sklearn.tree import DecisionTreeClassifier
 
-from tensorflow.keras.utils import to_categorical
-
-
 from ml_pipelines.processing import form_one_hot_encoder
 from ml_pipelines.timeseries_processing import ModelSettings, RegressionData
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from sklearn.preprocessing import label_binarize
 from sklearn.preprocessing import LabelBinarizer
 
 import tensorflow as tf
-from tensorflow.keras.datasets import imdb
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import LSTM, Reshape, Input
 from tensorflow.keras.layers import Embedding
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.preprocessing import sequence
 
 
 def roc_auc_plot(y_test: np.array, y_scores: np.array, sample_weight=None) -> None:

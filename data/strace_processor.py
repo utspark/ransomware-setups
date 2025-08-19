@@ -1,16 +1,11 @@
 import io
-import pathlib
-from importlib.metadata import files
 from pathlib import Path
-
-from tqdm import tqdm
-import requests
-import pandas as pd
-import numpy as np
-import csv
 from typing import List
 
 import matplotlib
+import numpy as np
+import requests
+
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 plt.ion()

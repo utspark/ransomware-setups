@@ -1,7 +1,7 @@
 import matplotlib
 import numpy as np
+import tensorflow as tf
 # from PyQt5.QtSql import password
-from fontTools.ttLib.tables.S__i_l_f import content_string
 from sklearn.covariance import EllipticEnvelope
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, roc_curve
@@ -11,17 +11,11 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC, OneClassSVM
 from sklearn.utils import compute_class_weight
-
-import keras
-
-import tensorflow as tf
-from tensorflow.keras.datasets import imdb
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.layers import LSTM, Reshape, Input
-from tensorflow.keras.layers import Embedding
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.preprocessing import sequence
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Embedding
+from tensorflow.keras.layers import LSTM, Reshape, Input
+from tensorflow.keras.models import Sequential, load_model
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -35,7 +29,6 @@ import ml_pipelines.processing as mpp
 
 os.environ["QT_QPA_PLATFORM"] = "wayland"
 
-import xgboost as xgb
 from xgboost import XGBClassifier
 
 
@@ -670,7 +663,6 @@ if __name__ == "__main__":
     ### *** Define transformations
     from gluonts.time_feature import (
         time_features_from_frequency_str,
-        TimeFeature,
         get_lags_for_frequency,
     )
     from gluonts.dataset.field_names import FieldName
@@ -683,8 +675,6 @@ if __name__ == "__main__":
         ExpectedNumInstanceSampler,
         InstanceSplitter,
         RemoveFields,
-        SelectFields,
-        SetField,
         TestSplitSampler,
         Transformation,
         ValidationSplitSampler,
@@ -1195,13 +1185,8 @@ if __name__ == "__main__":
     # raise Exception
 
     import torch
-    import torch.nn as nn
-    from torch.utils.data import DataLoader, TensorDataset
-    from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerModel
 
     import torch
-    import torch.nn as nn
-    from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerModel
 
     import numpy as np
     import torch

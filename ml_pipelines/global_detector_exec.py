@@ -6,7 +6,6 @@ import numpy as np
 from ml_pipelines import local_detector, global_detector, config
 from ml_pipelines.timeseries_processing import preproc_transform
 
-
 if __name__ == "__main__":
     PRESCORE = False
     USE_PRESCORE = False

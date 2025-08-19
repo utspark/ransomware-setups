@@ -1,12 +1,7 @@
 from itertools import groupby
-from pathlib import Path
 
-import joblib
 import numpy as np
 from hmmlearn import hmm
-
-
-from ml_pipelines.timeseries_processing import preproc_transform, ModelSettings
 
 from ml_pipelines import config
 

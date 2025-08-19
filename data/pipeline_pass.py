@@ -1,20 +1,6 @@
-import io
 from pathlib import Path
 
-
 import matplotlib
-from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.model_selection import train_test_split
-from sklearn.multiclass import OneVsRestClassifier, OneVsOneClassifier
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
-from sklearn.utils import compute_class_weight
-
-import re
-
-
-
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -23,7 +9,7 @@ plt.ion()
 import numpy as np
 
 from ml_pipelines.timeseries_processing import RegressionData, ModelSettings, get_windows_and_futures, \
-    preproc_transform, get_system_call_map, first_int, concat_short_traces
+    preproc_transform, get_system_call_map, first_int
 from ml_pipelines.pipeline_analysis import regression_error, binary_supervised_error, unsupervised_error, \
     multiclass_error
 
