@@ -1,4 +1,11 @@
+import matplotlib
+
+matplotlib.use("Qt5Agg")
+import matplotlib.pyplot as plt
+plt.ion()
+
 import numpy as np
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 
 
@@ -36,7 +43,7 @@ def form_array_from_files(child_path, file_subsample=-1) -> np.array:
     return padded_matrix
 
 
-def form_one_hot_encoder(benign_array) -> OneHotEncoder:
+def form_one_hot_encoder(benign_array: np.array) -> OneHotEncoder:
     max_syscall = np.max(benign_array)
     one_hot_array = np.array(range(max_syscall))
     one_hot_array = one_hot_array.reshape(-1, 1)
@@ -52,6 +59,28 @@ def increase_padding(pad_target, max_len) -> np.array:
     padded = np.concatenate((pad_target, pad_array), axis=1)
 
     return padded
+
+
+def unsupervised_preproc(mode: str) -> (np.array, np.array, np.array):
+    benign, malware = preproc_transform(mode)
+
+    X = benign
+    y = np.zeros(len(X)) + 1
+
+    X_train, X_test, _, y_test = train_test_split(
+        X, y, test_size=0.3, random_state=42, stratify=y
+    )
+
+    X_test = np.concatenate((X_test, malware))
+
+    malware_labels = np.zeros((len(malware))) - 1
+    y_test = np.concatenate((y_test, malware_labels))
+
+    return X_train, X_test, y_test
+
+
+
+
 
 
 
