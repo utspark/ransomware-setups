@@ -1,15 +1,9 @@
 from pathlib import Path
 
-# Requires tshark installed (Wireshark) + pyshark:
-#   - macOS: brew install wireshark
-#   - Linux: apt/dnf install tshark
-# pip install pyshark pandas
-
-import pyshark
-import pandas as pd
-import csv
-import re
 import numpy as np
+import pandas as pd
+
+import feature_extraction
 
 
 # 2) Fix lines that have too many/few fields
@@ -27,31 +21,10 @@ def fix_bad_line(fields: list[str]) -> list[str] | None:
     return fields
 
 
-def get_time_windows(t: pd.Series, window_size_time: float, window_stride_time: float):
-    def time_window_bounds_float(t, span):
-        """
-        For each time t[i], compute left index of the closed window [t[i]-span, t[i]].
-        times: array-like of floats (ascending if assume_sorted=True)
-        span: non-negative float (same units as times)
-        Returns: (left_idx, right_idx) for the *sorted* order.
-        """
-        left = np.searchsorted(t, t - span, side="left")
-        right = np.arange(t.size)  # inclusive end at each i
-
-        return left, right
-
-    time_windowed_left, time_windowed_right = time_window_bounds_float(t, window_size_time)
-
-    time_strided_right = np.arange(window_size_time, t.iloc[-1], window_stride_time)
-    time_indices = np.searchsorted(t, time_strided_right)
-
-    left_indices = time_windowed_left[time_indices]
-    right_indices = time_windowed_right[time_indices]
-
-    return np.array(left_indices), np.array(right_indices)
 
 
-def get_network_file_df(filepath: Path) -> pd.DataFrame:
+
+def get_file_df(filepath: Path) -> pd.DataFrame:
     sep = ","
 
     df = pd.read_csv(
@@ -65,6 +38,8 @@ def get_network_file_df(filepath: Path) -> pd.DataFrame:
 
     pat = r'((?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?)'
 
+    df = df[df["tcp.srcport"] != "127.0.0.1"]  # TODO cleaner fix
+
     df['time'] = df['frame.time'].str.extract(pat)  # first match per row
     df['seconds'] = pd.to_timedelta(df['time']).dt.total_seconds()
     df["seconds"] = df["seconds"] - df["seconds"][0]
@@ -74,18 +49,20 @@ def get_network_file_df(filepath: Path) -> pd.DataFrame:
     df = df[[col] + [c for c in df.columns if c != col]]
 
     df["merged_src"] = df["tcp.srcport"].fillna(df["udp.srcport"])
+    df["merged_src"] = df["merged_src"].fillna(0)
+    df["merged_src"] = df["merged_src"].astype(int)
     df["merged_dst"] = df["tcp.dstport"].fillna(df["udp.dstport"])
+    df["merged_dst"] = df["merged_dst"].fillna(0)
+    df["merged_dst"] = df["merged_dst"].astype(int)
     df = df.drop(columns=["tcp.srcport", "udp.srcport", "tcp.dstport", "udp.dstport", "ip.src", "ip.dst"])
     df = df.drop(columns=["_ws.col.Info"])
+
 
     return df
 
 
-def network_df_feature_extraction(df: pd.DataFrame) -> pd.DataFrame:
-    window_size_time = 0.1
-    window_stride_time = 0.05
-
-    left_idx, right_idx = get_time_windows(df["seconds"], window_size_time, window_stride_time)
+def file_df_feature_extraction(df: pd.DataFrame, window_size_time, window_stride_time) -> pd.DataFrame:
+    left_idx, right_idx = feature_extraction.get_time_windows(df["seconds"], window_size_time, window_stride_time)
 
     feature_list = []
 
@@ -125,7 +102,6 @@ def network_df_feature_extraction(df: pd.DataFrame) -> pd.DataFrame:
             arp_count,
             tcp_count
         ]
-
         feature_list.append(features)
 
     col = [
@@ -141,28 +117,8 @@ def network_df_feature_extraction(df: pd.DataFrame) -> pd.DataFrame:
         "arp_count",
         "tcp_count"
     ]
-
     X = pd.DataFrame(feature_list, columns=col)
     X = X[X["window_len"] != 0]
 
     return X
-
-
-
-if __name__ == "__main__":
-    cwd = Path.cwd()
-    data_dir = cwd / "../data/v4_results/out_recon"
-
-    paths = [p for p in data_dir.iterdir() if p.is_file()]
-    paths.sort()
-
-    filename = paths[0]
-
-    df = get_network_file_df(filename)
-    X = network_df_feature_extraction(df)
-
-
-
-    # TODO
-    #  - convert syscalls and network to time-domain
 
