@@ -9,11 +9,13 @@ import pyshark
 import pandas as pd
 import csv
 import re
+import numpy as np
 
 
 # 2) Fix lines that have too many/few fields
 def fix_bad_line(fields: list[str]) -> list[str] | None:
     expected = 11
+    sep = ","
 
     if len(fields) > expected:
         # keep first expected-1 fields; glue the remainder into the last field
@@ -25,69 +27,35 @@ def fix_bad_line(fields: list[str]) -> list[str] | None:
     return fields
 
 
-def time_to_seconds(s: str) -> float:
-    """
-    Parse a time string into seconds (float).
-    Supports:
-      - "HH:MM:SS", "MM:SS", "SS" (seconds may be fractional)
-      - "1h 2m 3.4s" (units optional, case-insensitive, spaces optional)
-    """
-    s = s.strip()
+def get_time_windows(t: pd.Series, window_size_time: float, window_stride_time: float):
+    def time_window_bounds_float(t, span):
+        """
+        For each time t[i], compute left index of the closed window [t[i]-span, t[i]].
+        times: array-like of floats (ascending if assume_sorted=True)
+        span: non-negative float (same units as times)
+        Returns: (left_idx, right_idx) for the *sorted* order.
+        """
+        left = np.searchsorted(t, t - span, side="left")
+        right = np.arange(t.size)  # inclusive end at each i
 
-    # Pattern with explicit units, e.g. "1h 2m 3.4s", "2m", "45.5s"
-    m = re.fullmatch(r'(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?\s*(?:(\d+(?:\.\d+)?)\s*s)?', s, re.I)
-    if m and any(m.groups()):
-        h = int(m.group(1) or 0)
-        m_ = int(m.group(2) or 0)
-        sec = float(m.group(3) or 0.0)
-        return h * 3600 + m_ * 60 + sec
+        return left, right
 
-    # Colon formats: HH:MM:SS(.ms) | MM:SS(.ms) | SS(.ms)
-    parts = s.split(':')
-    if len(parts) == 3:
-        h, m_, sec = parts
-        return int(h) * 3600 + int(m_) * 60 + float(sec)
-    elif len(parts) == 2:
-        m_, sec = parts
-        return int(m_) * 60 + float(sec)
-    elif len(parts) == 1:
-        return float(parts[0])  # already seconds (maybe fractional)
+    time_windowed_left, time_windowed_right = time_window_bounds_float(t, window_size_time)
 
-    raise ValueError(f"Unrecognized time string format: {s!r}")
+    time_strided_right = np.arange(window_size_time, t.iloc[-1], window_stride_time)
+    time_indices = np.searchsorted(t, time_strided_right)
+
+    left_indices = time_windowed_left[time_indices]
+    right_indices = time_windowed_right[time_indices]
+
+    return np.array(left_indices), np.array(right_indices)
 
 
-if __name__ == "__main__":
-    cwd = Path.cwd()
-    data_dir = cwd / "../data/v4_results/out_recon"
-
-    paths = [p for p in data_dir.iterdir() if p.is_file()]
-    paths.sort()
-
-    # if file_list is not None:
-    #     file_set = set(file_list)
-    #     filtered = [path for path in paths if path.name in file_set]
-    #     paths = filtered
-
-
-
-    # with open(file_path, "r", newline="") as f:
-    #     lines = f.readlines()
-    #     arr1 = np.loadtxt(io.StringIO(lines[0]), dtype=int)
-    #     # arr2 = np.loadtxt(io.StringIO(lines[1]), dtype=float)
-    #     trace_list.append(arr1)
-
-
-    filename = paths[0]
+def get_network_file_df(filepath: Path) -> pd.DataFrame:
     sep = ","
 
-    bad_rows = []
-
-    # with open(filename, newline="", encoding="utf-8") as f:
-    #     header = next(csv.reader(f, delimiter=sep))
-    # expected = len(header)
-
     df = pd.read_csv(
-        filename,
+        filepath,
         sep=sep,
         engine="python",  # needed for callable on_bad_lines
         on_bad_lines=fix_bad_line  # normalize bad rows on the fly
@@ -99,38 +67,102 @@ if __name__ == "__main__":
 
     df['time'] = df['frame.time'].str.extract(pat)  # first match per row
     df['seconds'] = pd.to_timedelta(df['time']).dt.total_seconds()
+    df["seconds"] = df["seconds"] - df["seconds"][0]
 
     df.drop(columns=["frame.time", "time"], inplace=True)
     col = "seconds"
     df = df[[col] + [c for c in df.columns if c != col]]
 
-    df["seconds"] = df["seconds"] - df["seconds"][0]
+    df["merged_src"] = df["tcp.srcport"].fillna(df["udp.srcport"])
+    df["merged_dst"] = df["tcp.dstport"].fillna(df["udp.dstport"])
+    df = df.drop(columns=["tcp.srcport", "udp.srcport", "tcp.dstport", "udp.dstport", "ip.src", "ip.dst"])
+    df = df.drop(columns=["_ws.col.Info"])
 
-    # delta_next_minus_current = df["seconds"].shift(-1) - df["seconds"]
-
-    import numpy as np
-
-
-    def time_window_bounds_float(t, span):
-        """
-        For each time t[i], compute left index of the closed window [t[i]-span, t[i]].
-        times: array-like of floats (ascending if assume_sorted=True)
-        span: non-negative float (same units as times)
-        Returns: (left_idx, right_idx) for the *sorted* order.
-        """
-        left = np.searchsorted(t, t - span, side="left")
-        right = np.arange(t.size)  # inclusive end at each i
-        return left, right
+    return df
 
 
-    times = np.array([0.0, 1.5, 5.0, 5.1, 9.99])  # floats (e.g., seconds)
-    vals = np.array([2.0, 3.5, 1.0, 4.0, 5.0])
-    span = 5.0  # look back 5 seconds at each timestamp
+def network_df_feature_extraction(df: pd.DataFrame) -> pd.DataFrame:
+    window_size_time = 0.1
+    window_stride_time = 0.05
 
-    span = 5.0
-    left, right = time_window_bounds_float(times, span)
+    left_idx, right_idx = get_time_windows(df["seconds"], window_size_time, window_stride_time)
+
+    feature_list = []
+
+    for i, j in zip(left_idx, right_idx):
+        window = df.iloc[i:j]
+
+        window_len = len(window)
+        max_frame_len = np.max(window["frame.len"])
+        mean_frame_len = np.mean(window["frame.len"])
+        min_frame_len = np.min(window["frame.len"])
+        std_frame_len = np.std(window["frame.len"])
+        unique_src_ports = len(np.unique(window["merged_src"]))
+        unique_dst_ports = len(np.unique(window["merged_dst"]))
+        protocol_count_str = str(window["_ws.col.Protocol"])
+        ssh_count = protocol_count_str.count("SSH")
+        nfs_count = protocol_count_str.count("NFS")
+        arp_count = protocol_count_str.count("ARP")
+        tcp_count = protocol_count_str.count("TCP")
+
+        protocol_count_sum = ssh_count + nfs_count + arp_count + tcp_count + 1
+
+        ssh_count = ssh_count / protocol_count_sum
+        nfs_count = nfs_count / protocol_count_sum
+        arp_count = arp_count / protocol_count_sum
+        tcp_count = tcp_count / protocol_count_sum
+
+        features = [
+            window_len,
+            max_frame_len,
+            mean_frame_len,
+            min_frame_len,
+            std_frame_len,
+            unique_src_ports,
+            unique_dst_ports,
+            ssh_count,
+            nfs_count,
+            arp_count,
+            tcp_count
+        ]
+
+        feature_list.append(features)
+
+    col = [
+        "window_len",
+        "max_frame_len",
+        "mean_frame_len",
+        "min_frame_len",
+        "std_frame_len",
+        "unique_src_ports",
+        "unique_dst_ports",
+        "ssh_count",
+        "nfs_count",
+        "arp_count",
+        "tcp_count"
+    ]
+
+    X = pd.DataFrame(feature_list, columns=col)
+    X = X[X["window_len"] != 0]
+
+    return X
+
+
+
+if __name__ == "__main__":
+    cwd = Path.cwd()
+    data_dir = cwd / "../data/v4_results/out_recon"
+
+    paths = [p for p in data_dir.iterdir() if p.is_file()]
+    paths.sort()
+
+    filename = paths[0]
+
+    df = get_network_file_df(filename)
+    X = network_df_feature_extraction(df)
+
+
 
     # TODO
-    #  - ignore info column, concatenate the extra commas
     #  - convert syscalls and network to time-domain
 
