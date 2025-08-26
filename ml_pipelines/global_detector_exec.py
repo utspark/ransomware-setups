@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     prescored_dir = cwd / "../data/prescored_windows"
 
-    malware_path = cwd / "../data/pipeline_ints"
+    malware_path = cwd / "../data/syscall_ints"
 
     ttp_dict = config.TTP_DICT
     generation_attack_stages = config.GENERATION_ATTACK_STAGES
