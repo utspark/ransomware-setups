@@ -51,6 +51,8 @@ def files_and_labels_to_X_y(
         Feature extraction parameters.
     strict : bool
         If True, raise on missing label/file issues; if False, skip problematic files.
+    dataframe_subsample : int
+        stride for which to subsample collected dataframes
 
     Returns
     -------
@@ -73,7 +75,7 @@ def files_and_labels_to_X_y(
 
         try:
             df = signal_module.get_file_df(p)
-            X_i = signal_module.file_df_feature_extraction(df, window_size_time, window_stride_time)
+            X_i = signal_module.file_df_feature_extraction_parallel(df, window_size_time, window_stride_time)
         except Exception as e:
             if strict:
                 raise RuntimeError(f"Failed processing {p}") from e
@@ -273,18 +275,18 @@ def prediction_analysis(
 
 if __name__ == "__main__":
     cwd = Path.cwd()
-    SYSCALL = True
-    NETWORK = False
+    SYSCALL = False
+    NETWORK = True
 
     window_size_time = 0.1 / 10
     window_stride_time = 0.05 / 10
 
     if SYSCALL:
-        syscall_dir = cwd / "../data/syscall_ints"
+        syscall_dir = cwd / "../data/syscall_bucket"
         syscall_paths = [p for p in syscall_dir.iterdir() if p.is_file()]
         syscall_paths.sort()
 
-        MALWARE_DICT = ml_pipelines.config.MALWARE_DICT
+        MALWARE_DICT = ml_pipelines.config.SYSCALL_MALWARE_DICT
         malware_keys = set(MALWARE_DICT.keys())
         filtered = [path for path in syscall_paths if path.name in malware_keys]
         syscall_paths = filtered
@@ -306,17 +308,18 @@ if __name__ == "__main__":
 
 
     if NETWORK:
-        network_dir = cwd / "../data/v4_results/out_exec"
+        network_dir = cwd / "../data/network_bucket"
         network_paths = [p for p in network_dir.iterdir() if p.is_file()]
         network_paths.sort()
 
-        MALWARE_DICT = ml_pipelines.config.MALWARE_DICT
+        MALWARE_DICT = ml_pipelines.config.NETWORK_MALWARE_DICT
         malware_keys = set(MALWARE_DICT.keys())
         filtered = [path for path in network_paths if path.name in malware_keys]
         network_paths = filtered
 
-        X, y = files_and_labels_to_X_y(network_paths, syscall_signals, MALWARE_DICT, window_size_time,
-                                       window_stride_time)
+        X, y = files_and_labels_to_X_y(
+            network_paths, network_signals, MALWARE_DICT, window_size_time, window_stride_time,
+        )
 
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.3, random_state=42, stratify=y

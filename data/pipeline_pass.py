@@ -2,6 +2,8 @@ from pathlib import Path
 
 import matplotlib
 
+from ml_pipelines import config
+
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 plt.ion()
@@ -210,117 +212,7 @@ if __name__ == "__main__":
     # out_paths = concat_short_traces(paths, concat_size=3, allow_partial=True)
 
     malware_path = cwd / "pipeline_ints"
-    malware_dict = {
-
-        "asymm_0_ints.txt": 0,
-        "asymm_1_ints.txt": 0,
-        "asymm_2_ints.txt": 0,
-        "asymm_3_ints.txt": 0,
-        "asymm_4_ints.txt": 0,
-
-        "symm_AES_128t_0_ints.txt": 1,
-        "symm_AES_128t_1_ints.txt": 1,
-        "symm_AES_128t_2_ints.txt": 1,
-        "symm_AES_128t_3_ints.txt": 1,
-        "symm_AES_128t_4_ints.txt": 1,
-
-        "symm_Salsa20_256t_0_ints.txt": 1,
-        "symm_Salsa20_256t_1_ints.txt": 1,
-        "symm_Salsa20_256t_2_ints.txt": 1,
-        "symm_Salsa20_256t_3_ints.txt": 1,
-        "symm_Salsa20_256t_4_ints.txt": 1,
-
-        "compress_gzip_1t_0_ints.txt": 2,
-        "compress_gzip_1t_1_ints.txt": 2,
-        "compress_gzip_1t_2_ints.txt": 2,
-        "compress_gzip_1t_3_ints.txt": 2,
-        "compress_gzip_1t_4_ints.txt": 2,
-
-        "compress_zstd_1t_0_ints.txt": 2,
-        "compress_zstd_1t_1_ints.txt": 2,
-        "compress_zstd_1t_2_ints.txt": 2,
-        "compress_zstd_1t_3_ints.txt": 2,
-        "compress_zstd_1t_4_ints.txt": 2,
-
-        "compress_zstd_8t_0_ints.txt": 2,
-        "compress_zstd_8t_1_ints.txt": 2,
-        "compress_zstd_8t_2_ints.txt": 2,
-        "compress_zstd_8t_3_ints.txt": 2,
-        "compress_zstd_8t_4_ints.txt": 2,
-
-        "compress_gzip_8t_0_ints.txt": 3,
-        "compress_gzip_8t_1_ints.txt": 3,
-        "compress_gzip_8t_2_ints.txt": 3,
-        "compress_gzip_8t_3_ints.txt": 3,
-        "compress_gzip_8t_4_ints.txt": 3,
-
-        # "compress_zstd_1t_0_ints.txt": 4,
-        # "compress_zstd_1t_1_ints.txt": 4,
-        # "compress_zstd_1t_2_ints.txt": 4,
-        # "compress_zstd_1t_3_ints.txt": 4,
-        # "compress_zstd_1t_4_ints.txt": 4,
-
-        # "compress_zstd_8t_0_ints.txt": 5,
-        # "compress_zstd_8t_1_ints.txt": 5,
-        # "compress_zstd_8t_2_ints.txt": 5,
-        # "compress_zstd_8t_3_ints.txt": 5,
-        # "compress_zstd_8t_4_ints.txt": 5,
-
-        # "compress_zstd_8t_0_ints.txt": 5,
-        # "compress_zstd_8t_1_ints.txt": 5,
-        # "compress_zstd_8t_2_ints.txt": 5,
-        # "compress_zstd_8t_3_ints.txt": 5,
-        # "compress_zstd_8t_4_ints.txt": 5,
-
-        "transfer_aws_1t_0_ints.txt": 4,
-        "transfer_aws_1t_1_ints.txt": 4,
-        "transfer_aws_1t_2_ints.txt": 4,
-        "transfer_aws_1t_3_ints.txt": 4,
-        "transfer_aws_1t_4_ints.txt": 4,
-
-        "transfer_aws_8t_0_ints.txt": 4,
-        "transfer_aws_8t_1_ints.txt": 4,
-        "transfer_aws_8t_2_ints.txt": 4,
-        "transfer_aws_8t_3_ints.txt": 4,
-        "transfer_aws_8t_4_ints.txt": 4,
-
-        "transfer_sftp_1t_0_ints.txt": 5,
-        "transfer_sftp_1t_1_ints.txt": 5,
-        "transfer_sftp_1t_2_ints.txt": 5,
-        "transfer_sftp_1t_3_ints.txt": 5,
-        "transfer_sftp_1t_4_ints.txt": 5,
-
-        "transfer_sftp_8t_0_ints.txt": 5,
-        "transfer_sftp_8t_1_ints.txt": 5,
-        "transfer_sftp_8t_2_ints.txt": 5,
-        "transfer_sftp_8t_3_ints.txt": 5,
-        "transfer_sftp_8t_4_ints.txt": 5,
-
-        "recon_mount_1_ints.txt": 6,
-        "recon_mount_2_ints.txt": 6,
-        "recon_mount_3_ints.txt": 6,
-        "recon_mount_4_ints.txt": 6,
-        "recon_mount_5_ints.txt": 6,
-
-        "recon_net_1_ints.txt": 7,
-        "recon_net_2_ints.txt": 7,
-        "recon_net_3_ints.txt": 7,
-        "recon_net_4_ints.txt": 7,
-        "recon_net_5_ints.txt": 7,
-
-        # "recon_system_1_ints.txt": 8,
-        # "recon_system_2_ints.txt": 8,
-        # "recon_system_3_ints.txt": 8,
-        # "recon_system_4_ints.txt": 8,
-        # "recon_system_5_ints.txt": 8,
-
-        "fscan_group_1.txt": 8,
-        "fscan_group_2.txt": 8,
-        "fscan_group_3.txt": 8,
-        "fscan_group_4.txt": 8,
-        "fscan_group_5.txt": 8,
-
-    }
+    malware_dict = config.SYSCALL_MALWARE_DICT
 
     malware_list = list(malware_dict.keys())
 

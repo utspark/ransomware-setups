@@ -1,6 +1,8 @@
 from typing import Final
 
-MALWARE_DICT : Final = {
+SUBSAMPLE_NETWORK_DATA : Final = 10
+
+SYSCALL_MALWARE_DICT : Final = {
     "asymm_0_ints.txt": 0,
     "asymm_1_ints.txt": 0,
     "asymm_2_ints.txt": 0,
@@ -108,6 +110,121 @@ MALWARE_DICT : Final = {
     "fscan_group_3.txt": 8,
     "fscan_group_4.txt": 8,
     "fscan_group_5.txt": 8,
+}
+
+NETWORK_MALWARE_DICT : Final = {
+    "exec_AES_128_O_default_1": 0,
+    "exec_AES_128_O_none_1": 0,
+    "exec_AES_128_WA_default_1": 0,
+    "exec_AES_128_WA_none_1": 0,
+
+    "exec_AES_256_O_default_1": 0,
+    "exec_AES_256_O_none_1": 0,
+    "exec_AES_256_WA_default_1": 0,
+    "exec_AES_256_WA_none_1": 0,
+
+    "exec_Salsa20_128_O_default_1": 0,
+    "exec_Salsa20_128_O_none_1": 0,
+    "exec_Salsa20_128_WA_default_1": 0,
+    "exec_Salsa20_128_WA_none_1": 0,
+
+    "exec_Salsa20_256_O_default_1": 0,
+    "exec_Salsa20_256_O_none_1": 0,
+    "exec_Salsa20_256_WA_default_1": 0,
+    "exec_Salsa20_256_WA_none_1": 0,
+
+    "exfil_gzip_1_aws_1": 1,
+    "exfil_gzip_1_aws_2": 1,
+    "exfil_gzip_1_aws_3": 1,
+    "exfil_gzip_1_aws_4": 1,
+    "exfil_gzip_1_aws_5": 1,
+
+    "exfil_gzip_8_aws_1": 1,
+    "exfil_gzip_8_aws_2": 1,
+    "exfil_gzip_8_aws_3": 1,
+    "exfil_gzip_8_aws_4": 1,
+    "exfil_gzip_8_aws_5": 1,
+
+    "exfil_gzip_1_sftp_1": 2,
+    "exfil_gzip_1_sftp_2": 2,
+    "exfil_gzip_1_sftp_3": 2,
+    "exfil_gzip_1_sftp_4": 2,
+    "exfil_gzip_1_sftp_5": 2,
+
+    "exfil_gzip_8_sftp_1": 2,
+    "exfil_gzip_8_sftp_2": 2,
+    "exfil_gzip_8_sftp_3": 2,
+    "exfil_gzip_8_sftp_4": 2,
+    "exfil_gzip_8_sftp_5": 2,
+
+    "exfil_none_1_aws_1": 3,
+    "exfil_none_1_aws_2": 3,
+    "exfil_none_1_aws_3": 3,
+    "exfil_none_1_aws_4": 3,
+    "exfil_none_1_aws_5": 3,
+
+    "exfil_none_8_aws_1": 3,
+    "exfil_none_8_aws_2": 3,
+    "exfil_none_8_aws_3": 3,
+    "exfil_none_8_aws_4": 3,
+    "exfil_none_8_aws_5": 3,
+
+    "exfil_none_1_sftp_1": 4,
+    "exfil_none_1_sftp_2": 4,
+    "exfil_none_1_sftp_3": 4,
+    "exfil_none_1_sftp_4": 4,
+    "exfil_none_1_sftp_5": 4,
+
+    "exfil_none_8_sftp_1": 4,
+    "exfil_none_8_sftp_2": 4,
+    "exfil_none_8_sftp_3": 4,
+    "exfil_none_8_sftp_4": 4,
+    "exfil_none_8_sftp_5": 4,
+
+    # "exfil_zstd_1_aws_1": 5,
+    # "exfil_zstd_1_aws_2": 5,
+    # "exfil_zstd_1_aws_3": 5,
+    # "exfil_zstd_1_aws_4": 5,
+    # "exfil_zstd_1_aws_5": 5,
+    #
+    # "exfil_zstd_8_aws_1": 5,
+    # "exfil_zstd_8_aws_2": 5,
+    # "exfil_zstd_8_aws_3": 5,
+    # "exfil_zstd_8_aws_4": 5,
+    # "exfil_zstd_8_aws_5": 5,
+
+    "exfil_zstd_1_sftp_1": 6,
+    "exfil_zstd_1_sftp_2": 6,
+    "exfil_zstd_1_sftp_3": 6,
+    "exfil_zstd_1_sftp_4": 6,
+    "exfil_zstd_1_sftp_5": 6,
+
+    "exfil_zstd_8_sftp_1": 6,
+    "exfil_zstd_8_sftp_2": 6,
+    "exfil_zstd_8_sftp_3": 6,
+    "exfil_zstd_8_sftp_4": 6,
+    "exfil_zstd_8_sftp_5": 6,
+
+
+    # log entries are so time-sparse that nothing appears in a time-window
+    # "recon_mount_1": 3,
+    # "recon_mount_2": 3,
+    # "recon_mount_3": 3,
+    # "recon_mount_4": 3,
+    # "recon_mount_5": 3,
+
+    "recon_net_1": 4,
+    "recon_net_2": 4,
+    "recon_net_3": 4,
+    "recon_net_4": 4,
+    "recon_net_5": 4,
+
+    # "recon_system_1": 5,
+    # "recon_system_2": 5,
+    # "recon_system_3": 5,
+    # "recon_system_4": 5,
+    # "recon_system_5": 5,
+
 }
 
 TTP_DICT: Final = {
