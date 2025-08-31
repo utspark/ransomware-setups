@@ -1,6 +1,9 @@
 import io
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import List
+from zipimport import END_CENTRAL_DIR_SIZE
 
 import matplotlib
 import numpy as np
@@ -168,10 +171,10 @@ def process_files_in_parallel(files, syscall_dict: dict, n_workers: int | None =
 
 
 if __name__ == "__main__":
-    TRANSLATE_SYSCALL_FILES = False
+    TRANSLATE_SYSCALL_FILES = True
     SPECIFY_FILES = False
-    DATA_DIR = Path.cwd() / "ftrace_results"
-    FILE_LINE_SUBSAMPLE = 100_000
+    DATA_DIR = Path.cwd() / "benignware_data/filebench/syscall_output"
+    FILE_LINE_CUTOFF = 50_000
 
     if TRANSLATE_SYSCALL_FILES:
 
@@ -192,8 +195,10 @@ if __name__ == "__main__":
             file_list = find_non_txt_files(DATA_DIR)
 
         # process_one_file(file_list[0], syscall_dict)
-        process_files_in_parallel(file_list, syscall_dict, n_workers=10, file_line_subsample=FILE_LINE_SUBSAMPLE)
+        process_files_in_parallel(file_list, syscall_dict, n_workers=10, file_line_subsample=FILE_LINE_CUTOFF)
 
+
+    raise Exception
 
 
     cwd = Path.cwd()

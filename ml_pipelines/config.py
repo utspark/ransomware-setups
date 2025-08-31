@@ -227,6 +227,38 @@ NETWORK_MALWARE_DICT : Final = {
 
 }
 
+HPC_MALWARE_DICT : Final = {
+    "browser_hardware_compute_1": 0,
+    "browser_hardware_compute_2": 0,
+    "browser_hardware_compute_3": 0,
+    "browser_hardware_compute_4": 0,
+    "browser_hardware_compute_5": 0,
+
+    "browser_hardware_download_1": 1,
+    "browser_hardware_download_2": 1,
+    "browser_hardware_download_3": 1,
+    "browser_hardware_download_4": 1,
+    "browser_hardware_download_5": 1,
+
+    "browser_hardware_generic_1": 2,
+    "browser_hardware_generic_2": 2,
+    "browser_hardware_generic_3": 2,
+    "browser_hardware_generic_4": 2,
+    "browser_hardware_generic_5": 2,
+
+    "browser_hardware_mix_1": 3,
+    "browser_hardware_mix_2": 3,
+    "browser_hardware_mix_3": 3,
+    "browser_hardware_mix_4": 3,
+    "browser_hardware_mix_5": 3,
+
+    "browser_hardware_streaming_1": 4,
+    "browser_hardware_streaming_2": 4,
+    "browser_hardware_streaming_3": 4,
+    "browser_hardware_streaming_4": 4,
+    "browser_hardware_streaming_5": 4,
+}
+
 TTP_DICT: Final = {
     "recon_mount": [
         "recon_mount_1_ints.txt",

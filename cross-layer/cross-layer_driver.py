@@ -5,6 +5,7 @@ from sklearn.tree import DecisionTreeClassifier
 
 import network_signals
 import syscall_signals
+import hpc_signals
 import ml_pipelines.config
 import numpy as np
 import pandas as pd
@@ -273,10 +274,26 @@ def prediction_analysis(
     return {"log_loss": float(loss), "classification_report": report, "confusion_matrix": cm}
 
 
+def train_and_test_report(X: np.ndarray, y: np.ndarray) -> None:
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.3, random_state=42, stratify=y
+    )
+    train_sample_weights, test_sample_weights, _ = compute_train_test_sample_weights(y_train, y_test)
+
+    dtree_model, lb = train_model(X_train, y_train, train_sample_weights)
+    y_pred_ohe = dtree_model.predict_proba(X_test)
+
+    results = prediction_analysis(y_test, y_pred_ohe, lb=lb, sample_weight=test_sample_weights, plot=True)
+    print(f"Log Loss: {results['log_loss']}")
+    print(f"Classification Report: {results['classification_report']}")
+
+
+
 if __name__ == "__main__":
     cwd = Path.cwd()
     SYSCALL = False
-    NETWORK = True
+    NETWORK = False
+    HPC = True
 
     window_size_time = 0.1 / 10
     window_stride_time = 0.05 / 10
@@ -293,19 +310,7 @@ if __name__ == "__main__":
 
         X, y = files_and_labels_to_X_y(syscall_paths, syscall_signals, MALWARE_DICT, window_size_time,
                                        window_stride_time)
-
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.3, random_state=42, stratify=y
-        )
-        train_sample_weights, test_sample_weights, _ = compute_train_test_sample_weights(y_train, y_test)
-
-        dtree_model, lb = train_model(X_train, y_train, train_sample_weights)
-        y_pred_ohe = dtree_model.predict_proba(X_test)
-
-        results = prediction_analysis(y_test, y_pred_ohe, lb=lb, sample_weight=test_sample_weights, plot=True)
-        print(f"Log Loss: {results['log_loss']}")
-        print(f"Classification Report: {results['classification_report']}")
-
+        train_and_test_report(X, y)
 
     if NETWORK:
         network_dir = cwd / "../data/network_bucket"
@@ -320,18 +325,26 @@ if __name__ == "__main__":
         X, y = files_and_labels_to_X_y(
             network_paths, network_signals, MALWARE_DICT, window_size_time, window_stride_time,
         )
+        train_and_test_report(X, y)
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.3, random_state=42, stratify=y
+    if HPC:
+        window_size_time = 0.5
+        window_stride_time = 0.2
+
+        hpc_dir = cwd / "../data/hpc_bucket"
+        hpc_paths = [p for p in hpc_dir.iterdir() if p.is_file()]
+        hpc_paths.sort()
+
+        MALWARE_DICT = ml_pipelines.config.HPC_MALWARE_DICT
+        malware_keys = set(MALWARE_DICT.keys())
+        filtered = [path for path in hpc_paths if path.name in malware_keys]
+        hpc_paths = filtered
+
+        X, y = files_and_labels_to_X_y(
+            hpc_paths, hpc_signals, MALWARE_DICT, window_size_time, window_stride_time,
         )
-        train_sample_weights, test_sample_weights, _ = compute_train_test_sample_weights(y_train, y_test)
+        train_and_test_report(X, y)
 
-        dtree_model, lb = train_model(X_train, y_train, train_sample_weights)
-        y_pred_ohe = dtree_model.predict_proba(X_test)
-
-        results = prediction_analysis(y_test, y_pred_ohe, lb=lb, sample_weight=test_sample_weights, plot=True)
-        print(f"Log Loss: {results['log_loss']}")
-        print(f"Classification Report: {results['classification_report']}")
 
 
 

@@ -65,7 +65,6 @@ def get_file_df(filepath: Path) -> pd.DataFrame:
     df = df.drop(columns=["tcp.srcport", "udp.srcport", "tcp.dstport", "udp.dstport", "ip.src", "ip.dst"])
     df = df.drop(columns=["_ws.col.Info"])
 
-
     return df
 
 
