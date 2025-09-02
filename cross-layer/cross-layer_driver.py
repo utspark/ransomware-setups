@@ -293,7 +293,7 @@ if __name__ == "__main__":
     cwd = Path.cwd()
     SYSCALL = False
     NETWORK = False
-    HPC = True
+    HPC = False
 
     window_size_time = 0.1 / 10
     window_stride_time = 0.05 / 10
@@ -308,8 +308,9 @@ if __name__ == "__main__":
         filtered = [path for path in syscall_paths if path.name in malware_keys]
         syscall_paths = filtered
 
-        X, y = files_and_labels_to_X_y(syscall_paths, syscall_signals, MALWARE_DICT, window_size_time,
-                                       window_stride_time)
+        X, y = files_and_labels_to_X_y(
+            syscall_paths, syscall_signals, MALWARE_DICT, window_size_time, window_stride_time
+        )
         train_and_test_report(X, y)
 
     if NETWORK:
@@ -345,6 +346,60 @@ if __name__ == "__main__":
         )
         train_and_test_report(X, y)
 
+
+    file_list = [
+        "ransomware_data/ftrace_results/out_exec_parsed/symm_AES_128t_0_ints.txt",  # syscall
+        "ransomware_data/net_results/out_exec_parsed/symm_AES_128b_0",              # network
+        "ransomware_data/perf_results/out_exec_parsed/symm_AES_128b_0",             # perf
+    ]
+
+    for file in file_list:
+        tmp_file = str(cwd) + "/../data/" + file
+        file_path = Path(tmp_file)
+        break
+
+    file_path_1 = str(cwd) + "/../data/" + \
+                  "ransomware_data/ftrace_results/out_exec_parsed/symm_AES_128t_0_ints.txt"
+    file_path_2 = str(cwd) + "/../data/" + \
+                  "ransomware_data/net_results/out_exec_parsed/symm_AES_128b_0"
+
+    df_1 = syscall_signals.get_file_df(file_path_1)
+    # df_2 = network_signals.get_file_df(file_path_2)
+
+    if df_1["seconds"].iloc[0] != 0.0:
+        df_1["seconds"] = df_1["seconds"].iloc[0]
+
+    # if df_2["seconds"].iloc[0] != 0.0:
+    #     df_2["seconds"] = df_2["seconds"].iloc[0]
+
+    top_1 = np.max(df_1["seconds"])
+    # top_2 = np.max(df_2["seconds"])
+
+    # top = np.min([top_1, top_2])
+    top = top_1
+    num_windows = 1
+    latest_start = top - (window_size_time + num_windows * window_stride_time)
+    pos_start = df_1["seconds"].to_numpy().searchsorted(latest_start, side='left')
+
+    rng = np.random.default_rng(seed=1337)  # optional seed
+
+
+    for i in range(1):
+        idx_start = rng.integers(0, pos_start + 1)
+
+        start = df_1["seconds"].iloc[idx_start]
+        end = start + window_size_time
+
+        idx_end = df_1["seconds"].to_numpy().searchsorted(end, side='left')
+
+        syscall_window = df_1.iloc[idx_start:idx_end]
+
+        delta = syscall_window["seconds"].iloc[-1] - syscall_window["seconds"].iloc[0]
+        print(delta)
+
+
+    syscall_window = df_1.iloc[idx_start:idx_end+50]
+    signal_X = syscall_signals.file_df_feature_extraction(syscall_window, window_size_time, window_stride_time)
 
 
 
