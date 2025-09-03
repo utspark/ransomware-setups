@@ -347,21 +347,62 @@ if __name__ == "__main__":
         train_and_test_report(X, y)
 
 
-    file_list = [
-        "ransomware_data/ftrace_results/out_exec_parsed/symm_AES_128t_0_ints.txt",  # syscall
-        "ransomware_data/net_results/out_exec_parsed/symm_AES_128b_0",              # network
-        "ransomware_data/perf_results/out_exec_parsed/symm_AES_128b_0",             # perf
-    ]
+    ransomware_syscall_dir = cwd / "../data/ransomware_data/ftrace_results"
+    ransomware_network_dir = cwd / "../data/ransomware_data/net_results"
+    ransomware_hpc_dir = cwd / "../data/ransomware_data/perf_results"
 
-    for file in file_list:
-        tmp_file = str(cwd) + "/../data/" + file
-        file_path = Path(tmp_file)
-        break
+    behaviors = {
+        "symm_AES_128b": {
+            "syscall": [
+                ransomware_syscall_dir / "out_exec_parsed/symm_AES_128t_0_ints.txt",
+                ransomware_syscall_dir / "out_exec_parsed/symm_AES_128t_1_ints.txt",
+            ],
+            "network": [
+                ransomware_network_dir / "out_exec_parsed/symm_AES_128b_0",
+                ransomware_network_dir / "out_exec_parsed/symm_AES_128b_1",
+            ],
+            "hpc":[
+                ransomware_hpc_dir / "out_exec_parsed/symm_AES_128b_0",
+                ransomware_hpc_dir / "out_exec_parsed/symm_AES_128b_1",
+            ],
+        },
+        "symm_AES_256b": {
+            "syscall": [
+                ransomware_syscall_dir / "out_exec_parsed/symm_AES_256t_0_ints.txt",
+            ],
+            "network": [
+                ransomware_network_dir / "out_exec_parsed/symm_AES_256b_0",
+            ],
+            "hpc": [
+                ransomware_hpc_dir / "out_exec_parsed/symm_AES_256b_0",
+            ],
+        }
+    }
 
-    file_path_1 = str(cwd) + "/../data/" + \
-                  "ransomware_data/ftrace_results/out_exec_parsed/symm_AES_128t_0_ints.txt"
-    file_path_2 = str(cwd) + "/../data/" + \
-                  "ransomware_data/net_results/out_exec_parsed/symm_AES_128b_0"
+    action = "symm_AES_128b"
+
+    signal_df_dict = {
+        "syscall": [],
+        "network": [],
+        "hpc": []
+    }
+
+    signal_modules = {
+        "syscall": syscall_signals,
+        "network": network_signals,
+        "hpc": hpc_signals,
+    }
+
+    for signal in behaviors[action]:
+        for file_path in behaviors[action][signal]:
+            df = signal_modules[signal].get_file_df(file_path)
+            signal_df_dict[signal].append(df)
+
+
+    # TODO
+    #  - combine indexes of dfs of same signal
+    #  - find time range and sample windows
+
 
     df_1 = syscall_signals.get_file_df(file_path_1)
     # df_2 = network_signals.get_file_df(file_path_2)
@@ -403,7 +444,6 @@ if __name__ == "__main__":
 
 
 
-    # TODO
-    #  - make sure files are matching between signal sources
+
 
 

@@ -38,7 +38,21 @@ def get_file_df(filepath: Path) -> pd.DataFrame:
         on_bad_lines=fix_bad_line  # normalize bad rows on the fly
     )
 
-    df = df[::ml_pipelines.config.SUBSAMPLE_NETWORK_DATA]
+    header_cols = [
+        "frame.time", "ip.src", "tcp.srcport", "ip.dst", "tcp.dstport", "udp.srcport", "udp.dstport", "frame.len",
+        "_ws.col.Protocol", "_ws.col.Info"
+    ]
+
+    if header_cols[0] not in df.columns:
+        df.drop(columns=df.columns[0], inplace=True)
+        old_cols = df.columns.tolist()
+        df2 = df.copy()
+        df2.columns = header_cols  # set the new header
+
+        data_row = pd.DataFrame([old_cols], columns=header_cols)
+        df = pd.concat([data_row, df2], ignore_index=True)
+
+    # df = df[::ml_pipelines.config.SUBSAMPLE_NETWORK_DATA]
 
     df.reset_index(drop=True, inplace=True)
     df["tcp.srcport"] = df["tcp.srcport"].fillna(0)
