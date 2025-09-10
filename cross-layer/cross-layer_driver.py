@@ -2,6 +2,7 @@ from pathlib import Path
 
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
+from sympy.codegen.ast import continue_
 
 import network_signals
 import syscall_signals
@@ -10,6 +11,7 @@ import ml_pipelines.config
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import joblib
 
 from sklearn.utils import compute_class_weight, compute_sample_weight
 from sklearn.preprocessing import LabelBinarizer
@@ -17,6 +19,9 @@ from sklearn.preprocessing import LabelBinarizer
 from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, classification_report, log_loss
 from typing import Iterable, Mapping, Tuple, Optional, Dict, Literal, Any
 from types import ModuleType
+
+from typing import Iterable, Tuple, Sequence
+from collections import defaultdict
 
 import matplotlib
 matplotlib.use("Qt5Agg")
@@ -287,6 +292,27 @@ def train_and_test_report(X: np.ndarray, y: np.ndarray) -> None:
     print(f"Log Loss: {results['log_loss']}")
     print(f"Classification Report: {results['classification_report']}")
 
+    return
+
+
+def train_and_save_model(X: np.ndarray, y: np.ndarray, save_path: Path) -> None:
+    y = np.asarray(y).ravel()
+
+    classes = np.unique(y)
+    class_weights = compute_class_weight(class_weight="balanced", classes=classes, y=y)
+
+    class_weight_map: Dict[int, float] = {
+        int(label): float(w) for label, w in zip(classes, class_weights)
+    }
+
+    sample_weights = compute_sample_weight(class_weight=class_weight_map, y=y)
+
+    dtree_model, lb = train_model(X, y, sample_weights)
+
+    joblib.dump((dtree_model, lb), save_path / "dtree_model.joblib")
+
+    return
+
 
 def correct_feature_vector_times(feature_dict: dict):
     for signal in feature_dict:
@@ -365,12 +391,63 @@ def build_features(signal_df_dict, signal_modules, window_size_time, window_stri
     return feature_dict
 
 
+def build_attack_windows(
+        feature_dict: dict[str, dict[str, pd.DataFrame]],
+        attack_lens: Iterable[Tuple[str, float]],
+        window_size_time: float,
+        window_stride_time: float,
+        rng: np.random.Generator,
+        signals: Sequence[str] = ("syscall", "network", "hpc"),
+) -> list[list[pd.DataFrame]]:
+    attack_X = []
+
+    for attack, t in attack_lens:
+        num_windows = int((t - window_size_time) / window_stride_time)
+        X_list = []
+
+        for signal in signals:
+            sig_X = feature_dict[signal][attack]
+            n = len(sig_X)
+
+            start = rng.integers(0, n - num_windows + 1)
+            sampled = sig_X.iloc[start: start + num_windows]
+            X_list.append(sampled)
+
+        if X_list:
+            attack_X.append(X_list)
+
+    return attack_X
+
+
+def form_signal_dict(behaviors: dict) -> dict:
+    signal_df_dict = defaultdict(lambda: defaultdict(list))
+
+    for action, signals in behaviors.items():
+        for signal, file_paths in signals.items():
+            mod = signal_modules[signal]
+            dfs = [mod.get_file_df(fp) for fp in file_paths]
+            signal_df_dict[signal][action].extend(dfs)
+
+    return signal_df_dict
+
+
+def form_feature_frames(feature_dict: dict) -> dict:
+    feature_frames = defaultdict(lambda: defaultdict(pd.DataFrame))
+
+    for signal, actions in feature_dict.items():
+        for action, X_list in actions.items():
+            pruned = [df.drop(columns='time', errors='ignore') for df in X_list]
+            feature_frames[signal][action] = pd.concat(pruned, ignore_index=True, sort=False, copy=False)
+
+    return feature_frames
+
+
 if __name__ == "__main__":
     cwd = Path.cwd()
-    SYSCALL = False
+    SYSCALL = True
     NETWORK = False
     HPC = False
-
+    TRAIN = True
     window_size_time = 0.1 / 10
     window_stride_time = 0.05 / 10
 
@@ -387,7 +464,12 @@ if __name__ == "__main__":
         X, y = files_and_labels_to_X_y(
             syscall_paths, syscall_signals, MALWARE_DICT, window_size_time, window_stride_time
         )
-        train_and_test_report(X, y)
+
+        if TRAIN:
+            save_path = cwd / "../data/models/syscall_clf.joblib"
+            train_and_save_model(X, y, save_path)
+        else:
+            train_and_test_report(X, y)
 
     if NETWORK:
         network_dir = cwd / "../data/network_bucket"
@@ -423,6 +505,8 @@ if __name__ == "__main__":
         train_and_test_report(X, y)
 
 
+
+    raise Exception
     ransomware_syscall_dir = cwd / "../data/ransomware_data/ftrace_results"
     ransomware_network_dir = cwd / "../data/ransomware_data/net_results"
     ransomware_hpc_dir = cwd / "../data/ransomware_data/perf_results"
@@ -455,50 +539,23 @@ if __name__ == "__main__":
         }
     }
 
-    action = "symm_AES_128b"
-
-    # signal_df_dict = {
-    #     "syscall": {},
-    #     "network": {},
-    #     "hpc": {}
-    # }
-
-    feature_dict = {
-        "syscall": {},
-        "network": {},
-        "hpc": {}
-    }
-
     signal_modules = {
         "syscall": syscall_signals,
         "network": network_signals,
         "hpc": hpc_signals,
     }
 
-    from collections import defaultdict
-
-    signal_df_dict = defaultdict(lambda: defaultdict(list))
-
-    for action, signals in behaviors.items():
-        for signal, file_paths in signals.items():
-            mod = signal_modules[signal]
-            dfs = [mod.get_file_df(fp) for fp in file_paths]
-            signal_df_dict[signal][action].extend(dfs)
-
-    feature_dict = build_features(signal_df_dict, signal_modules, window_size_time, window_stride_time,
-                                  preserve_time=True)
+    signal_df_dict = form_signal_dict(behaviors)
+    feature_dict = build_features(
+        signal_df_dict, signal_modules, window_size_time, window_stride_time, preserve_time=True
+    )
 
     #  TODO there should be time alignment of various signals
     #   - because there is not, no use in below functions
     # correct_feature_vector_times_2(feature_dict)
     # correct_feature_vector_times(feature_dict)
 
-    feature_frames = defaultdict(lambda: defaultdict(pd.DataFrame))
-
-    for signal, actions in feature_dict.items():
-        for action, X_list in actions.items():
-            pruned = [df.drop(columns='time', errors='ignore') for df in X_list]
-            feature_frames[signal][action] = pd.concat(pruned, ignore_index=True, sort=False, copy=False)
+    feature_frames = form_feature_frames(feature_dict)
 
     rng = np.random.default_rng(seed=1337)  # optional seed
 
@@ -508,57 +565,7 @@ if __name__ == "__main__":
         ("symm_AES_256b", 0.6),
     ]
 
-    # attack_X = []
-    #
-    # for attack, time in attack_lens:
-    #     windows = int((time - window_size_time) / window_stride_time)
-    #
-    #     X_list = []
-    #
-    #     for signal in ["syscall", "network", "hpc"]:
-    #
-    #         signal_X = feature_dict[signal][attack]
-    #         idx_start = rng.integers(0, len(signal_X) - windows + 1)
-    #         sampled_X = signal_X[idx_start: idx_start + windows]
-    #
-    #         X_list.append(sampled_X)
-    #
-    #     attack_X.append(X_list)
-
-    from typing import Iterable, Tuple, Sequence
-
-    def build_attack_windows(
-            feature_dict: dict[str, dict[str, pd.DataFrame]],
-            attack_lens: Iterable[Tuple[str, float]],
-            window_size_time: float,
-            window_stride_time: float,
-            rng: np.random.Generator,
-            signals: Sequence[str] = ("syscall", "network", "hpc"),
-    ):
-        attack_X: list[list[pd.DataFrame]] = []
-        rng_integers = rng.integers
-        fdict = feature_dict
-
-        for attack, t in attack_lens:
-            windows = int((t - window_size_time) / window_stride_time)
-
-            X_list: list[pd.DataFrame] = []
-
-            for signal in signals:
-                sig_X = fdict[signal][attack]
-
-                n = len(sig_X)
-                start = int(rng_integers(0, n - windows + 1))
-                sampled = sig_X.iloc[start: start + windows]
-                X_list.append(sampled)
-
-            if X_list:  # only append if we actually sampled something
-                attack_X.append(X_list)
-
-        return attack_X
-
-    attack_X = build_attack_windows(feature_frames, attack_lens,
-                                    window_size_time, window_stride_time, rng)
+    attack_X = build_attack_windows(feature_frames, attack_lens, window_size_time, window_stride_time, rng)
 
     # inference on attack data
     for signal_list in attack_X:

@@ -178,7 +178,7 @@ def process_files_in_parallel(files, syscall_dict: dict, n_workers: int | None =
 if __name__ == "__main__":
     TRANSLATE_SYSCALL_FILES = True
     SPECIFY_FILES = False
-    DATA_DIR = Path.cwd() / "ransomware_data/ftrace_results/out_recon"
+    DATA_DIR = Path.cwd() / "benignware_data/browser/syscall_output"
     # FILE_LINE_CUTOFF = 50_000
 
     if TRANSLATE_SYSCALL_FILES:
