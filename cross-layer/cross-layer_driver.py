@@ -288,6 +288,82 @@ def train_and_test_report(X: np.ndarray, y: np.ndarray) -> None:
     print(f"Classification Report: {results['classification_report']}")
 
 
+def correct_feature_vector_times(feature_dict: dict):
+    for signal in feature_dict:
+        for action in feature_dict[signal]:
+            fv_list = feature_dict[signal][action]
+
+            for tmp_X in fv_list[1:]:
+
+                prior_X = feature_dict[signal][action][-1]
+                prior_max = prior_X["time"].iloc[-1]
+                deltas = prior_X["time"].diff()  # Timedelta Series; first is NaT
+                prior_mean_delta = deltas.mean(skipna=True)
+
+                tmp_X["time"] += prior_max + prior_mean_delta
+
+    return
+
+
+def correct_feature_vector_times_2(feature_dict: dict):
+    actions = feature_dict["syscall"].keys()
+
+    for action in actions:
+        syscall_batches = feature_dict["syscall"][action]
+        network_batches = feature_dict["network"][action]
+        hpc_batches = feature_dict["hpc"][action]
+
+        num_batches = len(syscall_batches)
+
+        for batch in range(1, num_batches):
+            prior_syscall_batch = syscall_batches[batch-1]
+            prior_network_batch = network_batches[batch-1]
+            prior_hpc_batch = hpc_batches[batch-1]
+
+            max_time = np.max([
+                prior_syscall_batch["time"].iloc[-1],
+                prior_network_batch["time"].iloc[-1],
+                prior_hpc_batch["time"].iloc[-1]
+            ])
+
+            deltas = prior_syscall_batch["time"].diff()
+            prior_syscall_mean_delta = deltas.mean(skipna=True)
+            syscall_batches[batch]["time"] = syscall_batches[batch]["time"] + max_time + prior_syscall_mean_delta
+
+            deltas = prior_network_batch["time"].diff()
+            prior_network_mean_delta = deltas.mean(skipna=True)
+            network_batches[batch]["time"] = network_batches[batch]["time"] + max_time + prior_network_mean_delta
+
+            deltas = prior_hpc_batch["time"].diff()
+            prior_hpc_mean_delta = deltas.mean(skipna=True)
+            hpc_batches[batch]["time"] = hpc_batches[batch]["time"] + max_time + prior_hpc_mean_delta
+
+    return
+
+
+def build_features(signal_df_dict, signal_modules, window_size_time, window_stride_time, feature_dict=None, *,
+                   preserve_time=True):
+    # if you don't already use a nested defaultdict(list), this makes life easier
+    if feature_dict is None:
+        feature_dict = defaultdict(lambda: defaultdict(list))
+
+    for signal, actions in signal_df_dict.items():
+        mod = signal_modules[signal]
+
+        # Prefer a parallel extractor if the module provides one; else fall back
+        extract = getattr(mod, "file_df_feature_extraction_parallel", None)
+        if extract is None:
+            extract = getattr(mod, "file_df_feature_extraction")
+
+        for action, df_list in actions.items():
+            out = feature_dict[signal][action]  # bind once
+            # compute then extend in one go (fewer dict ops)
+            rows = [extract(df, window_size_time, window_stride_time, preserve_time=preserve_time)
+                    for df in df_list]
+            out.extend(rows)
+
+    return feature_dict
+
 
 if __name__ == "__main__":
     cwd = Path.cwd()
@@ -381,10 +457,16 @@ if __name__ == "__main__":
 
     action = "symm_AES_128b"
 
-    signal_df_dict = {
-        "syscall": [],
-        "network": [],
-        "hpc": []
+    # signal_df_dict = {
+    #     "syscall": {},
+    #     "network": {},
+    #     "hpc": {}
+    # }
+
+    feature_dict = {
+        "syscall": {},
+        "network": {},
+        "hpc": {}
     }
 
     signal_modules = {
@@ -393,55 +475,100 @@ if __name__ == "__main__":
         "hpc": hpc_signals,
     }
 
-    for signal in behaviors[action]:
-        for file_path in behaviors[action][signal]:
-            df = signal_modules[signal].get_file_df(file_path)
-            signal_df_dict[signal].append(df)
+    from collections import defaultdict
 
+    signal_df_dict = defaultdict(lambda: defaultdict(list))
 
-    # TODO
-    #  - combine indexes of dfs of same signal
-    #  - find time range and sample windows
+    for action, signals in behaviors.items():
+        for signal, file_paths in signals.items():
+            mod = signal_modules[signal]
+            dfs = [mod.get_file_df(fp) for fp in file_paths]
+            signal_df_dict[signal][action].extend(dfs)
 
+    feature_dict = build_features(signal_df_dict, signal_modules, window_size_time, window_stride_time,
+                                  preserve_time=True)
 
-    df_1 = syscall_signals.get_file_df(file_path_1)
-    # df_2 = network_signals.get_file_df(file_path_2)
+    #  TODO there should be time alignment of various signals
+    #   - because there is not, no use in below functions
+    # correct_feature_vector_times_2(feature_dict)
+    # correct_feature_vector_times(feature_dict)
 
-    if df_1["seconds"].iloc[0] != 0.0:
-        df_1["seconds"] = df_1["seconds"].iloc[0]
+    feature_frames = defaultdict(lambda: defaultdict(pd.DataFrame))
 
-    # if df_2["seconds"].iloc[0] != 0.0:
-    #     df_2["seconds"] = df_2["seconds"].iloc[0]
-
-    top_1 = np.max(df_1["seconds"])
-    # top_2 = np.max(df_2["seconds"])
-
-    # top = np.min([top_1, top_2])
-    top = top_1
-    num_windows = 1
-    latest_start = top - (window_size_time + num_windows * window_stride_time)
-    pos_start = df_1["seconds"].to_numpy().searchsorted(latest_start, side='left')
+    for signal, actions in feature_dict.items():
+        for action, X_list in actions.items():
+            pruned = [df.drop(columns='time', errors='ignore') for df in X_list]
+            feature_frames[signal][action] = pd.concat(pruned, ignore_index=True, sort=False, copy=False)
 
     rng = np.random.default_rng(seed=1337)  # optional seed
 
+    # form attack data
+    attack_lens = [
+        ("symm_AES_128b", 0.9),
+        ("symm_AES_256b", 0.6),
+    ]
 
-    for i in range(1):
-        idx_start = rng.integers(0, pos_start + 1)
+    # attack_X = []
+    #
+    # for attack, time in attack_lens:
+    #     windows = int((time - window_size_time) / window_stride_time)
+    #
+    #     X_list = []
+    #
+    #     for signal in ["syscall", "network", "hpc"]:
+    #
+    #         signal_X = feature_dict[signal][attack]
+    #         idx_start = rng.integers(0, len(signal_X) - windows + 1)
+    #         sampled_X = signal_X[idx_start: idx_start + windows]
+    #
+    #         X_list.append(sampled_X)
+    #
+    #     attack_X.append(X_list)
 
-        start = df_1["seconds"].iloc[idx_start]
-        end = start + window_size_time
+    from typing import Iterable, Tuple, Sequence
 
-        idx_end = df_1["seconds"].to_numpy().searchsorted(end, side='left')
+    def build_attack_windows(
+            feature_dict: dict[str, dict[str, pd.DataFrame]],
+            attack_lens: Iterable[Tuple[str, float]],
+            window_size_time: float,
+            window_stride_time: float,
+            rng: np.random.Generator,
+            signals: Sequence[str] = ("syscall", "network", "hpc"),
+    ):
+        attack_X: list[list[pd.DataFrame]] = []
+        rng_integers = rng.integers
+        fdict = feature_dict
 
-        syscall_window = df_1.iloc[idx_start:idx_end]
+        for attack, t in attack_lens:
+            windows = int((t - window_size_time) / window_stride_time)
 
-        delta = syscall_window["seconds"].iloc[-1] - syscall_window["seconds"].iloc[0]
-        print(delta)
+            X_list: list[pd.DataFrame] = []
 
+            for signal in signals:
+                sig_X = fdict[signal][attack]
 
-    syscall_window = df_1.iloc[idx_start:idx_end+50]
-    signal_X = syscall_signals.file_df_feature_extraction(syscall_window, window_size_time, window_stride_time)
+                n = len(sig_X)
+                start = int(rng_integers(0, n - windows + 1))
+                sampled = sig_X.iloc[start: start + windows]
+                X_list.append(sampled)
 
+            if X_list:  # only append if we actually sampled something
+                attack_X.append(X_list)
+
+        return attack_X
+
+    attack_X = build_attack_windows(feature_frames, attack_lens,
+                                    window_size_time, window_stride_time, rng)
+
+    # inference on attack data
+    for signal_list in attack_X:
+        syscall_X = signal_list[0]
+        network_X = signal_list[1]
+        hpc_X = signal_list[2]
+
+        # TODO start here
+        #  - pull a model for each signal and have it inference
+        #  - collate inferences into an emission stream
 
 
 

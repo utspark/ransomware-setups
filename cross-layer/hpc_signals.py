@@ -116,6 +116,7 @@ def file_df_feature_extraction_parallel(
     *,
     n_workers: Optional[int] = None,
     chunksize: int = 512,   # number of windows per task to reduce overhead
+    preserve_time: bool = False,
 ) -> pd.DataFrame:
     # Build windows on the main process
     left_idx, right_idx = feature_extraction.get_time_windows(
@@ -174,5 +175,11 @@ def file_df_feature_extraction_parallel(
         "port_7",
     ]
 
-    return pd.DataFrame(rows, columns=cols)
+    X = pd.DataFrame(rows, columns=cols)
+
+    if preserve_time:
+        X["time"] = df["time"].iloc[right_idx].reset_index(drop=True)
+        X.insert(0, "time", X.pop("time"))
+
+    return X
 
