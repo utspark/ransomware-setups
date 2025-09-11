@@ -2,7 +2,6 @@ from pathlib import Path
 
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
-from sympy.codegen.ast import continue_
 
 import network_signals
 import syscall_signals
@@ -79,14 +78,13 @@ def files_and_labels_to_X_y(
             else:
                 continue
 
-        try:
-            df = signal_module.get_file_df(p)
-            X_i = signal_module.file_df_feature_extraction_parallel(df, window_size_time, window_stride_time)
-        except Exception as e:
-            if strict:
-                raise RuntimeError(f"Failed processing {p}") from e
-            else:
-                continue
+        df = signal_module.get_file_df(p)
+
+        extract = getattr(signal_module, "file_df_feature_extraction_parallel", None)
+        if extract is None:
+            extract = getattr(signal_module, "file_df_feature_extraction")
+
+        X_i = extract(df, window_size_time, window_stride_time)
 
         # Skip files that produced zero windows (optional)
         if X_i is None or X_i.size == 0:
@@ -309,7 +307,7 @@ def train_and_save_model(X: np.ndarray, y: np.ndarray, save_path: Path) -> None:
 
     dtree_model, lb = train_model(X, y, sample_weights)
 
-    joblib.dump((dtree_model, lb), save_path / "dtree_model.joblib")
+    joblib.dump((dtree_model, lb), save_path)
 
     return
 
@@ -444,10 +442,10 @@ def form_feature_frames(feature_dict: dict) -> dict:
 
 if __name__ == "__main__":
     cwd = Path.cwd()
-    SYSCALL = True
+    SYSCALL = False
     NETWORK = False
     HPC = False
-    TRAIN = True
+    TRAIN = False
     window_size_time = 0.1 / 10
     window_stride_time = 0.05 / 10
 
@@ -484,11 +482,16 @@ if __name__ == "__main__":
         X, y = files_and_labels_to_X_y(
             network_paths, network_signals, MALWARE_DICT, window_size_time, window_stride_time,
         )
-        train_and_test_report(X, y)
+
+        if TRAIN:
+            save_path = cwd / "../data/models/network_clf.joblib"
+            train_and_save_model(X, y, save_path)
+        else:
+            train_and_test_report(X, y)
 
     if HPC:
-        window_size_time = 0.5
-        window_stride_time = 0.2
+        # window_size_time = 0.5
+        # window_stride_time = 0.2
 
         hpc_dir = cwd / "../data/hpc_bucket"
         hpc_paths = [p for p in hpc_dir.iterdir() if p.is_file()]
@@ -502,11 +505,16 @@ if __name__ == "__main__":
         X, y = files_and_labels_to_X_y(
             hpc_paths, hpc_signals, MALWARE_DICT, window_size_time, window_stride_time,
         )
-        train_and_test_report(X, y)
+
+        if TRAIN:
+            save_path = cwd / "../data/models/hpc_clf.joblib"
+            train_and_save_model(X, y, save_path)
+        else:
+            train_and_test_report(X, y)
 
 
 
-    raise Exception
+    # raise Exception
     ransomware_syscall_dir = cwd / "../data/ransomware_data/ftrace_results"
     ransomware_network_dir = cwd / "../data/ransomware_data/net_results"
     ransomware_hpc_dir = cwd / "../data/ransomware_data/perf_results"
@@ -572,10 +580,64 @@ if __name__ == "__main__":
         syscall_X = signal_list[0]
         network_X = signal_list[1]
         hpc_X = signal_list[2]
+        break
 
-        # TODO start here
-        #  - pull a model for each signal and have it inference
-        #  - collate inferences into an emission stream
+
+    model_data = {
+        cwd / "../data/models/syscall_clf.joblib": syscall_X,
+        cwd / "../data/models/network_clf.joblib": network_X,
+        cwd / "../data/models/hpc_clf.joblib": hpc_X,
+    }
+
+    cross_layer_classes = []
+
+    for model_path, data in model_data.items():
+        clf, _ = joblib.load(model_path)
+
+
+        preds = clf.predict_proba(data)
+        probas = np.max(preds, axis=1)
+        classes = np.argmax(preds, axis=1)
+
+        classes[probas < 0.7] = -1
+        cross_layer_classes.append(classes)
+
+    cross_layer_classes = np.stack(cross_layer_classes).T
+
+
+    collated_classes = []
+
+    for i in range(len(cross_layer_classes)):
+        row = cross_layer_classes[i]
+        row = row[row != -1]
+
+        if len(row) == 0:
+            continue
+
+        elif len(row) == 1:
+            collated_classes.append(row[0])
+
+        else:
+            uniques, counts = np.unique(row, return_counts=True)
+            sort_idx = np.argsort(counts)[::-1]  # Indices for sorted counts (descending)
+            uniques_sorted = uniques[sort_idx]
+            counts_sorted = counts[sort_idx]
+
+            if len(counts_sorted) == 1:
+                collated_classes.append(uniques_sorted[0])
+
+            elif counts_sorted[0] == counts_sorted[1]:
+                continue
+
+            else:
+                collated_classes.append(uniques_sorted[0])
+
+
+    # TODO map classes of each clf back to attack_lifecycle classes
+    #  - filter class stream
+    #  - pull recycle hmm
+    # TODO start here
+
 
 
 
