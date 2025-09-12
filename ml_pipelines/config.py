@@ -433,6 +433,31 @@ HPC_BENIGN_MALWARE_DICT : Final = {
     "symm_Salsa20_256b_4": 11,
 }
 
+HPC_MALWARE_DICT_2 : Final = {
+    0: [
+        "recon_system_",
+        "recon_net_",
+    ],
+    1: [
+        "recon_mount_",
+    ],
+    2: [
+        "compress_gzip_1t_",
+        "compress_gzip_8t_",
+    ],
+    3: [
+        "compress_zstd_1t_",
+        "compress_zstd_8t_",
+    ],
+    4: [
+        "symm_AES_128b_",
+        "symm_AES_256_",
+        "symm_Salsa20_128b_",
+        "symm_Salsa20_256b_",
+    ],
+}
+
+
 HPC_MALWARE_CLASS_TRANSLATION: Final = {
     -1: -1,
     0: 0,

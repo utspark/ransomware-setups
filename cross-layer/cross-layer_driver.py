@@ -34,7 +34,7 @@ plt.ion()
 def files_and_labels_to_X_y(
     paths: Iterable[Path],
     signal_module: ModuleType,
-    malware_map: Mapping[str, int],
+    malware_map: Mapping[int, list],
     window_size_time: float,
     window_stride_time: float,
     *,
@@ -71,15 +71,16 @@ def files_and_labels_to_X_y(
     """
     X_list: list[np.ndarray] = []
     y_list: list[np.ndarray] = []
+    label = None
 
     for p in paths:
-        try:
-            label = malware_map[p.name]
-        except KeyError:
-            if strict:
-                raise KeyError(f"No label found in malware_map for file: {p.name}")
-            else:
-                continue
+        for key, malware_list in malware_map.items():
+            if any(malware in p.name for malware in malware_list):
+                label = key
+                break
+
+        if strict and label is None:
+            raise KeyError(f"No label found in malware_map for file: {p.name}")
 
         df = signal_module.get_file_df(p)
 
@@ -500,11 +501,30 @@ if __name__ == "__main__":
         hpc_paths = [p for p in hpc_dir.iterdir() if p.is_file()]
         hpc_paths.sort()
 
+        """
         # MALWARE_DICT = ml_pipelines.config.HPC_MALWARE_DICT
         MALWARE_DICT = ml_pipelines.config.HPC_BENIGN_MALWARE_DICT
         malware_keys = set(MALWARE_DICT.keys())
         filtered = [path for path in hpc_paths if path.name in malware_keys]
         hpc_paths = filtered
+        """
+        MALWARE_DICT = ml_pipelines.config.HPC_MALWARE_DICT_2
+        malware_keys = [item for sublist in MALWARE_DICT.values() for item in sublist]
+        malware_keys = set(malware_keys)
+
+        filtered = [
+            path for path in hpc_paths
+            if any(key in path.name for key in malware_keys)
+        ]
+        hpc_paths = filtered
+
+        subsampled = []
+        for key in malware_keys:
+            tmp_list = [path for path in hpc_paths if key in str(path)]
+            subsample = int(len(tmp_list) * 0.6)
+            subsampled.extend(tmp_list[:subsample])
+
+        hpc_paths = subsampled
 
         X, y = files_and_labels_to_X_y(
             hpc_paths, hpc_signals, MALWARE_DICT, window_size_time, window_stride_time,
