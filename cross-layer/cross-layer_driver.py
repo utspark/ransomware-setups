@@ -445,10 +445,10 @@ def form_feature_frames(feature_dict: dict) -> dict:
 
 if __name__ == "__main__":
     cwd = Path.cwd()
-    SYSCALL = True
-    NETWORK = True
+    SYSCALL = False
+    NETWORK = False
     HPC = True
-    TRAIN = True
+    TRAIN = False
     window_size_time = 0.1 / 10
     window_stride_time = 0.05 / 10
 
@@ -500,7 +500,8 @@ if __name__ == "__main__":
         hpc_paths = [p for p in hpc_dir.iterdir() if p.is_file()]
         hpc_paths.sort()
 
-        MALWARE_DICT = ml_pipelines.config.HPC_MALWARE_DICT
+        # MALWARE_DICT = ml_pipelines.config.HPC_MALWARE_DICT
+        MALWARE_DICT = ml_pipelines.config.HPC_BENIGN_MALWARE_DICT
         malware_keys = set(MALWARE_DICT.keys())
         filtered = [path for path in hpc_paths if path.name in malware_keys]
         hpc_paths = filtered
@@ -517,7 +518,7 @@ if __name__ == "__main__":
 
 
 
-    # raise Exception
+    raise Exception
     ransomware_syscall_dir = cwd / "../data/ransomware_data/ftrace_results"
     ransomware_network_dir = cwd / "../data/ransomware_data/net_results"
     ransomware_hpc_dir = cwd / "../data/ransomware_data/perf_results"
@@ -604,15 +605,7 @@ if __name__ == "__main__":
         # 8: 2,
     }
 
-    hpc_class_translation = {
-        -1: 1,
-        0: 2,
-        1: 1,
-        2: 1,
-        3: 1,
-        4: 1,
-        5: 0,
-    }
+
 
     # inference on attack data
     for signal_list in attack_X:
