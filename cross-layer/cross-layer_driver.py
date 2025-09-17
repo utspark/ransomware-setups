@@ -24,7 +24,7 @@ from collections import defaultdict
 
 import matplotlib
 
-from ml_pipelines import global_detector
+# from ml_pipelines import global_detector
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -446,12 +446,12 @@ def form_feature_frames(feature_dict: dict) -> dict:
 
 if __name__ == "__main__":
     cwd = Path.cwd()
-    SYSCALL = False
+    SYSCALL = True
     NETWORK = False
-    HPC = True
+    HPC = False
     TRAIN = False
-    window_size_time = 0.1 / 10
-    window_stride_time = 0.05 / 10
+    window_size_time = 0.1 / 2  # / 2  # 10
+    window_stride_time = window_size_time / 3
 
     if SYSCALL:
         syscall_dir = cwd / "../data/syscall_bucket"
@@ -459,12 +459,26 @@ if __name__ == "__main__":
         syscall_paths.sort()
 
         MALWARE_DICT = ml_pipelines.config.SYSCALL_MALWARE_DICT
-        malware_keys = set(MALWARE_DICT.keys())
-        filtered = [path for path in syscall_paths if path.name in malware_keys]
+        # MALWARE_DICT = ml_pipelines.config.SYSCALL_BENIGN_MALWARE_DICT
+        malware_keys = [item for sublist in MALWARE_DICT.values() for item in sublist]
+        malware_keys = set(malware_keys)
+
+        filtered = [
+            path for path in syscall_paths
+            if any(key in path.name for key in malware_keys)
+        ]
         syscall_paths = filtered
 
+        # TODO uncomment this
+        # subsampled = []
+        # for key in malware_keys:
+        #     tmp_list = [path for path in syscall_paths if key in str(path)]
+        #     subsample = int(len(tmp_list) * 0.6)
+        #     subsampled.extend(tmp_list[:subsample])
+        # syscall_paths = subsampled
+
         X, y = files_and_labels_to_X_y(
-            syscall_paths, syscall_signals, MALWARE_DICT, window_size_time, window_stride_time
+            syscall_paths, network_signals, MALWARE_DICT, window_size_time, window_stride_time,
         )
 
         if TRAIN:
@@ -478,10 +492,24 @@ if __name__ == "__main__":
         network_paths = [p for p in network_dir.iterdir() if p.is_file()]
         network_paths.sort()
 
-        MALWARE_DICT = ml_pipelines.config.NETWORK_MALWARE_DICT
-        malware_keys = set(MALWARE_DICT.keys())
-        filtered = [path for path in network_paths if path.name in malware_keys]
+        # MALWARE_DICT = ml_pipelines.config.NETWORK_MALWARE_DICT
+        MALWARE_DICT = ml_pipelines.config.NETWORK_BENIGN_MALWARE_DICT
+        malware_keys = [item for sublist in MALWARE_DICT.values() for item in sublist]
+        malware_keys = set(malware_keys)
+
+        filtered = [
+            path for path in network_paths
+            if any(key in path.name for key in malware_keys)
+        ]
         network_paths = filtered
+
+        # TODO uncomment this
+        # subsampled = []
+        # for key in malware_keys:
+        #     tmp_list = [path for path in network_paths if key in str(path)]
+        #     subsample = int(len(tmp_list) * 0.6)
+        #     subsampled.extend(tmp_list[:subsample])
+        # network_paths = subsampled
 
         X, y = files_and_labels_to_X_y(
             network_paths, network_signals, MALWARE_DICT, window_size_time, window_stride_time,
@@ -501,14 +529,8 @@ if __name__ == "__main__":
         hpc_paths = [p for p in hpc_dir.iterdir() if p.is_file()]
         hpc_paths.sort()
 
-        """
-        # MALWARE_DICT = ml_pipelines.config.HPC_MALWARE_DICT
-        MALWARE_DICT = ml_pipelines.config.HPC_BENIGN_MALWARE_DICT
-        malware_keys = set(MALWARE_DICT.keys())
-        filtered = [path for path in hpc_paths if path.name in malware_keys]
-        hpc_paths = filtered
-        """
-        MALWARE_DICT = ml_pipelines.config.HPC_MALWARE_DICT_2
+        MALWARE_DICT = ml_pipelines.config.HPC_MALWARE_DICT
+        # MALWARE_DICT = ml_pipelines.config.HPC_BENIGN_MALWARE_DICT
         malware_keys = [item for sublist in MALWARE_DICT.values() for item in sublist]
         malware_keys = set(malware_keys)
 
@@ -523,7 +545,6 @@ if __name__ == "__main__":
             tmp_list = [path for path in hpc_paths if key in str(path)]
             subsample = int(len(tmp_list) * 0.6)
             subsampled.extend(tmp_list[:subsample])
-
         hpc_paths = subsampled
 
         X, y = files_and_labels_to_X_y(

@@ -70,6 +70,9 @@ def get_file_df(filepath: Path) -> pd.DataFrame:
     col = "seconds"
     df = df[[col] + [c for c in df.columns if c != col]]
 
+    indexes = df[df["ip.src"].str.contains("Unnamed: ", na=False)].index.tolist()
+    df = df.drop(indexes)
+
     df["merged_src"] = df["tcp.srcport"].fillna(df["udp.srcport"])
     df["merged_src"] = df["merged_src"].fillna(0)
     df["merged_src"] = df["merged_src"].astype(float).astype(int)
