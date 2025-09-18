@@ -447,9 +447,9 @@ def form_feature_frames(feature_dict: dict) -> dict:
 if __name__ == "__main__":
     cwd = Path.cwd()
     SYSCALL = True
-    NETWORK = False
-    HPC = False
-    TRAIN = False
+    NETWORK = True
+    HPC = True
+    TRAIN = True
     window_size_time = 0.1 / 2  # / 2  # 10
     window_stride_time = window_size_time / 3
 
@@ -458,8 +458,8 @@ if __name__ == "__main__":
         syscall_paths = [p for p in syscall_dir.iterdir() if p.is_file()]
         syscall_paths.sort()
 
-        MALWARE_DICT = ml_pipelines.config.SYSCALL_MALWARE_DICT
-        # MALWARE_DICT = ml_pipelines.config.SYSCALL_BENIGN_MALWARE_DICT
+        # MALWARE_DICT = ml_pipelines.config.SYSCALL_MALWARE_DICT
+        MALWARE_DICT = ml_pipelines.config.SYSCALL_BENIGN_MALWARE_DICT
         malware_keys = [item for sublist in MALWARE_DICT.values() for item in sublist]
         malware_keys = set(malware_keys)
 
@@ -478,7 +478,7 @@ if __name__ == "__main__":
         # syscall_paths = subsampled
 
         X, y = files_and_labels_to_X_y(
-            syscall_paths, network_signals, MALWARE_DICT, window_size_time, window_stride_time,
+            syscall_paths, syscall_signals, MALWARE_DICT, window_size_time, window_stride_time,
         )
 
         if TRAIN:
