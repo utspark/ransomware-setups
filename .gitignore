@@ -2,8 +2,13 @@
 *.zip
 **/__pycache__/
 **/trace.dat
-**/outputs*
+**/output*
 *.nfs*
 **/.ipynb*
 *.out
 *.pem
+*.pid
+*.dat
+*.bin
+*.zip
+*.deb
