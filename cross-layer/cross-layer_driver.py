@@ -24,7 +24,8 @@ from collections import defaultdict
 
 import matplotlib
 
-# from ml_pipelines import global_detector
+from ml_pipelines import global_detector
+
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -421,7 +422,7 @@ def build_attack_windows(
     return attack_X
 
 
-def form_signal_dict(behaviors: dict) -> dict:
+def form_signal_dict(behaviors: dict, signal_modules: dict) -> dict:
     signal_df_dict = defaultdict(lambda: defaultdict(list))
 
     for action, signals in behaviors.items():
@@ -446,10 +447,10 @@ def form_feature_frames(feature_dict: dict) -> dict:
 
 if __name__ == "__main__":
     cwd = Path.cwd()
-    SYSCALL = True
-    NETWORK = True
-    HPC = True
-    TRAIN = True
+    SYSCALL = False
+    NETWORK = False
+    HPC = False
+    TRAIN = False
     window_size_time = 0.1 / 2  # / 2  # 10
     window_stride_time = window_size_time / 3
 
@@ -558,8 +559,8 @@ if __name__ == "__main__":
             train_and_test_report(X, y)
 
 
+    # raise Exception
 
-    raise Exception
     ransomware_syscall_dir = cwd / "../data/ransomware_data/ftrace_results"
     ransomware_network_dir = cwd / "../data/ransomware_data/net_results"
     ransomware_hpc_dir = cwd / "../data/ransomware_data/perf_results"
@@ -598,7 +599,9 @@ if __name__ == "__main__":
         "hpc": hpc_signals,
     }
 
-    signal_df_dict = form_signal_dict(behaviors)
+    # raise Exception
+
+    signal_df_dict = form_signal_dict(behaviors, signal_modules)
     feature_dict = build_features(
         signal_df_dict, signal_modules, window_size_time, window_stride_time, preserve_time=True
     )
@@ -620,41 +623,12 @@ if __name__ == "__main__":
 
     attack_X = build_attack_windows(feature_frames, attack_lens, window_size_time, window_stride_time, rng)
 
-    syscall_class_translation = {
-        -1: -1,
-        0: 2,
-        1: 2,
-        2: 2,
-        3: 2,
-        4: 1,
-        5: 1,
-        6: 0,
-        7: 0,
-        8: 0,
-    }
-
-    network_class_translation = {
-        -1: -1,
-        0: 2,
-        1: 1,
-        2: 1,
-        3: 1,
-        4: 1,
-        5: 0,
-        # 6: 2,
-        # 7: 2,
-        # 8: 2,
-    }
-
-
-
     # inference on attack data
     for signal_list in attack_X:
         syscall_X = signal_list[0]
         network_X = signal_list[1]
         hpc_X = signal_list[2]
         break
-
 
     model_data = {
         cwd / "../data/models/syscall_clf.joblib": syscall_X,
@@ -672,17 +646,16 @@ if __name__ == "__main__":
         classes = np.argmax(preds, axis=1)
         classes[probas < 0.7] = -1
 
-        if "syscall" in model_path:
-            translation_dict = syscall_class_translation
-        elif "network" in model_path:
-            translation_dict = network_class_translation
+        if "syscall" in model_path.name:
+            translation_dict = ml_pipelines.config.SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION
+        elif "network" in model_path.name:
+            translation_dict = ml_pipelines.config.NETWORK_BENIGN_MALWARE_CLASS_TRANSLATION
         else:
-            translation_dict = hpc_class_translation
+            translation_dict = ml_pipelines.config.HPC_BENIGN_MALWARE_CLASS_TRANSLATION
 
         translated_classes = []
-
         for element in classes:
-            translated_classes.append(syscall_class_translation[element])
+            translated_classes.append(translation_dict[element])
 
         classes = np.array(translated_classes)
         cross_layer_classes.append(classes)
@@ -725,7 +698,7 @@ if __name__ == "__main__":
     x = collated_classes
 
     gd = global_detector.LifecycleDetector()
-    proba = np.exp(gd.hmm.score(np.array(x)))
+    proba = np.exp(gd.hmm.score(np.array(x).reshape(-1, 1)))
     proba = np.power(proba, 1 / len(x))  # normalization
 
 
