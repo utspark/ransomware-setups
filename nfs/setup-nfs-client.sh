@@ -1,6 +1,6 @@
 #!/bin/bash
 
-sudo apt install -y nfs-common
+sudo apt install -y nfs-common libssl-dev
 
 hostname_ext=(${HOSTNAME#*.})
 sudo mount node-1.$hostname_ext:$HOME/shared /mnt
