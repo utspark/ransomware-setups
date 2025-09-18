@@ -1,3 +1,6 @@
 [submodule "db-app/tpch/tpch-dbgen"]
 	path = db-app/tpch/tpch-dbgen
 	url = https://github.com/electrum/tpch-dbgen.git
+[submodule "benignware/filebench"]
+	path = benignware/filebench
+	url = git@github.com:filebench/filebench.git
