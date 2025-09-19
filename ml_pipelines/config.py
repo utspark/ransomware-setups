@@ -264,7 +264,7 @@ HPC_BENIGN_MALWARE_DICT : Final = {
     ],
 }
 
-SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION: Final = {
+SYSCALL_MALWARE_CLASS_TRANSLATION: Final = {
     -1: -1,
     0: 0,
     1: 1,
@@ -275,7 +275,7 @@ SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION: Final = {
     6: 2,
 }
 
-SYSCALL_MALWARE_CLASS_TRANSLATION: Final = {
+SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION: Final = {
     -1: -1,
     0: 0,
     1: 1,
@@ -284,6 +284,9 @@ SYSCALL_MALWARE_CLASS_TRANSLATION: Final = {
     4: 1,
     5: 1,
     6: 2,
+    7: -1,
+    8: -1,
+    9: -1,
 }
 
 NETWORK_MALWARE_CLASS_TRANSLATION: Final = {
@@ -331,6 +334,280 @@ HPC_BENIGN_MALWARE_CLASS_TRANSLATION: Final = {
     11: -1,
 }
 
+BEHAVIOR_FILES: Final = {
+    "browser_compute": {
+        "syscall": [
+            "browser_syscall_compute_1_ints.txt",
+            "browser_syscall_compute_5_ints.txt",
+        ],
+        "network": [
+            "browser_netcall_compute_1",
+            "browser_netcall_compute_5",
+        ],
+        "hpc": [
+            "browser_hardware_compute_1",
+            "browser_hardware_compute_5",
+        ],
+    },
+    "browser_download": {
+        "syscall": [
+            "browser_syscall_download_1_ints.txt",
+            "browser_syscall_download_5_ints.txt",
+        ],
+        "network": [
+            "browser_netcall_download_1",
+            "browser_netcall_download_5",
+        ],
+        "hpc": [
+            "browser_hardware_download_1",
+            "browser_hardware_download_5",
+        ],
+    },
+    "browser_generic": {
+        "syscall": [
+            "browser_syscall_generic_1_ints.txt",
+            "browser_syscall_generic_5_ints.txt",
+        ],
+        "network": [
+            "browser_netcall_generic_1",
+            "browser_netcall_generic_5",
+        ],
+        "hpc": [
+            "browser_hardware_generic_1",
+            "browser_hardware_generic_5",
+        ],
+    },
+    "browser_mix": {
+        "syscall": [
+            "browser_syscall_mix_1_ints.txt",
+            "browser_syscall_mix_5_ints.txt",
+        ],
+        "network": [
+            "browser_netcall_mix_1",
+            "browser_netcall_mix_5",
+        ],
+        "hpc": [
+            "browser_hardware_mix_1",
+            "browser_hardware_mix_5",
+        ],
+    },
+    "browser_streaming": {
+        "syscall": [
+            "browser_syscall_streaming_1_ints.txt",
+            "browser_syscall_streaming_5_ints.txt",
+        ],
+        "network": [
+            "browser_netcall_streaming_1",
+            "browser_netcall_streaming_5",
+        ],
+        "hpc": [
+            "browser_hardware_streaming_1",
+            "browser_hardware_streaming_5",
+        ],
+    },
+    # "filebench_fileserver": {
+    #     "syscall": [
+    #         "filebench_syscall_fileserver_1_ints.txt",
+    #         "filebench_syscall_fileserver_3_ints.txt",
+    #     ],
+    #     "network": [
+    #         "",
+    #         "",
+    #     ],
+    #     "hpc": [
+    #         "filebench_hardware_fileserver_1",
+    #         "filebench_hardware_fileserver_3",
+    #     ],
+    # },
+    "filebench_mediaserver_browse": {
+        "syscall": [
+            "mediaserver_browse_1_ints.txt",
+            "mediaserver_browse_5_ints.txt",
+        ],
+        "network": [
+            "mediaserver_browse_1",
+            "mediaserver_browse_5",
+        ],
+        "hpc": [
+            "mediaserver_browse_hardware_1",
+            "mediaserver_browse_hardware_5",
+        ],
+    },
+    "filebench_mediaserver_index": {
+        "syscall": [
+            "mediaserver_index_1_ints.txt",
+            "mediaserver_index_5_ints.txt",
+        ],
+        "network": [
+            "mediaserver_index_1",
+            "mediaserver_index_5",
+        ],
+        "hpc": [
+            "mediaserver_index_hardware_1",
+            "mediaserver_index_hardware_5",
+        ],
+    },
+    # "spec_leela": {
+    #     "syscall": [
+    #         "filebench_syscall_fileserver_1_ints.txt",
+    #         "filebench_syscall_fileserver_3_ints.txt",
+    #     ],
+    #     "network": [
+    #         "",
+    #         "",
+    #     ],
+    #     "hpc": [
+    #         "filebench_hardware_fileserver_1",
+    #         "filebench_hardware_fileserver_3",
+    #     ],
+    # },
+
+    # "recon_mount": {
+    #     "syscall": [
+    #         "recon_mount_1_ints.txt",
+    #         "recon_mount_5_ints.txt",
+    #     ],
+    #     "network": [
+    #         "recon_mount_1",
+    #         "recon_mount_5",
+    #     ],
+    #     "hpc": [
+    #         "symm_AES_128b_0",
+    #         "symm_AES_128b_1",
+    #     ],
+    # },
+
+    "compress_gzip_1t": {
+        "syscall": [
+            "compress_gzip_1t_0_ints.txt",
+            "compress_gzip_1t_9_ints.txt",
+        ],
+        "network": [
+            "compress_gzip_1t_0",
+            "compress_gzip_1t_9",
+        ],
+        "hpc": [
+            "compress_gzip_1t_0",
+            "compress_gzip_1t_7",
+        ],
+    },
+    "compress_gzip_8t": {
+        "syscall": [
+            "compress_gzip_8t_0_ints.txt",
+            "compress_gzip_8t_9_ints.txt",
+        ],
+        "network": [
+            "compress_gzip_8t_0",
+            "compress_gzip_8t_9",
+        ],
+        "hpc": [
+            "compress_gzip_8t_0",
+            "compress_gzip_8t_7",
+        ],
+    },
+    "compress_zstd_1t": {
+        "syscall": [
+            "compress_zstd_1t_0_ints.txt",
+            "compress_zstd_1t_9_ints.txt",
+        ],
+        "network": [
+            "compress_zstd_1t_0",
+            "compress_zstd_1t_9",
+        ],
+        "hpc": [
+            "compress_zstd_1t_0",
+            "compress_zstd_1t_7",
+        ],
+    },
+    "compress_zstd_8t": {
+        "syscall": [
+            "compress_zstd_8t_0_ints.txt",
+            "compress_zstd_8t_9_ints.txt",
+        ],
+        "network": [
+            "compress_zstd_8t_0",
+            "compress_zstd_8t_9",
+        ],
+        "hpc": [
+            "compress_zstd_8t_0",
+            "compress_zstd_8t_7",
+        ],
+    },
+    # "transfer_aws_1t": {
+    #     "syscall": [
+    #         "transfer_aws_1t_0_ints.txt",
+    #         "transfer_aws_1t_11_ints.txt",
+    #     ],
+    #     "network": [
+    #         "transfer_aws_1t_0",
+    #         "transfer_aws_1t_14",
+    #     ],
+    #     "hpc": [
+    #         "",
+    #         "",
+    #     ],
+    # },
+
+    "symm_AES_128t": {
+        "syscall": [
+            "symm_AES_128t_0_ints.txt",
+            "symm_AES_128t_11_ints.txt",
+        ],
+        "network": [
+            "symm_AES_128b_0",
+            "symm_AES_128b_3",
+        ],
+        "hpc": [
+            "symm_AES_128b_0",
+            "symm_AES_128b_11",
+        ],
+    },
+    "symm_AES_256t": {
+        "syscall": [
+            "symm_AES_256t_0_ints.txt",
+            "symm_AES_256t_11_ints.txt",
+        ],
+        "network": [
+            "symm_AES_256b_0",
+            "symm_AES_256b_3",
+        ],
+        "hpc": [
+            "symm_AES_256b_0",
+            "symm_AES_256b_11",
+        ],
+    },
+    "symm_Salsa20_128t": {
+        "syscall": [
+            "symm_Salsa20_128t_0_ints.txt",
+            "symm_Salsa20_128t_11_ints.txt",
+        ],
+        "network": [
+            "symm_Salsa20_128b_0",
+            "symm_Salsa20_128b_3",
+        ],
+        "hpc": [
+            "symm_Salsa20_128b_0",
+            "symm_Salsa20_128b_11",
+        ],
+    },
+    "symm_Salsa20_256t": {
+        "syscall": [
+            "symm_Salsa20_256t_0_ints.txt",
+            "symm_Salsa20_256t_11_ints.txt",
+        ],
+        "network": [
+            "symm_Salsa20_256b_0",
+            "symm_Salsa20_256b_3",
+        ],
+        "hpc": [
+            "symm_Salsa20_256b_0",
+            "symm_Salsa20_256b_11",
+        ],
+    },
+}
+
+
+
 TTP_DICT: Final = {
     "recon_mount": [
         "recon_mount_1_ints.txt",
@@ -366,22 +643,31 @@ GENERATION_ATTACK_STAGES: Final = {
     "recon": [
         "recon_mount",
         "recon_net",
+        "recon_system",
     ],
-    "exfil": [
-        "transfer_aws_1t",
-        # "transfer_aws_8t",
-        # "transfer_sftp_1t",
-        # "transfer_sftp_8t",
+    "exfil_1": [
         # "fscan_group",
+
+        "compress_gzip_1t",
+        "compress_gzip_8t",
+        "compress_zstd_1t",
+        "compress_zstd_8t",
     ],
-    "exec": [
-        "asymm",
-        # "symm_AES_128t",
-        # "symm_Salsa20_256t",
-        # "compress_gzip_1t",
-        # "compress_zstd_1t",
-        # "compress_zstd_8t",
-        # "compress_gzip_8t_0_ints",
+    # "exfil_2": [
+    #     "transfer_aws_1t",
+    #     "transfer_aws_8t",
+    #     "transfer_sftp_1t",
+    #     "transfer_sftp_8t",
+    # ],
+    # "exec_1": [
+    #     "asymm",
+    #
+    # ],
+    "exec_2": [
+        "symm_AES_128t",
+        "symm_AES_256t",
+        "symm_Salsa20_128t",
+        "symm_Salsa20_256t",
     ],
 }
 

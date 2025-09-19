@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pathlib import Path
 
 from sklearn.model_selection import train_test_split
@@ -14,10 +15,13 @@ import joblib
 
 from sklearn.utils import compute_class_weight, compute_sample_weight
 from sklearn.preprocessing import LabelBinarizer
+from sklearn.metrics import roc_curve, auc
 
 from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, classification_report, log_loss
 from typing import Iterable, Mapping, Tuple, Optional, Dict, Literal, Any
 from types import ModuleType
+
+from copy import deepcopy
 
 from typing import Iterable, Tuple, Sequence
 from collections import defaultdict
@@ -372,23 +376,22 @@ def correct_feature_vector_times_2(feature_dict: dict):
 
 def build_features(signal_df_dict, signal_modules, window_size_time, window_stride_time, feature_dict=None, *,
                    preserve_time=True):
-    # if you don't already use a nested defaultdict(list), this makes life easier
     if feature_dict is None:
-        feature_dict = defaultdict(lambda: defaultdict(list))
+        feature_dict = {}
 
     for signal, actions in signal_df_dict.items():
         mod = signal_modules[signal]
-
         # Prefer a parallel extractor if the module provides one; else fall back
         extract = getattr(mod, "file_df_feature_extraction_parallel", None)
         if extract is None:
             extract = getattr(mod, "file_df_feature_extraction")
-
         for action, df_list in actions.items():
-            out = feature_dict[signal][action]  # bind once
-            # compute then extend in one go (fewer dict ops)
             rows = [extract(df, window_size_time, window_stride_time, preserve_time=preserve_time)
                     for df in df_list]
+
+            feature_dict.setdefault(signal, {})
+            feature_dict[signal].setdefault(action, [])
+            out = feature_dict[signal][action]
             out.extend(rows)
 
     return feature_dict
@@ -423,26 +426,111 @@ def build_attack_windows(
 
 
 def form_signal_dict(behaviors: dict, signal_modules: dict) -> dict:
-    signal_df_dict = defaultdict(lambda: defaultdict(list))
+    # signal_df_dict = defaultdict(lambda: defaultdict(list))
+    #
+    # for action, signals in behaviors.items():
+    #     for signal, file_paths in signals.items():
+    #         mod = signal_modules[signal]
+    #         dfs = [mod.get_file_df(fp) for fp in file_paths]
+    #
+    #         for df in dfs:
+    #             signal_df_dict[signal][action].append(df)
+
+    signal_df_dict = {}
 
     for action, signals in behaviors.items():
         for signal, file_paths in signals.items():
             mod = signal_modules[signal]
             dfs = [mod.get_file_df(fp) for fp in file_paths]
+
+            # Ensure nested dict and list exist
+            signal_df_dict.setdefault(signal, {})
+            signal_df_dict[signal].setdefault(action, [])
             signal_df_dict[signal][action].extend(dfs)
 
     return signal_df_dict
 
 
 def form_feature_frames(feature_dict: dict) -> dict:
-    feature_frames = defaultdict(lambda: defaultdict(pd.DataFrame))
+    feature_frames = {}
 
     for signal, actions in feature_dict.items():
         for action, X_list in actions.items():
             pruned = [df.drop(columns='time', errors='ignore') for df in X_list]
+
+            feature_frames.setdefault(signal, {})
             feature_frames[signal][action] = pd.concat(pruned, ignore_index=True, sort=False, copy=False)
 
     return feature_frames
+
+
+def cross_layer_concatenate(attack_X: list):
+    syscall_X, network_X, hpc_X = zip(*attack_X)
+    syscall_X = np.concatenate(syscall_X)
+    network_X = np.concatenate(network_X)
+    hpc_X = np.concatenate(hpc_X)
+    cross_layer_X = (syscall_X, network_X, hpc_X)
+
+    return cross_layer_X
+
+
+def cross_layer_class_preds(cross_layer_X: tuple):
+    model_paths = [
+        cwd / "../data/models/syscall_clf.joblib",
+        cwd / "../data/models/network_clf.joblib",
+        cwd / "../data/models/hpc_clf.joblib",
+    ]
+
+    cross_layer_classes = []
+
+    # Pre-cache translation dicts with corresponding keywords
+    translation_map = {
+        "syscall": ml_pipelines.config.SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION,
+        "network": ml_pipelines.config.NETWORK_BENIGN_MALWARE_CLASS_TRANSLATION,
+    }
+    default_translation = ml_pipelines.config.HPC_BENIGN_MALWARE_CLASS_TRANSLATION
+
+    for layer_model_path, layer_data in zip(model_paths, cross_layer_X):
+        clf, _ = joblib.load(layer_model_path)
+        preds = clf.predict_proba(layer_data)
+        probas = np.max(preds, axis=1)
+        classes = np.argmax(preds, axis=1)
+        classes[probas < 0.7] = -1
+
+        # Select translation dict once per layer
+        translation_dict = next((d for k, d in translation_map.items() if k in layer_model_path.name),
+                                default_translation)
+
+        # Vectorized translation
+        vectorized_translate = np.vectorize(translation_dict.get)
+        classes = vectorized_translate(classes)
+
+        cross_layer_classes.append(classes)
+
+    cross_layer_classes = np.stack(cross_layer_classes).T
+
+    return cross_layer_classes
+
+
+def collate_preds(preds: np.ndarray) -> list:
+    predictions = []
+
+    for row in preds:
+        row = row[row != -1]
+        if len(row) == 0:
+            continue
+        elif len(row) == 1:
+            predictions.append(row[0])
+            continue
+
+        uniques, counts = np.unique(row, return_counts=True)
+        max_count = counts.max()
+        # Check if there is a tie for the highest count
+        if np.sum(counts == max_count) == 1:
+            most_common = uniques[counts.argmax()]
+            predictions.append(most_common)
+
+    return predictions
 
 
 if __name__ == "__main__":
@@ -451,8 +539,12 @@ if __name__ == "__main__":
     NETWORK = False
     HPC = False
     TRAIN = False
+    REPROCESS_DATA = False
+
     window_size_time = 0.1 / 2  # / 2  # 10
     window_stride_time = window_size_time / 3
+    rng = np.random.default_rng(seed=1337)  # optional seed
+
 
     if SYSCALL:
         syscall_dir = cwd / "../data/syscall_bucket"
@@ -530,8 +622,8 @@ if __name__ == "__main__":
         hpc_paths = [p for p in hpc_dir.iterdir() if p.is_file()]
         hpc_paths.sort()
 
-        MALWARE_DICT = ml_pipelines.config.HPC_MALWARE_DICT
-        # MALWARE_DICT = ml_pipelines.config.HPC_BENIGN_MALWARE_DICT
+        # MALWARE_DICT = ml_pipelines.config.HPC_MALWARE_DICT
+        MALWARE_DICT = ml_pipelines.config.HPC_BENIGN_MALWARE_DICT
         malware_keys = [item for sublist in MALWARE_DICT.values() for item in sublist]
         malware_keys = set(malware_keys)
 
@@ -560,38 +652,9 @@ if __name__ == "__main__":
 
 
     # raise Exception
-
-    ransomware_syscall_dir = cwd / "../data/ransomware_data/ftrace_results"
-    ransomware_network_dir = cwd / "../data/ransomware_data/net_results"
-    ransomware_hpc_dir = cwd / "../data/ransomware_data/perf_results"
-
-    behaviors = {
-        "symm_AES_128b": {
-            "syscall": [
-                ransomware_syscall_dir / "out_exec_parsed/symm_AES_128t_0_ints.txt",
-                ransomware_syscall_dir / "out_exec_parsed/symm_AES_128t_1_ints.txt",
-            ],
-            "network": [
-                ransomware_network_dir / "out_exec_parsed/symm_AES_128b_0",
-                ransomware_network_dir / "out_exec_parsed/symm_AES_128b_1",
-            ],
-            "hpc":[
-                ransomware_hpc_dir / "out_exec_parsed/symm_AES_128b_0",
-                ransomware_hpc_dir / "out_exec_parsed/symm_AES_128b_1",
-            ],
-        },
-        "symm_AES_256b": {
-            "syscall": [
-                ransomware_syscall_dir / "out_exec_parsed/symm_AES_256t_0_ints.txt",
-            ],
-            "network": [
-                ransomware_network_dir / "out_exec_parsed/symm_AES_256b_0",
-            ],
-            "hpc": [
-                ransomware_hpc_dir / "out_exec_parsed/symm_AES_256b_0",
-            ],
-        }
-    }
+    syscall_dir = cwd / "../data/syscall_bucket"
+    network_dir = cwd / "../data/network_bucket"
+    hpc_dir = cwd / "../data/hpc_bucket"
 
     signal_modules = {
         "syscall": syscall_signals,
@@ -599,107 +662,123 @@ if __name__ == "__main__":
         "hpc": hpc_signals,
     }
 
-    # raise Exception
+    behaviors = deepcopy(ml_pipelines.config.BEHAVIOR_FILES)
 
-    signal_df_dict = form_signal_dict(behaviors, signal_modules)
-    feature_dict = build_features(
-        signal_df_dict, signal_modules, window_size_time, window_stride_time, preserve_time=True
-    )
+    feature_frames_path = cwd / "../data/feature_frames.joblib"
 
-    #  TODO there should be time alignment of various signals
-    #   - because there is not, no use in below functions
-    # correct_feature_vector_times_2(feature_dict)
-    # correct_feature_vector_times(feature_dict)
+    if REPROCESS_DATA:
 
-    feature_frames = form_feature_frames(feature_dict)
+        for behavior in behaviors:
+            for signal_dir, signal in zip([syscall_dir, network_dir, hpc_dir], signal_modules.keys()):
+                behaviors[behavior][signal] = [signal_dir / file_path for file_path in behaviors[behavior][signal]]
 
-    rng = np.random.default_rng(seed=1337)  # optional seed
 
-    # form attack data
+        # raise Exception
+
+        signal_df_dict = form_signal_dict(behaviors, signal_modules)
+        feature_dict = build_features(
+            signal_df_dict, signal_modules, window_size_time, window_stride_time, preserve_time=True
+        )
+
+        #  TODO there should be time alignment of various signals
+        #   - because there is not, no use in below functions
+        #   - ask Prateek for time alignment; a trace of some action
+        #   - should take the same length across all signals
+        #   e.g. AES_128 takes 15 seconds in syscalls and hpc
+        # correct_feature_vector_times_2(feature_dict)
+        # correct_feature_vector_times(feature_dict)
+
+        feature_frames = form_feature_frames(feature_dict)
+
+
+        joblib.dump(feature_frames, feature_frames_path)
+
+    else:
+        feature_frames = joblib.load(feature_frames_path)
+
+    #  form attack data
+    print("")
     attack_lens = [
-        ("symm_AES_128b", 0.9),
-        ("symm_AES_256b", 0.6),
+        ("symm_AES_128t", 0.9),
+        ("symm_AES_256t", 0.6),
     ]
 
-    attack_X = build_attack_windows(feature_frames, attack_lens, window_size_time, window_stride_time, rng)
+    attack_proba = []
+    for i in range(5):
+        attack_X = build_attack_windows(feature_frames, attack_lens, window_size_time, window_stride_time, rng)
+        cross_layer_X = cross_layer_concatenate(attack_X)
+        preds = cross_layer_class_preds(cross_layer_X)
+        preds = collate_preds(preds)
 
-    # inference on attack data
-    for signal_list in attack_X:
-        syscall_X = signal_list[0]
-        network_X = signal_list[1]
-        hpc_X = signal_list[2]
-        break
+        gd = global_detector.LifecycleDetector()
+        proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
+        proba = np.power(proba, 1 / len(preds))  # normalization
 
-    model_data = {
-        cwd / "../data/models/syscall_clf.joblib": syscall_X,
-        cwd / "../data/models/network_clf.joblib": network_X,
-        cwd / "../data/models/hpc_clf.joblib": hpc_X,
-    }
+        attack_proba.append(proba)
+        print(proba)
 
-    cross_layer_classes = []
+    print("")
+    attack_lens = [
+        ("browser_compute", 0.9),
+        ("browser_download", 0.6),
+    ]
 
-    for model_path, data in model_data.items():
-        clf, _ = joblib.load(model_path)
+    benign_proba = []
+    for i in range(5):
+        attack_X = build_attack_windows(feature_frames, attack_lens, window_size_time, window_stride_time, rng)
+        cross_layer_X = cross_layer_concatenate(attack_X)
+        preds = cross_layer_class_preds(cross_layer_X)
+        preds = collate_preds(preds)
 
-        preds = clf.predict_proba(data)
-        probas = np.max(preds, axis=1)
-        classes = np.argmax(preds, axis=1)
-        classes[probas < 0.7] = -1
+        gd = global_detector.LifecycleDetector()
+        proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
+        proba = np.power(proba, 1 / len(preds))  # normalization
 
-        if "syscall" in model_path.name:
-            translation_dict = ml_pipelines.config.SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION
-        elif "network" in model_path.name:
-            translation_dict = ml_pipelines.config.NETWORK_BENIGN_MALWARE_CLASS_TRANSLATION
-        else:
-            translation_dict = ml_pipelines.config.HPC_BENIGN_MALWARE_CLASS_TRANSLATION
-
-        translated_classes = []
-        for element in classes:
-            translated_classes.append(translation_dict[element])
-
-        classes = np.array(translated_classes)
-        cross_layer_classes.append(classes)
-
-    cross_layer_classes = np.stack(cross_layer_classes).T
+        benign_proba.append(proba)
+        print(proba)
 
 
-    collated_classes = []
+    y_scores = attack_proba + benign_proba
+    y_true = np.zeros(len(y_scores))
+    y_true[:len(attack_proba)] = 1
 
-    for i in range(len(cross_layer_classes)):
-        row = cross_layer_classes[i]
-        row = row[row != -1]
+    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+    roc_auc = auc(fpr, tpr)
 
-        if len(row) == 0:
-            continue
+    plt.figure()
+    plt.plot(fpr, tpr, lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+    plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
+    plt.xlim([-0.01, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic (ROC)')
+    plt.legend(loc="lower right")
+    plt.tight_layout()
+    plt.grid()
 
-        elif len(row) == 1:
-            collated_classes.append(row[0])
 
-        else:
-            uniques, counts = np.unique(row, return_counts=True)
-            sort_idx = np.argsort(counts)[::-1]  # Indices for sorted counts (descending)
-            uniques_sorted = uniques[sort_idx]
-            counts_sorted = counts[sort_idx]
+    attack_stages = ml_pipelines.config.GENERATION_ATTACK_STAGES
 
-            if len(counts_sorted) == 1:
-                collated_classes.append(uniques_sorted[0])
+    import random
 
-            elif counts_sorted[0] == counts_sorted[1]:
-                continue
+    start = 0
+    stop = 3
+    step = 0.5
+    time_choices = np.arange(start, stop + step / 2, step, dtype=float).tolist()
 
-            else:
-                collated_classes.append(uniques_sorted[0])
+    techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
+    stage_data = [(technique, random.choice(time_choices)) for technique in techniques]
+
+
+
+
+
 
     # TODO map classes of each clf back to attack_lifecycle classes
     #  - filter class stream
     #  - pull recycle hmm
     # TODO start here
-
-    x = collated_classes
-
-    gd = global_detector.LifecycleDetector()
-    proba = np.exp(gd.hmm.score(np.array(x).reshape(-1, 1)))
-    proba = np.power(proba, 1 / len(x))  # normalization
 
 
 
