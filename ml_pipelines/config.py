@@ -462,20 +462,47 @@ BEHAVIOR_FILES: Final = {
     #     ],
     # },
 
-    # "recon_mount": {
-    #     "syscall": [
-    #         "recon_mount_1_ints.txt",
-    #         "recon_mount_5_ints.txt",
-    #     ],
-    #     "network": [
-    #         "recon_mount_1",
-    #         "recon_mount_5",
-    #     ],
-    #     "hpc": [
-    #         "symm_AES_128b_0",
-    #         "symm_AES_128b_1",
-    #     ],
-    # },
+    "recon_mount": {
+        "syscall": [
+            "recon_mount_1_ints.txt",
+            "recon_mount_5_ints.txt",
+        ],
+        "network": [
+            "recon_mount_1",
+            "recon_mount_5",
+        ],
+        "hpc": [
+            "recon_mount_1",
+            "recon_mount_3",
+        ],
+    },
+    "recon_net": {
+        "syscall": [
+            "recon_net_1_ints.txt",
+            "recon_net_5_ints.txt",
+        ],
+        "network": [
+            "recon_net_1",
+            "recon_net_5",
+        ],
+        "hpc": [
+            "recon_net_1",
+            "recon_net_3",
+        ],
+    },
+    "recon_system": {
+        "syscall": [
+            "recon_system_1_ints.txt",
+            "recon_system_5_ints.txt",
+        ],
+        "network": [
+            "recon_system_1",
+            "recon_system_5",
+        ],
+        "hpc": [
+            "recon_system_1",
+        ],
+    },
 
     "compress_gzip_1t": {
         "syscall": [
@@ -533,20 +560,62 @@ BEHAVIOR_FILES: Final = {
             "compress_zstd_8t_7",
         ],
     },
-    # "transfer_aws_1t": {
-    #     "syscall": [
-    #         "transfer_aws_1t_0_ints.txt",
-    #         "transfer_aws_1t_11_ints.txt",
-    #     ],
-    #     "network": [
-    #         "transfer_aws_1t_0",
-    #         "transfer_aws_1t_14",
-    #     ],
-    #     "hpc": [
-    #         "",
-    #         "",
-    #     ],
-    # },
+    "transfer_aws_1t": {
+        "syscall": [
+            "transfer_aws_1t_0_ints.txt",
+            "transfer_aws_1t_11_ints.txt",
+        ],
+        "network": [
+            "transfer_aws_1t_0",
+            "transfer_aws_1t_14",
+        ],
+        "hpc": [
+            "transfer_aws_1t_0",
+            "transfer_aws_1t_5",
+        ],
+    },
+    "transfer_aws_8t": {
+        "syscall": [
+            "transfer_aws_8t_0_ints.txt",
+            "transfer_aws_8t_11_ints.txt",
+        ],
+        "network": [
+            "transfer_aws_8t_0",
+            "transfer_aws_8t_14",
+        ],
+        "hpc": [
+            "transfer_aws_8t_0",
+            "transfer_aws_8t_5",
+        ],
+    },
+    "transfer_sftp_1t": {
+        "syscall": [
+            "transfer_sftp_1t_0_ints.txt",
+            "transfer_sftp_1t_11_ints.txt",
+        ],
+        "network": [
+            "transfer_sftp_1t_0",
+            "transfer_sftp_1t_14",
+        ],
+        "hpc": [
+            "transfer_sftp_1t_0",
+            "transfer_sftp_1t_5",
+        ],
+    },
+    "transfer_sftp_8t": {
+        "syscall": [
+            "transfer_sftp_8t_0_ints.txt",
+            "transfer_sftp_8t_11_ints.txt",
+        ],
+        "network": [
+            "transfer_sftp_8t_0",
+            "transfer_sftp_8t_14",
+        ],
+        "hpc": [
+            "transfer_sftp_8t_0",
+            "transfer_sftp_8t_5",
+        ],
+    },
 
     "symm_AES_128t": {
         "syscall": [
@@ -653,12 +722,12 @@ GENERATION_ATTACK_STAGES: Final = {
         "compress_zstd_1t",
         "compress_zstd_8t",
     ],
-    # "exfil_2": [
-    #     "transfer_aws_1t",
-    #     "transfer_aws_8t",
-    #     "transfer_sftp_1t",
-    #     "transfer_sftp_8t",
-    # ],
+    "exfil_2": [
+        "transfer_aws_1t",
+        "transfer_aws_8t",
+        "transfer_sftp_1t",
+        "transfer_sftp_8t",
+    ],
     # "exec_1": [
     #     "asymm",
     #

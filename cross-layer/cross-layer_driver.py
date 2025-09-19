@@ -26,6 +26,8 @@ from copy import deepcopy
 from typing import Iterable, Tuple, Sequence
 from collections import defaultdict
 
+import random
+
 import matplotlib
 
 from ml_pipelines import global_detector
@@ -539,7 +541,7 @@ if __name__ == "__main__":
     NETWORK = False
     HPC = False
     TRAIN = False
-    REPROCESS_DATA = False
+    REPROCESS_DATA = True
 
     window_size_time = 0.1 / 2  # / 2  # 10
     window_stride_time = window_size_time / 3
@@ -697,6 +699,8 @@ if __name__ == "__main__":
         feature_frames = joblib.load(feature_frames_path)
 
     #  form attack data
+    gd = global_detector.LifecycleDetector()
+
     print("")
     attack_lens = [
         ("symm_AES_128t", 0.9),
@@ -710,7 +714,6 @@ if __name__ == "__main__":
         preds = cross_layer_class_preds(cross_layer_X)
         preds = collate_preds(preds)
 
-        gd = global_detector.LifecycleDetector()
         proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
         proba = np.power(proba, 1 / len(preds))  # normalization
 
@@ -730,7 +733,6 @@ if __name__ == "__main__":
         preds = cross_layer_class_preds(cross_layer_X)
         preds = collate_preds(preds)
 
-        gd = global_detector.LifecycleDetector()
         proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
         proba = np.power(proba, 1 / len(preds))  # normalization
 
@@ -760,7 +762,7 @@ if __name__ == "__main__":
 
     attack_stages = ml_pipelines.config.GENERATION_ATTACK_STAGES
 
-    import random
+
 
     start = 0
     stop = 3
@@ -768,7 +770,22 @@ if __name__ == "__main__":
     time_choices = np.arange(start, stop + step / 2, step, dtype=float).tolist()
 
     techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
-    stage_data = [(technique, random.choice(time_choices)) for technique in techniques]
+    stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+    gd = global_detector.LifecycleDetector()
+
+    attack_X = build_attack_windows(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
+    cross_layer_X = cross_layer_concatenate(attack_X)
+    preds = cross_layer_class_preds(cross_layer_X)
+    preds = collate_preds(preds)
+
+    proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
+    proba = np.power(proba, 1 / len(preds))  # normalization
+
+    benign_proba.append(proba)
+    print(proba)
+
+
 
 
 
