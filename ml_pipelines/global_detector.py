@@ -49,7 +49,7 @@ class LifecycleDetector:
     @staticmethod
     def _get_markov() -> hmm.CategoricalHMM:
         s_c = 0.6  # start confidence, confidence that sequence will start at first stage
-        alternate_start_weights = [i * 1.5 for i in range(1, 3)][::-1]
+        alternate_start_weights = [i * 1.5 for i in range(1, 4)][::-1]
         alternate_start_weights = np.array(alternate_start_weights) / np.sum(alternate_start_weights) * (1 - s_c)
         alternate_start_weights = alternate_start_weights.tolist()
         alternate_start_weights.insert(0, s_c)
@@ -57,30 +57,35 @@ class LifecycleDetector:
         start_matrix = alternate_start_weights
 
         f_b_ratio = 2  # ratio of confidence of forward transition over backward transition
-        t_f0 = 1 / (3 * f_b_ratio + 0) * f_b_ratio
-        t_f1 = 1 / (2 * f_b_ratio + 1) * f_b_ratio
-        t_f2 = 1 / (1 * f_b_ratio + 2) * f_b_ratio
+        t_f0 = 1 / (4 * f_b_ratio + 0) * f_b_ratio
+        t_f1 = 1 / (3 * f_b_ratio + 1) * f_b_ratio
+        t_f2 = 1 / (2 * f_b_ratio + 2) * f_b_ratio
+        t_f3 = 1 / (1 * f_b_ratio + 3) * f_b_ratio
 
-        t_b1 = 1 / (2 * f_b_ratio + 1)
-        t_b2 = 1 / (1 * f_b_ratio + 2)
+        t_b1 = 1 / (3 * f_b_ratio + 1)
+        t_b2 = 1 / (2 * f_b_ratio + 2)
+        t_b3 = 1 / (1 * f_b_ratio + 3)
 
         transition_matrix = [
-            [t_f0, t_f0, t_f0],
-            [t_b1, t_f1, t_f1],
-            [t_b2, t_b2, t_f2],
+            [t_f0, t_f0, t_f0, t_f0],
+            [t_b1, t_f1, t_f1, t_f1],
+            [t_b2, t_b2, t_f2, t_f2],
+            [t_b3, t_b3, t_b3, t_f3],
         ]
 
         e0 = 1  # 0.7  # confidence in detection at this stage 1
         e1 = 1  # 0.7
         e2 = 1  # 0.7
+        e3 = 1  # 0.7
 
         emission_matrix = [
-            [e0, 0, 0],
-            [0, e1, 0],
-            [0, 0, e2],
+            [e0, 0, 0, 0],
+            [0, e1, 0, 0],
+            [0, 0, e2, 0],
+            [0, 0, 0, e3],
         ]
 
-        model = hmm.CategoricalHMM(n_components=3, n_features=3)
+        model = hmm.CategoricalHMM(n_components=4, n_features=4)
         model.startprob_ = np.array(start_matrix)
         model.transmat_ = np.array(transition_matrix)
         model.emissionprob_ = np.array(emission_matrix)
