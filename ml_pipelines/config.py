@@ -4,7 +4,7 @@ SUBSAMPLE_NETWORK_DATA : Final = 10
 
 SYSCALL_BENIGN_MALWARE_DICT: Final = {
     0: [
-        "recon_system_",
+        # "recon_system_",
         "recon_mount_",
         "recon_net_",
     ],
@@ -47,7 +47,7 @@ SYSCALL_BENIGN_MALWARE_DICT: Final = {
 
 SYSCALL_MALWARE_DICT: Final = {
     0: [
-        "recon_system_",
+        # "recon_system_",
         "recon_mount_",
         "recon_net_",
     ],
@@ -79,33 +79,31 @@ SYSCALL_MALWARE_DICT: Final = {
 
 NETWORK_BENIGN_MALWARE_DICT: Final = {
     0: [
-        "recon_system_",
-    ],
-    1: [
+        # "recon_system_",
         "recon_mount_",
     ],
-    2: [
+    1: [
         "recon_net_",
     ],
-    3: [
+    2: [
         "compress_gzip_1t_",
         "compress_gzip_8t_",
         "compress_zstd_1t_",
         "compress_zstd_8t_"
     ],
-    4: [
+    3: [
         "transfer_aws_1t_",
         "transfer_aws_8t_",
         "transfer_sftp_1t_",
         "transfer_sftp_8t_"
     ],
-    5: [
+    4: [
         "symm_AES_128b_",
         "symm_AES_256b_",
         "symm_Salsa20_128b_",
         "symm_Salsa20_256b_",
     ],
-    6: [
+    5: [
         "browser_netcall_compute_",
         "browser_netcall_streaming_",
         "mediaserver_index_",
@@ -113,34 +111,32 @@ NETWORK_BENIGN_MALWARE_DICT: Final = {
         "browser_netcall_mix_",
         "browser_netcall_download_",
     ],
-    7: [
+    6: [
         "mediaserver_browse_",
     ],
 }
 
 NETWORK_MALWARE_DICT : Final = {
     0: [
-        "recon_system_",
-    ],
-    1: [
+        # "recon_system_",
         "recon_mount_",
     ],
-    2: [
+    1: [
         "recon_net_",
     ],
-    3: [
+    2: [
         "compress_gzip_1t_",
         "compress_gzip_8t_",
         "compress_zstd_1t_",
         "compress_zstd_8t_"
     ],
-    4: [
+    3: [
         "transfer_aws_1t_",
         "transfer_aws_8t_",
         "transfer_sftp_1t_",
         "transfer_sftp_8t_"
     ],
-    5: [
+    4: [
         "symm_AES_128b_",
         "symm_AES_256b_",
         "symm_Salsa20_128b_",
@@ -150,7 +146,7 @@ NETWORK_MALWARE_DICT : Final = {
 
 HPC_MALWARE_DICT : Final = {
     0: [
-        "recon_system_",
+        # "recon_system_",
         "recon_net_",
     ],
     1: [
@@ -180,7 +176,7 @@ HPC_MALWARE_DICT : Final = {
 
 HPC_BENIGN_MALWARE_DICT : Final = {
     0: [
-        "recon_system_",
+        # "recon_system_",
         "recon_net_",
     ],
     1: [
@@ -266,22 +262,20 @@ NETWORK_MALWARE_CLASS_TRANSLATION: Final = {
     -1: -1,
     0: 0,
     1: 0,
-    2: 0,
-    3: 1,
-    4: 2,
-    5: 3,
+    2: 1,
+    3: 2,
+    4: 3,
 }
 
 NETWORK_BENIGN_MALWARE_CLASS_TRANSLATION: Final = {
     -1: -1,
     0: 0,
     1: 0,
-    2: 0,
-    3: 1,
-    4: 2,
-    5: 3,
+    2: 1,
+    3: 2,
+    4: 3,
+    5: -1,
     6: -1,
-    7: -1,
 }
 
 HPC_MALWARE_CLASS_TRANSLATION: Final = {
@@ -467,19 +461,19 @@ BEHAVIOR_FILES: Final = {
             "recon_net_3",
         ],
     },
-    "recon_system": {
-        "syscall": [
-            "recon_system_1_ints.txt",
-            "recon_system_5_ints.txt",
-        ],
-        "network": [
-            "recon_system_1",
-            "recon_system_5",
-        ],
-        "hpc": [
-            "recon_system_1",
-        ],
-    },
+    # "recon_system": {
+    #     "syscall": [
+    #         "recon_system_1_ints.txt",
+    #         "recon_system_5_ints.txt",
+    #     ],
+    #     "network": [
+    #         "recon_system_1",
+    #         "recon_system_5",
+    #     ],
+    #     "hpc": [
+    #         "recon_system_1",
+    #     ],
+    # },
 
     "compress_gzip_1t": {
         "syscall": [
@@ -657,7 +651,7 @@ GENERATION_ATTACK_STAGES: Final = {
     "recon": [
         "recon_mount",
         "recon_net",
-        "recon_system",
+        # "recon_system",
     ],
     "exfil_1": [
         # "fscan_group",

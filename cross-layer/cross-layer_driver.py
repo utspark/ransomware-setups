@@ -436,6 +436,16 @@ def build_cross_layer_X(
 
 
 def form_signal_dict(behaviors: dict, signal_modules: dict) -> dict:
+    """
+    Form signal_dictionary containing raw dfs from each file trace
+    Args:
+        behaviors:
+        signal_modules:
+
+    Returns:
+
+    """
+
     # signal_df_dict = defaultdict(lambda: defaultdict(list))
     #
     # for action, signals in behaviors.items():
@@ -490,10 +500,12 @@ if __name__ == "__main__":
     NETWORK = False
     HPC = False
     TRAIN = False
-    REPROCESS_DATA = True
+    REPROCESS_DATA = False
 
-    window_size_time = 0.1 / 2  # / 2  # 10
-    window_stride_time = window_size_time / 3
+    # window_size_time = 0.1 / 2  # / 2  # 10
+    # window_stride_time = window_size_time / 3
+    window_size_time = 0.5
+    window_stride_time = 0.2
     rng = np.random.default_rng(seed=1337)  # optional seed
 
 
@@ -568,8 +580,6 @@ if __name__ == "__main__":
             train_and_test_report(X, y)
 
     if HPC:
-        # window_size_time = 0.5
-        # window_stride_time = 0.2
 
         hpc_dir = cwd / "../data/current_data/hpc_bucket"
         hpc_paths = [p for p in hpc_dir.iterdir() if p.is_file()]
@@ -624,7 +634,6 @@ if __name__ == "__main__":
         for behavior in behaviors:
             for signal_dir, signal in zip([syscall_dir, network_dir, hpc_dir], signal_modules.keys()):
                 behaviors[behavior][signal] = [signal_dir / file_path for file_path in behaviors[behavior][signal]]
-
 
         # raise Exception
 
@@ -708,7 +717,7 @@ if __name__ == "__main__":
     # plt.tight_layout()
     # plt.grid()
 
-    raise Exception
+    # raise Exception
 
     attack_stages = ml_pipelines.config.GENERATION_ATTACK_STAGES
 
@@ -735,6 +744,7 @@ if __name__ == "__main__":
         malware_scores.append(proba)
         print(proba)
 
+    print("")
     benign_scores = []
     for _ in range(5):
         benign_stages = ml_pipelines.config.GENERATION_BENIGN
@@ -748,6 +758,24 @@ if __name__ == "__main__":
         benign_scores.append(proba)
         print(proba)
 
+    y_scores = malware_scores + benign_scores
+    y_true = np.zeros(len(y_scores))
+    y_true[:len(malware_scores)] = 1
+
+    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+    roc_auc = auc(fpr, tpr)
+
+    plt.figure()
+    plt.plot(fpr, tpr, lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+    plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
+    plt.xlim([-0.01, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic (ROC)')
+    plt.legend(loc="lower right")
+    plt.tight_layout()
+    plt.grid()
 
     # malware_scores = []
     # for _ in range(150):
