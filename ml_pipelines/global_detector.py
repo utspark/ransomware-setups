@@ -138,7 +138,7 @@ class LifecycleDetector:
 
         return predictions
 
-    def score_cross_layer(self, cross_layer_X: tuple):
+    def score_cross_layer(self, cross_layer_X: tuple[np.ndarray, np.ndarray, np.ndarray]) -> float:
         clf_predictions = self.cross_layer_class_preds(cross_layer_X)
         predictions = self.collate_preds(clf_predictions)
 

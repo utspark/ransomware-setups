@@ -399,7 +399,7 @@ def build_features(signal_df_dict, signal_modules, window_size_time, window_stri
     return feature_dict
 
 
-def build_attack_windows(
+def build_cross_layer_X(
         feature_dict: dict[str, dict[str, pd.DataFrame]],
         attack_lens: Iterable[Tuple[str, float]],
         window_size_time: float,
@@ -407,7 +407,7 @@ def build_attack_windows(
         rng: np.random.Generator,
         signals: Sequence[str] = ("syscall", "network", "hpc"),
 ) -> list[list[pd.DataFrame]]:
-    attack_X = []
+    cross_layer_X = []
 
     for attack, t in attack_lens:
         # Compute desired window count from duration, then clamp to the shortest signal length
@@ -430,9 +430,9 @@ def build_attack_windows(
             start = rng.integers(0, n - num_windows + 1)
             X_list.append(df.iloc[start:start + num_windows])
 
-        attack_X.append(X_list)
+        cross_layer_X.append(X_list)
 
-    return attack_X
+    return cross_layer_X
 
 
 def form_signal_dict(behaviors: dict, signal_modules: dict) -> dict:
@@ -490,7 +490,7 @@ if __name__ == "__main__":
     NETWORK = False
     HPC = False
     TRAIN = False
-    REPROCESS_DATA = False
+    REPROCESS_DATA = True
 
     window_size_time = 0.1 / 2  # / 2  # 10
     window_stride_time = window_size_time / 3
@@ -524,6 +524,7 @@ if __name__ == "__main__":
         X, y = files_and_labels_to_X_y(
             syscall_paths, syscall_signals, MALWARE_DICT, window_size_time, window_stride_time,
         )
+        print(np.unique(y, return_counts=True))
 
         if TRAIN:
             save_path = cwd / "../data/models/syscall_clf.joblib"
@@ -558,6 +559,7 @@ if __name__ == "__main__":
         X, y = files_and_labels_to_X_y(
             network_paths, network_signals, MALWARE_DICT, window_size_time, window_stride_time,
         )
+        print(np.unique(y, return_counts=True))
 
         if TRAIN:
             save_path = cwd / "../data/models/network_clf.joblib"
@@ -594,6 +596,7 @@ if __name__ == "__main__":
         X, y = files_and_labels_to_X_y(
             hpc_paths, hpc_signals, MALWARE_DICT, window_size_time, window_stride_time,
         )
+        print(np.unique(y, return_counts=True))
 
         if TRAIN:
             save_path = cwd / "../data/models/hpc_clf.joblib"
@@ -705,6 +708,7 @@ if __name__ == "__main__":
     # plt.tight_layout()
     # plt.grid()
 
+    raise Exception
 
     attack_stages = ml_pipelines.config.GENERATION_ATTACK_STAGES
 
@@ -713,63 +717,115 @@ if __name__ == "__main__":
     step = 0.5
     time_choices = np.arange(start, stop + step / 2, step, dtype=float).tolist()
 
-    techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
-    stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-
     gd = global_detector.LifecycleDetector(
         cwd / "../data/models/syscall_clf.joblib",
         cwd / "../data/models/network_clf.joblib",
         cwd / "../data/models/hpc_clf.joblib"
     )
 
-    attack_X = build_attack_windows(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
-    cross_layer_X = cross_layer_concatenate(attack_X)
+    malware_scores = []
+    for _ in range(5):
+        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
 
-    proba = gd.score_cross_layer(cross_layer_X)
+        attack_X = build_cross_layer_X(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
+        cross_layer_X = cross_layer_concatenate(attack_X)
 
-    print(proba)
+        proba = gd.score_cross_layer(cross_layer_X)
+        malware_scores.append(proba)
+        print(proba)
+
+    benign_scores = []
+    for _ in range(5):
+        benign_stages = ml_pipelines.config.GENERATION_BENIGN
+        techniques = [random.choice(benign_stages) for _ in range(4)]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = build_cross_layer_X(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
+        cross_layer_X = cross_layer_concatenate(attack_X)
+
+        proba = gd.score_cross_layer(cross_layer_X)
+        benign_scores.append(proba)
+        print(proba)
 
 
-    # raise Exception
+    # malware_scores = []
+    # for _ in range(150):
+    #     techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
+    #     stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+    #
+    #     attack_X = build_cross_layer_X(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
+    #     cross_layer_X = cross_layer_concatenate(attack_X)
+    #
+    #     proba = gd.score_cross_layer(cross_layer_X)
+    #     malware_scores.append(proba)
+    #
+    #
+    # # raise Exception
+    #
+    # length_check = 10
+    # length_samples = 15
+    # distance_measures = [[] for i in range(1, length_check)]
+    # benign_scores = []
+    #
+    # for i in range(1, length_check):
+    #     for j in range(length_samples):
+    #
+    #         benign_stages = ml_pipelines.config.GENERATION_BENIGN
+    #         techniques = [random.choice(benign_stages) for _ in range(i)]
+    #         stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+    #
+    #         attack_X = build_cross_layer_X(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
+    #         cross_layer_X = cross_layer_concatenate(attack_X)
+    #
+    #         proba = gd.score_cross_layer(cross_layer_X)
+    #         distance_measures[i-1].append(proba)
+    #         benign_scores.append(proba)
+    #
+    # distance_measures = np.array(distance_measures)
+    #
+    # fig, ax = plt.subplots(figsize=(6, 4))
+    # for i in range(distance_measures.shape[0]):
+    #     x_values = [i + 1 for _ in range(distance_measures.shape[1])]
+    #     sc = ax.scatter(x_values, distance_measures[i], cmap="viridis", alpha=0.75, edgecolors='none')
+    #
+    # # cb = plt.colorbar(sc, ax=ax)
+    # # cb.set_label("Distance (c)")
+    # ax.set_title("Scatter with Colorbar", pad=10)
+    # ax.set_xlabel("X")
+    # ax.set_ylabel("Y")
+    # ax.grid(True, alpha=0.3)
+    # fig.tight_layout()
+    # plt.show(block=True)
+    #
+    #
+    # y_scores = malware_scores + benign_scores
+    # y_true = np.zeros(len(y_scores))
+    # y_true[:len(malware_scores)] = 1
+    #
+    # fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+    # roc_auc = auc(fpr, tpr)
+    #
+    # plt.figure()
+    # plt.plot(fpr, tpr, lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+    # plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
+    # plt.xlim([-0.01, 1.0])
+    # plt.ylim([0.0, 1.05])
+    # plt.xlabel('False Positive Rate')
+    # plt.ylabel('True Positive Rate')
+    # plt.title('Receiver Operating Characteristic (ROC)')
+    # plt.legend(loc="lower right")
+    # plt.tight_layout()
+    # plt.grid()
 
-    length_check = 10
-    length_samples = 15
-    distance_measures = [[] for i in range(1, length_check)]
-
-    for i in range(1, length_check):
-        for j in range(length_samples):
-
-            benign_stages = ml_pipelines.config.GENERATION_BENIGN
-            techniques = [random.choice(benign_stages) for _ in range(i)]
-            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-
-            attack_X = build_attack_windows(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
-            cross_layer_X = cross_layer_concatenate(attack_X)
-
-            proba = gd.score_cross_layer(cross_layer_X)
-            distance_measures[i-1].append(proba)
-
-    distance_measures = np.array(distance_measures)
-
-    fig, ax = plt.subplots(figsize=(6, 4))
-    for i in range(distance_measures.shape[0]):
-        x_values = [i + 1 for _ in range(distance_measures.shape[1])]
-        sc = ax.scatter(x_values, distance_measures[i], cmap="viridis", alpha=0.75, edgecolors='none')
-
-    # cb = plt.colorbar(sc, ax=ax)
-    # cb.set_label("Distance (c)")
-    ax.set_title("Scatter with Colorbar", pad=10)
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-    plt.show()
 
 
     # TODO map classes of each clf back to attack_lifecycle classes
     #  - filter class stream
     #  - pull recycle hmm
     # TODO start here
+
+
 
 
 
