@@ -410,19 +410,27 @@ def build_attack_windows(
     attack_X = []
 
     for attack, t in attack_lens:
-        num_windows = int((t - window_size_time) / window_stride_time)
+        # Compute desired window count from duration, then clamp to the shortest signal length
+        desired = int((t - window_size_time) / window_stride_time)
+        if desired <= 0:
+            continue  # nothing to sample for this attack
+
+        # Gather per-signal frames once and compute min length
+        sig_frames = [feature_dict[signal][attack] for signal in signals]
+        sig_lengths = [len(df) for df in sig_frames]
+        if not sig_lengths:
+            continue
+        num_windows = min(desired, min(sig_lengths))
+        if num_windows <= 0:
+            continue
+
+        # Sample aligned windows for each signal
         X_list = []
-
-        for signal in signals:
-            sig_X = feature_dict[signal][attack]
-            n = len(sig_X)
-
+        for df, n in zip(sig_frames, sig_lengths):
             start = rng.integers(0, n - num_windows + 1)
-            sampled = sig_X.iloc[start: start + num_windows]
-            X_list.append(sampled)
+            X_list.append(df.iloc[start:start + num_windows])
 
-        if X_list:
-            attack_X.append(X_list)
+        attack_X.append(X_list)
 
     return attack_X
 
@@ -541,7 +549,7 @@ if __name__ == "__main__":
     NETWORK = False
     HPC = False
     TRAIN = False
-    REPROCESS_DATA = True
+    REPROCESS_DATA = False
 
     window_size_time = 0.1 / 2  # / 2  # 10
     window_stride_time = window_size_time / 3
@@ -549,7 +557,7 @@ if __name__ == "__main__":
 
 
     if SYSCALL:
-        syscall_dir = cwd / "../data/syscall_bucket"
+        syscall_dir = cwd / "../data/current_data/syscall_bucket"
         syscall_paths = [p for p in syscall_dir.iterdir() if p.is_file()]
         syscall_paths.sort()
 
@@ -583,7 +591,7 @@ if __name__ == "__main__":
             train_and_test_report(X, y)
 
     if NETWORK:
-        network_dir = cwd / "../data/network_bucket"
+        network_dir = cwd / "../data/current_data/network_bucket"
         network_paths = [p for p in network_dir.iterdir() if p.is_file()]
         network_paths.sort()
 
@@ -620,7 +628,7 @@ if __name__ == "__main__":
         # window_size_time = 0.5
         # window_stride_time = 0.2
 
-        hpc_dir = cwd / "../data/hpc_bucket"
+        hpc_dir = cwd / "../data/current_data/hpc_bucket"
         hpc_paths = [p for p in hpc_dir.iterdir() if p.is_file()]
         hpc_paths.sort()
 
@@ -653,10 +661,9 @@ if __name__ == "__main__":
             train_and_test_report(X, y)
 
 
-    # raise Exception
-    syscall_dir = cwd / "../data/syscall_bucket"
-    network_dir = cwd / "../data/network_bucket"
-    hpc_dir = cwd / "../data/hpc_bucket"
+    syscall_dir = cwd / "../data/current_data/syscall_bucket"
+    network_dir = cwd / "../data/current_data/network_bucket"
+    hpc_dir = cwd / "../data/current_data/hpc_bucket"
 
     signal_modules = {
         "syscall": syscall_signals,
@@ -691,80 +698,76 @@ if __name__ == "__main__":
         # correct_feature_vector_times(feature_dict)
 
         feature_frames = form_feature_frames(feature_dict)
-
-
         joblib.dump(feature_frames, feature_frames_path)
 
     else:
         feature_frames = joblib.load(feature_frames_path)
 
     #  form attack data
-    gd = global_detector.LifecycleDetector()
-
-    print("")
-    attack_lens = [
-        ("symm_AES_128t", 0.9),
-        ("symm_AES_256t", 0.6),
-    ]
-
-    attack_proba = []
-    for i in range(5):
-        attack_X = build_attack_windows(feature_frames, attack_lens, window_size_time, window_stride_time, rng)
-        cross_layer_X = cross_layer_concatenate(attack_X)
-        preds = cross_layer_class_preds(cross_layer_X)
-        preds = collate_preds(preds)
-
-        proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
-        proba = np.power(proba, 1 / len(preds))  # normalization
-
-        attack_proba.append(proba)
-        print(proba)
-
-    print("")
-    attack_lens = [
-        ("browser_compute", 0.9),
-        ("browser_download", 0.6),
-    ]
-
-    benign_proba = []
-    for i in range(5):
-        attack_X = build_attack_windows(feature_frames, attack_lens, window_size_time, window_stride_time, rng)
-        cross_layer_X = cross_layer_concatenate(attack_X)
-        preds = cross_layer_class_preds(cross_layer_X)
-        preds = collate_preds(preds)
-
-        proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
-        proba = np.power(proba, 1 / len(preds))  # normalization
-
-        benign_proba.append(proba)
-        print(proba)
-
-
-    y_scores = attack_proba + benign_proba
-    y_true = np.zeros(len(y_scores))
-    y_true[:len(attack_proba)] = 1
-
-    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
-    roc_auc = auc(fpr, tpr)
-
-    plt.figure()
-    plt.plot(fpr, tpr, lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
-    plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
-    plt.xlim([-0.01, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic (ROC)')
-    plt.legend(loc="lower right")
-    plt.tight_layout()
-    plt.grid()
+    # gd = global_detector.LifecycleDetector()
+    #
+    # print("")
+    # attack_lens = [
+    #     ("symm_AES_128t", 0.9),
+    #     ("symm_AES_256t", 0.6),
+    # ]
+    #
+    # attack_proba = []
+    # for i in range(5):
+    #     attack_X = build_attack_windows(feature_frames, attack_lens, window_size_time, window_stride_time, rng)
+    #     cross_layer_X = cross_layer_concatenate(attack_X)
+    #     preds = cross_layer_class_preds(cross_layer_X)
+    #     preds = collate_preds(preds)
+    #
+    #     proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
+    #     proba = np.power(proba, 1 / len(preds))  # normalization
+    #
+    #     attack_proba.append(proba)
+    #     print(proba)
+    #
+    # print("")
+    # attack_lens = [
+    #     ("browser_compute", 0.9),
+    #     ("browser_download", 0.6),
+    # ]
+    #
+    # benign_proba = []
+    # for i in range(5):
+    #     attack_X = build_attack_windows(feature_frames, attack_lens, window_size_time, window_stride_time, rng)
+    #     cross_layer_X = cross_layer_concatenate(attack_X)
+    #     preds = cross_layer_class_preds(cross_layer_X)
+    #     preds = collate_preds(preds)
+    #
+    #     proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
+    #     proba = np.power(proba, 1 / len(preds))  # normalization
+    #
+    #     benign_proba.append(proba)
+    #     print(proba)
+    #
+    #
+    # y_scores = attack_proba + benign_proba
+    # y_true = np.zeros(len(y_scores))
+    # y_true[:len(attack_proba)] = 1
+    #
+    # fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+    # roc_auc = auc(fpr, tpr)
+    #
+    # plt.figure()
+    # plt.plot(fpr, tpr, lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+    # plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
+    # plt.xlim([-0.01, 1.0])
+    # plt.ylim([0.0, 1.05])
+    # plt.xlabel('False Positive Rate')
+    # plt.ylabel('True Positive Rate')
+    # plt.title('Receiver Operating Characteristic (ROC)')
+    # plt.legend(loc="lower right")
+    # plt.tight_layout()
+    # plt.grid()
 
 
     attack_stages = ml_pipelines.config.GENERATION_ATTACK_STAGES
 
-
-
-    start = 0
+    start = 0.5
     stop = 3
     step = 0.5
     time_choices = np.arange(start, stop + step / 2, step, dtype=float).tolist()
@@ -782,14 +785,48 @@ if __name__ == "__main__":
     proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
     proba = np.power(proba, 1 / len(preds))  # normalization
 
-    benign_proba.append(proba)
     print(proba)
 
 
+    length_check = 10
+    length_samples = 15
+    distance_measures = [[] for i in range(1, length_check)]
 
+    for i in range(1, length_check):
+        for j in range(length_samples):
 
+            benign_stages = ml_pipelines.config.GENERATION_BENIGN
+            techniques = [random.choice(benign_stages) for _ in range(i)]
+            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
 
+            attack_X = build_attack_windows(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
+            cross_layer_X = cross_layer_concatenate(attack_X)
+            preds = cross_layer_class_preds(cross_layer_X)
+            preds = collate_preds(preds)
 
+            if len(preds) > 0:
+                proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
+                proba = np.power(proba, 1 / len(preds))  # normalization
+            else:
+                proba = 0
+
+            distance_measures[i-1].append(proba)
+
+    distance_measures = np.array(distance_measures)
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for i in range(distance_measures.shape[0]):
+        x_values = [i + 1 for _ in range(distance_measures.shape[1])]
+        sc = ax.scatter(x_values, distance_measures[i], cmap="viridis", alpha=0.75, edgecolors='none')
+
+    # cb = plt.colorbar(sc, ax=ax)
+    # cb.set_label("Distance (c)")
+    ax.set_title("Scatter with Colorbar", pad=10)
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    plt.show()
 
 
     # TODO map classes of each clf back to attack_lifecycle classes

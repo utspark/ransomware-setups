@@ -740,6 +740,16 @@ GENERATION_ATTACK_STAGES: Final = {
     ],
 }
 
+GENERATION_BENIGN: Final = [
+    "browser_compute",
+    "browser_download",
+    "browser_generic",
+    "browser_mix",
+    "browser_streaming",
+    "filebench_mediaserver_browse",
+    "filebench_mediaserver_index",
+]
+
 HMM_ATTACK_STAGES: Final = {
     "recon": [
         "recon_mount",
