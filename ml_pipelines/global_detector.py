@@ -1,5 +1,6 @@
 from itertools import groupby
 
+import joblib
 import numpy as np
 from hmmlearn import hmm
 
@@ -39,8 +40,11 @@ def form_lifecycle_sequence(attack_stages: dict, benign=False):
 
 
 class LifecycleDetector:
-    def __init__(self):
+    def __init__(self, syscall_clf_path, network_clf_path, hpc_clf_path):
         self.hmm = self._get_markov()
+        self.syscall_clf = joblib.load(syscall_clf_path)[0]
+        self.network_clf = joblib.load(network_clf_path)[0]
+        self.hpc_clf = joblib.load(hpc_clf_path)[0]
 
     @staticmethod
     def _get_markov() -> hmm.CategoricalHMM:
@@ -83,7 +87,67 @@ class LifecycleDetector:
 
         return model
 
-    def score_sequence(self, seq_classes: np.array, seq_values: np.array) -> float:
+    def cross_layer_class_preds(self, cross_layer_X: tuple):
+        cross_layer_classes = []
+
+        clfs = [self.syscall_clf, self.network_clf, self.hpc_clf]
+        translations = [
+            config.SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION,
+            config.NETWORK_BENIGN_MALWARE_CLASS_TRANSLATION,
+            config.HPC_BENIGN_MALWARE_CLASS_TRANSLATION,
+        ]
+
+        for clf, layer_data, translation in zip(clfs, cross_layer_X, translations):
+            preds = clf.predict_proba(layer_data)
+            probas = np.max(preds, axis=1)
+            classes = np.argmax(preds, axis=1)
+            classes[probas < 0.7] = -1
+
+            # Vectorized translation
+            vectorized_translate = np.vectorize(translation.get)
+            classes = vectorized_translate(classes)
+            cross_layer_classes.append(classes)
+
+        cross_layer_classes = np.stack(cross_layer_classes).T
+
+        return cross_layer_classes
+
+    @staticmethod
+    def collate_preds(preds: np.ndarray) -> list:
+        predictions = []
+
+        for row in preds:
+            row = row[row != -1]
+            if len(row) == 0:
+                continue
+            elif len(row) == 1:
+                predictions.append(row[0])
+                continue
+
+            uniques, counts = np.unique(row, return_counts=True)
+            max_count = counts.max()
+            # Check if there is a tie for the highest count
+            if np.sum(counts == max_count) == 1:
+                most_common = uniques[counts.argmax()]
+                predictions.append(most_common)
+
+        return predictions
+
+    def score_cross_layer(self, cross_layer_X: tuple):
+        clf_predictions = self.cross_layer_class_preds(cross_layer_X)
+        predictions = self.collate_preds(clf_predictions)
+
+        if len(predictions) > 0:
+            proba = np.exp(self.hmm.score(np.array(predictions).reshape(-1, 1)))
+            proba = np.power(proba, 1 / len(predictions))  # normalization
+        else:
+            proba = 0
+
+        return proba
+
+
+
+    def score_sequence_old(self, seq_classes: np.array, seq_values: np.array) -> float:
         var_classifier_conf = 0.6
         var_uniform_subseq_len = 2
 

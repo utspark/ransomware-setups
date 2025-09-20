@@ -484,42 +484,42 @@ def cross_layer_concatenate(attack_X: list):
     return cross_layer_X
 
 
-def cross_layer_class_preds(cross_layer_X: tuple):
-    model_paths = [
-        cwd / "../data/models/syscall_clf.joblib",
-        cwd / "../data/models/network_clf.joblib",
-        cwd / "../data/models/hpc_clf.joblib",
-    ]
-
-    cross_layer_classes = []
-
-    # Pre-cache translation dicts with corresponding keywords
-    translation_map = {
-        "syscall": ml_pipelines.config.SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION,
-        "network": ml_pipelines.config.NETWORK_BENIGN_MALWARE_CLASS_TRANSLATION,
-    }
-    default_translation = ml_pipelines.config.HPC_BENIGN_MALWARE_CLASS_TRANSLATION
-
-    for layer_model_path, layer_data in zip(model_paths, cross_layer_X):
-        clf, _ = joblib.load(layer_model_path)
-        preds = clf.predict_proba(layer_data)
-        probas = np.max(preds, axis=1)
-        classes = np.argmax(preds, axis=1)
-        classes[probas < 0.7] = -1
-
-        # Select translation dict once per layer
-        translation_dict = next((d for k, d in translation_map.items() if k in layer_model_path.name),
-                                default_translation)
-
-        # Vectorized translation
-        vectorized_translate = np.vectorize(translation_dict.get)
-        classes = vectorized_translate(classes)
-
-        cross_layer_classes.append(classes)
-
-    cross_layer_classes = np.stack(cross_layer_classes).T
-
-    return cross_layer_classes
+# def cross_layer_class_preds(cross_layer_X: tuple):
+#     model_paths = [
+#         cwd / "../data/models/syscall_clf.joblib",
+#         cwd / "../data/models/network_clf.joblib",
+#         cwd / "../data/models/hpc_clf.joblib",
+#     ]
+#
+#     cross_layer_classes = []
+#
+#     # Pre-cache translation dicts with corresponding keywords
+#     translation_map = {
+#         "syscall": ml_pipelines.config.SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION,
+#         "network": ml_pipelines.config.NETWORK_BENIGN_MALWARE_CLASS_TRANSLATION,
+#     }
+#     default_translation = ml_pipelines.config.HPC_BENIGN_MALWARE_CLASS_TRANSLATION
+#
+#     for layer_model_path, layer_data in zip(model_paths, cross_layer_X):
+#         clf, _ = joblib.load(layer_model_path)
+#         preds = clf.predict_proba(layer_data)
+#         probas = np.max(preds, axis=1)
+#         classes = np.argmax(preds, axis=1)
+#         classes[probas < 0.7] = -1
+#
+#         # Select translation dict once per layer
+#         translation_dict = next((d for k, d in translation_map.items() if k in layer_model_path.name),
+#                                 default_translation)
+#
+#         # Vectorized translation
+#         vectorized_translate = np.vectorize(translation_dict.get)
+#         classes = vectorized_translate(classes)
+#
+#         cross_layer_classes.append(classes)
+#
+#     cross_layer_classes = np.stack(cross_layer_classes).T
+#
+#     return cross_layer_classes
 
 
 def collate_preds(preds: np.ndarray) -> list:
@@ -775,18 +775,21 @@ if __name__ == "__main__":
     techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
     stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
 
-    gd = global_detector.LifecycleDetector()
+    gd = global_detector.LifecycleDetector(
+        cwd / "../data/models/syscall_clf.joblib",
+        cwd / "../data/models/network_clf.joblib",
+        cwd / "../data/models/hpc_clf.joblib"
+    )
 
     attack_X = build_attack_windows(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
     cross_layer_X = cross_layer_concatenate(attack_X)
-    preds = cross_layer_class_preds(cross_layer_X)
-    preds = collate_preds(preds)
 
-    proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
-    proba = np.power(proba, 1 / len(preds))  # normalization
+    proba = gd.score_cross_layer(cross_layer_X)
 
     print(proba)
 
+
+    # raise Exception
 
     length_check = 10
     length_samples = 15
@@ -801,15 +804,8 @@ if __name__ == "__main__":
 
             attack_X = build_attack_windows(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
             cross_layer_X = cross_layer_concatenate(attack_X)
-            preds = cross_layer_class_preds(cross_layer_X)
-            preds = collate_preds(preds)
 
-            if len(preds) > 0:
-                proba = np.exp(gd.hmm.score(np.array(preds).reshape(-1, 1)))
-                proba = np.power(proba, 1 / len(preds))  # normalization
-            else:
-                proba = 0
-
+            proba = gd.score_cross_layer(cross_layer_X)
             distance_measures[i-1].append(proba)
 
     distance_measures = np.array(distance_measures)
