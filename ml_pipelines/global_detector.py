@@ -1,4 +1,4 @@
-from itertools import groupby
+from itertools import groupby, combinations
 
 import joblib
 import numpy as np
@@ -8,6 +8,8 @@ from ml_pipelines import config
 
 
 var_uniform_subseq_len = 2  # 3
+var_density_scaler = 0.5
+var_propagation_scaler = 0.5
 
 
 def form_lifecycle_sequence(attack_stages: dict, benign=False):
@@ -44,14 +46,19 @@ def form_lifecycle_sequence(attack_stages: dict, benign=False):
 
 class LifecycleDetector:
     def __init__(self, syscall_clf_path, network_clf_path, hpc_clf_path,
-                 sequence_processor=False,
+                 stage_filter=False,
+                 density=False,
+                 propagation=False,
+                 memory=False
                  ):
         self.hmm = self._get_markov()
         self.syscall_clf = joblib.load(syscall_clf_path)[0]
         self.network_clf = joblib.load(network_clf_path)[0]
         self.hpc_clf = joblib.load(hpc_clf_path)[0]
-        self.sequence_processor = sequence_processor
-
+        self.stage_filter = stage_filter
+        self.density = density
+        self.propagation = propagation
+        self.memory = memory
 
     @staticmethod
     def _get_markov() -> hmm.CategoricalHMM:
@@ -124,8 +131,38 @@ class LifecycleDetector:
 
         return cross_layer_classes
 
+
     @staticmethod
-    def _collate_preds(preds: np.ndarray) -> list:
+    def _stage_filter(class_sequence) -> np.ndarray:
+        # multiclass -> sequence_processor
+        global var_uniform_subseq_len
+
+        new_sequence = []
+        for key, group in groupby(class_sequence):
+            emission_len = len([_ for _ in group])
+            new_sequence.append((key, emission_len))
+
+        prune_list = []
+
+        for i, technique in enumerate(new_sequence):
+            if technique[1] < var_uniform_subseq_len:
+                prune_list.append(i)
+
+        new_sequence = np.array(new_sequence)
+        new_sequence = np.delete(new_sequence, prune_list, axis=0)
+
+        if len(new_sequence) < 1:
+            return new_sequence
+
+        else:
+            values = new_sequence[:, 0]
+            counts = new_sequence[:, 1]
+            out = np.repeat(values, counts)
+
+            return out
+
+    @staticmethod
+    def _collate_preds(preds: np.ndarray) -> np.ndarray:
         predictions = []
 
         for row in preds:
@@ -143,105 +180,95 @@ class LifecycleDetector:
                 most_common = uniques[counts.argmax()]
                 predictions.append(most_common)
 
-        return predictions
+        return np.array(predictions)
+
 
     @staticmethod
-    def _sequence_processor(class_sequence) -> np.array:
-        # multiclass -> sequence_processor
-        global var_uniform_subseq_len
+    def _all_subseq(s: np.ndarray):
+        def is_in_alphabetical_order(word):
+            return word == ''.join(sorted(word))
 
-        new_sequence = []
-        for key, group in groupby(class_sequence):
-            emission_len = len([_ for _ in group])
-            new_sequence.append((key, emission_len))
+        s = [str(i) for i in s]
 
-        prune_list = []
+        # Start with the empty subsequence
+        results = []
+        alphabetical_results = []
 
+        # Generate combinations of lengths 1 to n
+        for r in range(1, len(s) + 1):
+            # Add all combinations of length r to result
+            results.extend([', '.join(comb) for comb in combinations(s, r)])
 
-        for i, technique in enumerate(new_sequence):
-            if technique[1] < var_uniform_subseq_len:
-                prune_list.append(i)
+        results = set(results)
+        results = list(results)
+        results.sort()
 
-        new_sequence = np.array(new_sequence)
-        new_sequence = np.delete(new_sequence, prune_list, axis=0)
+        results = [s.replace(", ", "") for s in results]
+        remove_list = []
 
-        if len(new_sequence) <= 1:
-            return np.array(new_sequence)
+        for i in results:
+            if not is_in_alphabetical_order(i):
+                remove_list.append(i)
 
-        else:
-            techniques = []
-            for key, group in groupby(new_sequence, lambda row: row[0]):
-                data = np.sum(np.array([item[1] for item in group]))
-                techniques.append((key, data))
+        for subseq in remove_list:
+            results.remove(subseq)
 
-            return np.array(techniques)
+        for subseq in results:
+            subseq = [int(i) for i in subseq]
+            alphabetical_results.append(subseq)
 
+        return alphabetical_results
 
-    def score_cross_layer(self, cross_layer_X: tuple[np.ndarray, np.ndarray, np.ndarray]) -> float:
-        clf_predictions = self.cross_layer_class_preds(cross_layer_X)
-        predictions = self.collate_preds(clf_predictions)
+    def score_stage_sequence(self, stage_sequence: np.ndarray, clf_predictions: np.ndarray) -> float:
+        global var_density_scaler
+        global var_propagation_scaler
+        proba = 0
 
-        # if self.sequence_processor:
+        if self.density:
+            density_penalty = len(stage_sequence) / len(clf_predictions) * var_density_scaler
+            proba += density_penalty
 
+        if self.propagation:
+            stage_propagation_penalty = (len(np.unique(stage_sequence)) - 1) * var_propagation_scaler
+            proba += stage_propagation_penalty
 
-        if len(predictions) > 0:
-            proba = np.exp(self.hmm.score(np.array(predictions).reshape(-1, 1)))
-            proba = np.power(proba, 1 / len(predictions))  # normalization
+        if self.stage_filter:
+            stage_sequence = self._stage_filter(stage_sequence)
+
+        if len(stage_sequence) > 0:
+
+            if not self.memory:
+                hmm_proba = np.exp(self.hmm.score(np.array(stage_sequence).reshape(-1, 1)))
+                hmm_proba = np.power(hmm_proba, 1 / len(stage_sequence))  # normalization
+                proba += hmm_proba
+
+            else:
+                new_sequence = []
+                for key, group in groupby(stage_sequence):
+                    new_sequence.append(key)
+
+                proba_list = []
+                subsequences = self._all_subseq(np.array(new_sequence))
+
+                for subseq in subsequences:
+                    hmm_proba = np.exp(self.hmm.score(np.array(subseq).reshape(-1, 1)))
+                    hmm_proba = np.power(hmm_proba, 1 / len(stage_sequence))  # normalization
+                    proba_list.append(hmm_proba)
+
+                proba = np.max(proba_list, axis=0)
+
         else:
             proba = 0
 
         return proba
 
+    def score_cross_layer(self, cross_layer_X: tuple[np.ndarray, np.ndarray, np.ndarray]) -> float:
+        clf_predictions = self.cross_layer_class_preds(cross_layer_X)
+        predictions = self._collate_preds(clf_predictions)
 
-
-    def score_sequence_old(self, seq_classes: np.array, seq_values: np.array) -> float:
-        var_classifier_conf = 0.6
-        var_uniform_subseq_len = 2
-
-        # *** filter confidence
-        confidence_mask = np.nonzero(seq_values > var_classifier_conf)[0]
-        seq_classes = seq_classes[confidence_mask]
-
-        # *** filter classifications
-        new_sequence = []
-        for key, group in groupby(seq_classes):
-            emission_len = len([_ for _ in group])
-            new_sequence.append((key, emission_len))
-
-        prune_list = []
-
-        for i, technique in enumerate(new_sequence):
-            if technique[1] < var_uniform_subseq_len:
-                prune_list.append(i)
-
-        new_sequence = np.array(new_sequence)
-        new_sequence = np.delete(new_sequence, prune_list, axis=0)
-
-        # techniques = []
-        # for key, group in groupby(new_sequence, lambda row: row[0]):
-        #     data = np.sum(np.array([item[1] for item in group]))
-        #     techniques.append((key, data))
-        techniques = new_sequence
-
-        # *** get emissions
-        human_techniques = [config.LABEL_NAMES[technique[0]] for technique in techniques]
-
-        emissions = []
-        for technique in human_techniques:
-            for i, stage in enumerate(config.HMM_ATTACK_STAGES):
-                if technique in config.HMM_ATTACK_STAGES[stage]:
-                    emissions.append(i)
-                    break
-
-        # *** hmm score
-        x = np.array(emissions).reshape(-1, 1)
-
-        proba = np.exp(self.hmm.score(np.array(x)))
-        proba = np.power(proba, 1 / len(x))  # normalization
-
-        # TODO punish longer stage sequences
-        # proba = np.power(proba, 1 / len(x) * 0.2)
+        proba = self.score_stage_sequence(predictions, clf_predictions)
 
         return proba
+
 
 

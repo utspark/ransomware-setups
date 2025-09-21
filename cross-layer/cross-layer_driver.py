@@ -721,7 +721,7 @@ if __name__ == "__main__":
 
     attack_stages = ml_pipelines.config.GENERATION_ATTACK_STAGES
 
-    start = 0.5
+    start = 1.5  # 0.5
     stop = 3
     step = 0.5
     time_choices = np.arange(start, stop + step / 2, step, dtype=float).tolist()
@@ -729,7 +729,11 @@ if __name__ == "__main__":
     gd = global_detector.LifecycleDetector(
         cwd / "../data/models/syscall_clf.joblib",
         cwd / "../data/models/network_clf.joblib",
-        cwd / "../data/models/hpc_clf.joblib"
+        cwd / "../data/models/hpc_clf.joblib",
+        stage_filter=False,
+        density=False,
+        propagation=False,
+        memory=True,
     )
 
     # malware_scores = []
