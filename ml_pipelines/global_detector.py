@@ -7,6 +7,9 @@ from hmmlearn import hmm
 from ml_pipelines import config
 
 
+var_uniform_subseq_len = 2  # 3
+
+
 def form_lifecycle_sequence(attack_stages: dict, benign=False):
     # TODO benign sequences
     # TODO consider benign states
@@ -40,11 +43,15 @@ def form_lifecycle_sequence(attack_stages: dict, benign=False):
 
 
 class LifecycleDetector:
-    def __init__(self, syscall_clf_path, network_clf_path, hpc_clf_path):
+    def __init__(self, syscall_clf_path, network_clf_path, hpc_clf_path,
+                 sequence_processor=False,
+                 ):
         self.hmm = self._get_markov()
         self.syscall_clf = joblib.load(syscall_clf_path)[0]
         self.network_clf = joblib.load(network_clf_path)[0]
         self.hpc_clf = joblib.load(hpc_clf_path)[0]
+        self.sequence_processor = sequence_processor
+
 
     @staticmethod
     def _get_markov() -> hmm.CategoricalHMM:
@@ -118,7 +125,7 @@ class LifecycleDetector:
         return cross_layer_classes
 
     @staticmethod
-    def collate_preds(preds: np.ndarray) -> list:
+    def _collate_preds(preds: np.ndarray) -> list:
         predictions = []
 
         for row in preds:
@@ -138,9 +145,44 @@ class LifecycleDetector:
 
         return predictions
 
+    @staticmethod
+    def _sequence_processor(class_sequence) -> np.array:
+        # multiclass -> sequence_processor
+        global var_uniform_subseq_len
+
+        new_sequence = []
+        for key, group in groupby(class_sequence):
+            emission_len = len([_ for _ in group])
+            new_sequence.append((key, emission_len))
+
+        prune_list = []
+
+
+        for i, technique in enumerate(new_sequence):
+            if technique[1] < var_uniform_subseq_len:
+                prune_list.append(i)
+
+        new_sequence = np.array(new_sequence)
+        new_sequence = np.delete(new_sequence, prune_list, axis=0)
+
+        if len(new_sequence) <= 1:
+            return np.array(new_sequence)
+
+        else:
+            techniques = []
+            for key, group in groupby(new_sequence, lambda row: row[0]):
+                data = np.sum(np.array([item[1] for item in group]))
+                techniques.append((key, data))
+
+            return np.array(techniques)
+
+
     def score_cross_layer(self, cross_layer_X: tuple[np.ndarray, np.ndarray, np.ndarray]) -> float:
         clf_predictions = self.cross_layer_class_preds(cross_layer_X)
         predictions = self.collate_preds(clf_predictions)
+
+        # if self.sequence_processor:
+
 
         if len(predictions) > 0:
             proba = np.exp(self.hmm.score(np.array(predictions).reshape(-1, 1)))
