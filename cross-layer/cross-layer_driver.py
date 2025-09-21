@@ -27,6 +27,7 @@ from typing import Iterable, Tuple, Sequence
 from collections import defaultdict
 
 import random
+import os
 
 import matplotlib
 
@@ -420,7 +421,7 @@ def build_cross_layer_X(
 
         cleaned_frames = []
         for frame in sig_frames:
-            if frame is None:
+            if frame is None or len(frame) == 0:
                 tmp = pd.DataFrame()
                 tmp["filler"] = pd.Series([-1] * 1000)
                 frame = tmp
@@ -473,7 +474,13 @@ def form_signal_dict(behaviors: dict, signal_modules: dict) -> dict:
     for action, signals in behaviors.items():
         for signal, file_paths in signals.items():
             mod = signal_modules[signal]
-            dfs = [mod.get_file_df(fp) for fp in file_paths]
+
+            #  TODO remove
+            if os.path.isdir(file_paths[0]):
+                dfs = []
+
+            else:
+                dfs = [mod.get_file_df(fp) for fp in file_paths]
 
             # Ensure nested dict and list exist
             signal_df_dict.setdefault(signal, {})
@@ -491,7 +498,11 @@ def form_feature_frames(feature_dict: dict) -> dict:
             pruned = [df.drop(columns='time', errors='ignore') for df in X_list]
 
             feature_frames.setdefault(signal, {})
-            feature_frames[signal][action] = pd.concat(pruned, ignore_index=True, sort=False, copy=False)
+
+            if len(pruned) == 0:
+                feature_frames[signal][action] = pd.DataFrame()
+            else:
+                feature_frames[signal][action] = pd.concat(pruned, ignore_index=True, sort=False, copy=False)
 
     return feature_frames
 
@@ -500,14 +511,11 @@ def cross_layer_concatenate(attack_X: list) -> Tuple[np.ndarray, np.ndarray, np.
     syscall_X, network_X, hpc_X = zip(*attack_X)
 
     outer_X = []
-    for X_list in (syscall_X, network_X, hpc_X):
-        widths = [df.shape[1] for df in X_list]
-        default_width = max(widths)
-
+    for X_list , width in zip((syscall_X, network_X, hpc_X), [6, 11, 16]):
         inner_X = []
         for df in X_list:
-            if df.shape[1] != default_width:
-                df = np.zeros((df.shape[0], default_width)) -1
+            if df.shape[1] != width:
+                df = np.zeros((df.shape[0], width)) -1
                 df = pd.DataFrame(df)
             inner_X.append(df)
 
@@ -520,7 +528,7 @@ def cross_layer_concatenate(attack_X: list) -> Tuple[np.ndarray, np.ndarray, np.
 
 if __name__ == "__main__":
     cwd = Path.cwd()
-    SYSCALL = True
+    SYSCALL = False
     NETWORK = False
     HPC = False
     TRAIN = False
@@ -653,6 +661,10 @@ if __name__ == "__main__":
 
     feature_frames_path = cwd / "../data/feature_frames.joblib"
 
+    # key = "filebench_fileserver"
+    # tmp_dict = {key: behaviors[key]}
+    # behaviors = tmp_dict
+
     if REPROCESS_DATA:
 
         for behavior in behaviors:
@@ -679,8 +691,6 @@ if __name__ == "__main__":
 
     else:
         feature_frames = joblib.load(feature_frames_path)
-
-    raise Exception
 
     #  form attack data
     # gd = global_detector.LifecycleDetector()
@@ -764,7 +774,6 @@ if __name__ == "__main__":
     )
 
 
-
     malware_scores = []
     for _ in range(150):
         techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
@@ -832,6 +841,7 @@ if __name__ == "__main__":
     plt.legend(loc="lower right")
     plt.tight_layout()
     plt.grid()
+    plt.show(block=True)
 
 
     malware_scores = []
@@ -847,7 +857,8 @@ if __name__ == "__main__":
 
 
     roc_list = []
-    for i in range(2):
+    num_detectors = 8
+    for i in range(num_detectors):
         if i == 0:
             gd = global_detector.LifecycleDetector(
                 cwd / "../data/models/syscall_clf.joblib",
@@ -859,7 +870,7 @@ if __name__ == "__main__":
                 propagation=False,
                 memory=False,
             )
-        else:
+        elif i == 1:
             gd = global_detector.LifecycleDetector(
                 cwd / "../data/models/syscall_clf.joblib",
                 cwd / "../data/models/network_clf.joblib",
@@ -869,6 +880,72 @@ if __name__ == "__main__":
                 density=True,
                 propagation=False,
                 memory=False,
+            )
+        elif i == 2:
+            gd = global_detector.LifecycleDetector(
+                cwd / "../data/models/syscall_clf.joblib",
+                cwd / "../data/models/network_clf.joblib",
+                cwd / "../data/models/hpc_clf.joblib",
+                lifecycle_awareness=True,
+                stage_filter=False,
+                density=False,
+                propagation=True,
+                memory=False,
+            )
+        elif i == 3:
+            gd = global_detector.LifecycleDetector(
+                cwd / "../data/models/syscall_clf.joblib",
+                cwd / "../data/models/network_clf.joblib",
+                cwd / "../data/models/hpc_clf.joblib",
+                lifecycle_awareness=True,
+                stage_filter=False,
+                density=True,
+                propagation=True,
+                memory=False,
+            )
+        elif i == 4:
+            gd = global_detector.LifecycleDetector(
+                cwd / "../data/models/syscall_clf.joblib",
+                cwd / "../data/models/network_clf.joblib",
+                cwd / "../data/models/hpc_clf.joblib",
+                lifecycle_awareness=True,
+                stage_filter=False,
+                density=False,
+                propagation=False,
+                memory=True,
+            )
+        elif i == 5:
+            gd = global_detector.LifecycleDetector(
+                cwd / "../data/models/syscall_clf.joblib",
+                cwd / "../data/models/network_clf.joblib",
+                cwd / "../data/models/hpc_clf.joblib",
+                lifecycle_awareness=True,
+                stage_filter=False,
+                density=True,
+                propagation=False,
+                memory=True,
+            )
+        elif i == 6:
+            gd = global_detector.LifecycleDetector(
+                cwd / "../data/models/syscall_clf.joblib",
+                cwd / "../data/models/network_clf.joblib",
+                cwd / "../data/models/hpc_clf.joblib",
+                lifecycle_awareness=True,
+                stage_filter=False,
+                density=False,
+                propagation=True,
+                memory=True,
+            )
+        elif i == 7:
+            gd = global_detector.LifecycleDetector(
+                cwd / "../data/models/syscall_clf.joblib",
+                cwd / "../data/models/network_clf.joblib",
+                cwd / "../data/models/hpc_clf.joblib",
+                lifecycle_awareness=True,
+                stage_filter=False,
+                density=True,
+                propagation=True,
+                memory=True,
             )
 
         benign_scores = []
@@ -892,7 +969,7 @@ if __name__ == "__main__":
         roc_list.append((fpr, tpr, roc_auc))
 
     plt.figure()
-    for i in range(2):
+    for i in range(num_detectors):
         fpr, tpr, roc_auc = roc_list[i]
         plt.plot(fpr, tpr, lw=2, label=f'ROC curve (AUC = {roc_auc:.3f})')
     plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
@@ -904,6 +981,7 @@ if __name__ == "__main__":
     plt.legend(loc="lower right")
     plt.tight_layout()
     plt.grid()
+    plt.show(block=True)
 
 
 

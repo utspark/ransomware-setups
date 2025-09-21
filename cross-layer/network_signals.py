@@ -10,7 +10,7 @@ import ml_pipelines
 from concurrent.futures import ProcessPoolExecutor
 from itertools import islice
 from typing import Iterable, List, Tuple, Optional
-
+import os
 
 
 def fix_bad_line(fields: list[str]) -> list[str] | None:
@@ -30,6 +30,8 @@ def fix_bad_line(fields: list[str]) -> list[str] | None:
 
 def get_file_df(filepath: Path) -> pd.DataFrame:
     sep = ","
+
+
 
     df = pd.read_csv(
         filepath,

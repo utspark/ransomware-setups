@@ -126,10 +126,10 @@ NETWORK_BENIGN_MALWARE_DICT: Final = {
     5: [
         "browser_netcall_compute_",
         "browser_netcall_streaming_",
-        "mediaserver_index_",
         "browser_netcall_generic_",
         "browser_netcall_mix_",
         "browser_netcall_download_",
+        "mediaserver_index_",
     ],
     6: [
         "mediaserver_browse_",
@@ -223,33 +223,33 @@ HPC_BENIGN_MALWARE_DICT : Final = {
         "symm_Salsa20_256b_",
     ],
     6: [
-        "browser_hardware_compute_",
+        "browser_compute_",
     ],
     7: [
-        "browser_hardware_download_",
-        "browser_hardware_generic_",
-        "browser_hardware_streaming_",
-        "browser_hardware_mix_",
-        "filebench_hardware_fileserver_",
-        "filebench_hardware_oltp_",
-        "filebench_hardware_randomrw_",
-        "filebench_hardware_varmail_",
-        "filebench_hardware_videoserver_",
+        "browser_download_",
+        "browser_generic_",
+        "browser_streaming_",
+        "browser_mix_",
+        "filebench_fileserver_",
+        "filebench_oltp_",
+        "filebench_randomrw_",
+        "filebench_varmail_",
+        "filebench_videoserver_",
     ],
     8: [
-        "browse_hardware_",
+        "mediaserver_browse_",
     ],
     9: [
-        "index_hardware_",
+        "mediaserver_index_",
     ],
     10: [
-        "perf_hardware_deepsjeng_",
+        "spec_deepsjeng_",
     ],
     11: [
-        "perf_hardware_gcc_",
+        "spec_gcc_",
     ],
     12: [
-        "perf_hardware_leela_",
+        "spec_leela_",
     ],
 }
 
@@ -276,6 +276,11 @@ SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION: Final = {
     7: -1,
     8: -1,
     9: -1,
+    10: -1,
+    11: -1,
+    12: -1,
+    13: -1,
+    14: -1,
 }
 
 NETWORK_MALWARE_CLASS_TRANSLATION: Final = {
@@ -322,7 +327,7 @@ HPC_BENIGN_MALWARE_CLASS_TRANSLATION: Final = {
     9: -1,
     10: -1,
     11: -1,
-    12: -2,
+    12: -1,
 }
 
 BEHAVIOR_FILES: Final = {
@@ -410,6 +415,62 @@ BEHAVIOR_FILES: Final = {
             "filebench_fileserver_3",
         ],
     },
+    "filebench_oltp": {
+        "syscall": [
+            "filebench_oltp_1_ints.txt",
+            "filebench_oltp_3_ints.txt",
+        ],
+        "network": [
+            "",
+            "",
+        ],
+        "hpc": [
+            "filebench_oltp_1",
+            "filebench_oltp_3",
+        ],
+    },
+    "filebench_randomrw": {
+        "syscall": [
+            "filebench_randomrw_1_ints.txt",
+            "filebench_randomrw_3_ints.txt",
+        ],
+        "network": [
+            "",
+            "",
+        ],
+        "hpc": [
+            "filebench_randomrw_1",
+            "filebench_randomrw_3",
+        ],
+    },
+    "filebench_varmail": {
+        "syscall": [
+            "filebench_varmail_1_ints.txt",
+            "filebench_varmail_3_ints.txt",
+        ],
+        "network": [
+            "",
+            "",
+        ],
+        "hpc": [
+            "filebench_varmail_1",
+            "filebench_varmail_3",
+        ],
+    },
+    "filebench_videoserver": {
+        "syscall": [
+            "filebench_videoserver_1_ints.txt",
+            "filebench_videoserver_3_ints.txt",
+        ],
+        "network": [
+            "",
+            "",
+        ],
+        "hpc": [
+            "filebench_videoserver_1",
+            "filebench_videoserver_3",
+        ],
+    },
     "mediaserver_browse": {
         "syscall": [
             "mediaserver_browse_1_ints.txt",
@@ -420,8 +481,8 @@ BEHAVIOR_FILES: Final = {
             "mediaserver_browse_5",
         ],
         "hpc": [
-            "mediaserver_browse_hardware_1",
-            "mediaserver_browse_hardware_5",
+            "mediaserver_browse_1",
+            "mediaserver_browse_5",
         ],
     },
     "mediaserver_index": {
@@ -434,8 +495,8 @@ BEHAVIOR_FILES: Final = {
             "mediaserver_index_5",
         ],
         "hpc": [
-            "mediaserver_index_hardware_1",
-            "mediaserver_index_hardware_5",
+            "mediaserver_index_1",
+            "mediaserver_index_5",
         ],
     },
     "spec_leela": {
@@ -733,15 +794,15 @@ GENERATION_BENIGN: Final = [
     "browser_generic",
     "browser_mix",
     "browser_streaming",
-    "filebench_fileserver_",
-    "filebench_oltp_",
-    "filebench_randomrw_",
-    "filebench_varmail_",
-    "filebench_videoserver_",
-    "mediaserver_browse_",
-    "mediaserver_index_",
+    "filebench_fileserver",
+    "filebench_oltp",
+    "filebench_randomrw",
+    "filebench_varmail",
+    "filebench_videoserver",
+    "mediaserver_browse",
+    "mediaserver_index",
     "spec_gcc",
-    "spec_leela_",
+    "spec_leela",
     "spec_deepsjeng",
 ]
 

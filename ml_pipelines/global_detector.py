@@ -120,7 +120,7 @@ class LifecycleDetector:
 
         for clf, layer_data, translation in zip(clfs, cross_layer_X, translations):
             if np.all(layer_data == -1):
-                classes = layer_data
+                classes = layer_data[:, 0]
             else:
                 preds = clf.predict_proba(layer_data)
                 probas = np.max(preds, axis=1)
