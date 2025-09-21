@@ -39,9 +39,29 @@ SYSCALL_BENIGN_MALWARE_DICT: Final = {
         "browser_syscall_download_",
         "browser_syscall_mix_",
         "browser_syscall_generic_",
+        "browser_syscall_streaming_",
+        "filebench_oltp_",
     ],
     9: [
-        "browser_syscall_streaming_",
+        "filebench_fileserver_",
+        "filebench_videoserver_",
+    ],
+    10: [
+        "filebench_randomrw_",
+    ],
+    11: [
+        "filebench_varmail_",
+    ],
+    12: [
+        "mediaserver_browse_",
+    ],
+    13: [
+        "mediaserver_index_",
+    ],
+    14: [
+        "spec_gcc",
+        "spec_leela_",
+        "spec_deepsjeng",
     ],
 }
 
@@ -308,72 +328,72 @@ HPC_BENIGN_MALWARE_CLASS_TRANSLATION: Final = {
 BEHAVIOR_FILES: Final = {
     "browser_compute": {
         "syscall": [
-            "browser_syscall_compute_1_ints.txt",
-            "browser_syscall_compute_5_ints.txt",
+            "browser_compute_1_ints.txt",
+            "browser_compute_5_ints.txt",
         ],
         "network": [
-            "browser_netcall_compute_1",
-            "browser_netcall_compute_5",
+            "browser_compute_1",
+            "browser_compute_5",
         ],
         "hpc": [
-            "browser_hardware_compute_1",
-            "browser_hardware_compute_5",
+            "browser_compute_1",
+            "browser_compute_5",
         ],
     },
     "browser_download": {
         "syscall": [
-            "browser_syscall_download_1_ints.txt",
-            "browser_syscall_download_5_ints.txt",
+            "browser_download_1_ints.txt",
+            "browser_download_5_ints.txt",
         ],
         "network": [
-            "browser_netcall_download_1",
-            "browser_netcall_download_5",
+            "browser_download_1",
+            "browser_download_5",
         ],
         "hpc": [
-            "browser_hardware_download_1",
-            "browser_hardware_download_5",
+            "browser_download_1",
+            "browser_download_5",
         ],
     },
     "browser_generic": {
         "syscall": [
-            "browser_syscall_generic_1_ints.txt",
-            "browser_syscall_generic_5_ints.txt",
+            "browser_generic_1_ints.txt",
+            "browser_generic_5_ints.txt",
         ],
         "network": [
-            "browser_netcall_generic_1",
-            "browser_netcall_generic_5",
+            "browser_generic_1",
+            "browser_generic_5",
         ],
         "hpc": [
-            "browser_hardware_generic_1",
-            "browser_hardware_generic_5",
+            "browser_generic_1",
+            "browser_generic_5",
         ],
     },
     "browser_mix": {
         "syscall": [
-            "browser_syscall_mix_1_ints.txt",
-            "browser_syscall_mix_5_ints.txt",
+            "browser_mix_1_ints.txt",
+            "browser_mix_5_ints.txt",
         ],
         "network": [
-            "browser_netcall_mix_1",
-            "browser_netcall_mix_5",
+            "browser_mix_1",
+            "browser_mix_5",
         ],
         "hpc": [
-            "browser_hardware_mix_1",
-            "browser_hardware_mix_5",
+            "browser_mix_1",
+            "browser_mix_5",
         ],
     },
     "browser_streaming": {
         "syscall": [
-            "browser_syscall_streaming_1_ints.txt",
-            "browser_syscall_streaming_5_ints.txt",
+            "browser_streaming_1_ints.txt",
+            "browser_streaming_5_ints.txt",
         ],
         "network": [
-            "browser_netcall_streaming_1",
-            "browser_netcall_streaming_5",
+            "browser_streaming_1",
+            "browser_streaming_5",
         ],
         "hpc": [
-            "browser_hardware_streaming_1",
-            "browser_hardware_streaming_5",
+            "browser_streaming_1",
+            "browser_streaming_5",
         ],
     },
     "filebench_fileserver": {
@@ -418,20 +438,48 @@ BEHAVIOR_FILES: Final = {
             "mediaserver_index_hardware_5",
         ],
     },
-    # "spec_leela": {
-    #     "syscall": [
-    #         "filebench_syscall_fileserver_1_ints.txt",
-    #         "filebench_syscall_fileserver_3_ints.txt",
-    #     ],
-    #     "network": [
-    #         "",
-    #         "",
-    #     ],
-    #     "hpc": [
-    #         "filebench_hardware_fileserver_1",
-    #         "filebench_hardware_fileserver_3",
-    #     ],
-    # },
+    "spec_leela": {
+        "syscall": [
+            "spec_leela_1_ints.txt",
+            "spec_leela_3_ints.txt",
+        ],
+        "network": [
+            "",
+            "",
+        ],
+        "hpc": [
+            "spec_leela_1",
+            "spec_leela_3",
+        ],
+    },
+    "spec_gcc": {
+        "syscall": [
+            "spec_gcc_1_ints.txt",
+            "spec_gcc_3_ints.txt",
+        ],
+        "network": [
+            "",
+            "",
+        ],
+        "hpc": [
+            "spec_gcc_1",
+            "spec_gcc_3",
+        ],
+    },
+    "spec_deepsjeng": {
+        "syscall": [
+            "spec_deepsjeng_1_ints.txt",
+            "spec_deepsjeng_3_ints.txt",
+        ],
+        "network": [
+            "",
+            "",
+        ],
+        "hpc": [
+            "spec_deepsjeng_1",
+            "spec_deepsjeng_3",
+        ],
+    },
 
     "recon_mount": {
         "syscall": [
