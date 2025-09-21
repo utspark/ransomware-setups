@@ -46,6 +46,7 @@ def form_lifecycle_sequence(attack_stages: dict, benign=False):
 
 class LifecycleDetector:
     def __init__(self, syscall_clf_path, network_clf_path, hpc_clf_path,
+                 lifecycle_awareness=True,
                  stage_filter=False,
                  density=False,
                  propagation=False,
@@ -55,6 +56,7 @@ class LifecycleDetector:
         self.syscall_clf = joblib.load(syscall_clf_path)[0]
         self.network_clf = joblib.load(network_clf_path)[0]
         self.hpc_clf = joblib.load(hpc_clf_path)[0]
+        self.lifecycle_awareness = lifecycle_awareness
         self.stage_filter = stage_filter
         self.density = density
         self.propagation = propagation
@@ -117,10 +119,13 @@ class LifecycleDetector:
         ]
 
         for clf, layer_data, translation in zip(clfs, cross_layer_X, translations):
-            preds = clf.predict_proba(layer_data)
-            probas = np.max(preds, axis=1)
-            classes = np.argmax(preds, axis=1)
-            classes[probas < 0.7] = -1
+            if np.all(layer_data == -1):
+                classes = layer_data
+            else:
+                preds = clf.predict_proba(layer_data)
+                probas = np.max(preds, axis=1)
+                classes = np.argmax(preds, axis=1)
+                classes[probas < 0.7] = -1
 
             # Vectorized translation
             vectorized_translate = np.vectorize(translation.get)
@@ -235,7 +240,7 @@ class LifecycleDetector:
         if self.stage_filter:
             stage_sequence = self._stage_filter(stage_sequence)
 
-        if len(stage_sequence) > 0:
+        if len(stage_sequence) > 0 and self.lifecycle_awareness:
 
             if not self.memory:
                 hmm_proba = np.exp(self.hmm.score(np.array(stage_sequence).reshape(-1, 1)))
@@ -256,9 +261,6 @@ class LifecycleDetector:
                     proba_list.append(hmm_proba)
 
                 proba = np.max(proba_list, axis=0)
-
-        else:
-            proba = 0
 
         return proba
 

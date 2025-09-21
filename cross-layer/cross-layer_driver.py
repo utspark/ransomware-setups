@@ -416,8 +416,20 @@ def build_cross_layer_X(
             continue  # nothing to sample for this attack
 
         # Gather per-signal frames once and compute min length
-        sig_frames = [feature_dict[signal][attack] for signal in signals]
+        sig_frames = [feature_dict[signal].get(attack, None) for signal in signals]
+
+        cleaned_frames = []
+        for frame in sig_frames:
+            if frame is None:
+                tmp = pd.DataFrame()
+                tmp["filler"] = pd.Series([-1] * 1000)
+                frame = tmp
+
+            cleaned_frames.append(frame)
+        sig_frames = cleaned_frames
+
         sig_lengths = [len(df) for df in sig_frames]
+
         if not sig_lengths:
             continue
         num_windows = min(desired, min(sig_lengths))
@@ -486,10 +498,22 @@ def form_feature_frames(feature_dict: dict) -> dict:
 
 def cross_layer_concatenate(attack_X: list):
     syscall_X, network_X, hpc_X = zip(*attack_X)
-    syscall_X = np.concatenate(syscall_X)
-    network_X = np.concatenate(network_X)
-    hpc_X = np.concatenate(hpc_X)
-    cross_layer_X = (syscall_X, network_X, hpc_X)
+
+    outer_X = []
+    for X_list in (syscall_X, network_X, hpc_X):
+        widths = [df.shape[1] for df in X_list]
+        default_width = max(widths)
+
+        inner_X = []
+        for df in X_list:
+            if df.shape[1] != default_width:
+                df = np.zeros((df.shape[0], default_width)) -1
+                df = pd.DataFrame(df)
+            inner_X.append(df)
+
+        outer_X.append(np.concatenate(inner_X))
+
+    cross_layer_X = (x for x in outer_X)
 
     return cross_layer_X
 
@@ -730,56 +754,14 @@ if __name__ == "__main__":
         cwd / "../data/models/syscall_clf.joblib",
         cwd / "../data/models/network_clf.joblib",
         cwd / "../data/models/hpc_clf.joblib",
+        lifecycle_awareness=True,
         stage_filter=False,
         density=False,
         propagation=False,
-        memory=True,
+        memory=False,
     )
 
-    # malware_scores = []
-    # for _ in range(5):
-    #     techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
-    #     stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-    #
-    #     attack_X = build_cross_layer_X(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
-    #     cross_layer_X = cross_layer_concatenate(attack_X)
-    #
-    #     proba = gd.score_cross_layer(cross_layer_X)
-    #     malware_scores.append(proba)
-    #     print(proba)
-    #
-    # print("")
-    # benign_scores = []
-    # for _ in range(5):
-    #     benign_stages = ml_pipelines.config.GENERATION_BENIGN
-    #     techniques = [random.choice(benign_stages) for _ in range(4)]
-    #     stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-    #
-    #     attack_X = build_cross_layer_X(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
-    #     cross_layer_X = cross_layer_concatenate(attack_X)
-    #
-    #     proba = gd.score_cross_layer(cross_layer_X)
-    #     benign_scores.append(proba)
-    #     print(proba)
-    #
-    # y_scores = malware_scores + benign_scores
-    # y_true = np.zeros(len(y_scores))
-    # y_true[:len(malware_scores)] = 1
-    #
-    # fpr, tpr, thresholds = roc_curve(y_true, y_scores)
-    # roc_auc = auc(fpr, tpr)
-    #
-    # plt.figure()
-    # plt.plot(fpr, tpr, lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
-    # plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
-    # plt.xlim([-0.01, 1.0])
-    # plt.ylim([0.0, 1.05])
-    # plt.xlabel('False Positive Rate')
-    # plt.ylabel('True Positive Rate')
-    # plt.title('Receiver Operating Characteristic (ROC)')
-    # plt.legend(loc="lower right")
-    # plt.tight_layout()
-    # plt.grid()
+
 
     malware_scores = []
     for _ in range(150):
@@ -799,11 +781,10 @@ if __name__ == "__main__":
     length_samples = 15
     distance_measures = [[] for i in range(1, length_check)]
     benign_scores = []
+    benign_stages = ml_pipelines.config.GENERATION_BENIGN
 
     for i in range(1, length_check):
         for j in range(length_samples):
-
-            benign_stages = ml_pipelines.config.GENERATION_BENIGN
             techniques = [random.choice(benign_stages) for _ in range(i)]
             stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
 
@@ -839,7 +820,7 @@ if __name__ == "__main__":
     roc_auc = auc(fpr, tpr)
 
     plt.figure()
-    plt.plot(fpr, tpr, lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+    plt.plot(fpr, tpr, lw=2, label=f'ROC curve (AUC = {roc_auc:.3f})')
     plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
     plt.xlim([-0.01, 1.0])
     plt.ylim([0.0, 1.05])

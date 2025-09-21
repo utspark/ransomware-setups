@@ -376,21 +376,21 @@ BEHAVIOR_FILES: Final = {
             "browser_hardware_streaming_5",
         ],
     },
-    # "filebench_fileserver": {
-    #     "syscall": [
-    #         "filebench_syscall_fileserver_1_ints.txt",
-    #         "filebench_syscall_fileserver_3_ints.txt",
-    #     ],
-    #     "network": [
-    #         "",
-    #         "",
-    #     ],
-    #     "hpc": [
-    #         "filebench_hardware_fileserver_1",
-    #         "filebench_hardware_fileserver_3",
-    #     ],
-    # },
-    "filebench_mediaserver_browse": {
+    "filebench_fileserver": {
+        "syscall": [
+            "filebench_fileserver_1_ints.txt",
+            "filebench_fileserver_3_ints.txt",
+        ],
+        "network": [
+            "",
+            "",
+        ],
+        "hpc": [
+            "filebench_fileserver_1",
+            "filebench_fileserver_3",
+        ],
+    },
+    "mediaserver_browse": {
         "syscall": [
             "mediaserver_browse_1_ints.txt",
             "mediaserver_browse_5_ints.txt",
@@ -404,7 +404,7 @@ BEHAVIOR_FILES: Final = {
             "mediaserver_browse_hardware_5",
         ],
     },
-    "filebench_mediaserver_index": {
+    "mediaserver_index": {
         "syscall": [
             "mediaserver_index_1_ints.txt",
             "mediaserver_index_5_ints.txt",
@@ -685,8 +685,16 @@ GENERATION_BENIGN: Final = [
     "browser_generic",
     "browser_mix",
     "browser_streaming",
-    "filebench_mediaserver_browse",
-    "filebench_mediaserver_index",
+    "filebench_fileserver_",
+    "filebench_oltp_",
+    "filebench_randomrw_",
+    "filebench_varmail_",
+    "filebench_videoserver_",
+    "mediaserver_browse_",
+    "mediaserver_index_",
+    "spec_gcc",
+    "spec_leela_",
+    "spec_deepsjeng",
 ]
 
 # HMM_ATTACK_STAGES: Final = {
