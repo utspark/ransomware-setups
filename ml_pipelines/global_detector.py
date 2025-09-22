@@ -5,9 +5,11 @@ import numpy as np
 from hmmlearn import hmm
 
 from ml_pipelines import config
+from bisect import bisect_left
+from typing import List, Tuple
 
 
-var_uniform_subseq_len = 2  # 3
+var_uniform_subseq_len = 3  # 2  # 3
 var_density_scaler = 0.5
 var_propagation_scaler = 0.5
 
@@ -136,9 +138,7 @@ class LifecycleDetector:
 
         return cross_layer_classes
 
-
-    @staticmethod
-    def _stage_filter(class_sequence) -> np.ndarray:
+    def filter_stages(self, class_sequence) -> np.ndarray:
         # multiclass -> sequence_processor
         global var_uniform_subseq_len
 
@@ -154,17 +154,19 @@ class LifecycleDetector:
                 prune_list.append(i)
 
         new_sequence = np.array(new_sequence)
-        new_sequence = np.delete(new_sequence, prune_list, axis=0)
+
+        if self.stage_filter:
+            new_sequence = np.delete(new_sequence, prune_list, axis=0)
 
         if len(new_sequence) < 1:
             return new_sequence
 
         else:
             values = new_sequence[:, 0]
-            counts = new_sequence[:, 1]
-            out = np.repeat(values, counts)
+            # counts = new_sequence[:, 1]
+            # out = np.repeat(values, counts)
 
-            return out
+            return values
 
     @staticmethod
     def _collate_preds(preds: np.ndarray) -> np.ndarray:
@@ -224,6 +226,37 @@ class LifecycleDetector:
 
         return alphabetical_results
 
+    @staticmethod
+    def _longest_increasing_subsequence(nums: List[int]) -> Tuple[List[int], List[int]]:
+        # Returns (subsequence values, indices in original list)
+        n = len(nums)
+        if n == 0:
+            return [], []
+
+        tails = []  # minimal tail value for each length
+        tails_idx = []  # index in nums of that tail
+        prev = [-1] * n  # predecessor index for reconstruction
+
+        for i, x in enumerate(nums):
+            j = bisect_left(tails, x)  # strict: first >= x
+            if j == len(tails):
+                tails.append(x)
+                tails_idx.append(i)
+            else:
+                tails[j] = x
+                tails_idx[j] = i
+            if j > 0:
+                prev[i] = tails_idx[j - 1]
+
+        # Reconstruct LIS by backtracking predecessors from last tail index
+        k = tails_idx[-1]
+        lis_idx = []
+        while k != -1:
+            lis_idx.append(k)
+            k = prev[k]
+        lis_idx.reverse()
+        return [nums[i] for i in lis_idx], lis_idx
+
     def score_stage_sequence(self, stage_sequence: np.ndarray, clf_predictions: np.ndarray) -> float:
         global var_density_scaler
         global var_propagation_scaler
@@ -233,12 +266,12 @@ class LifecycleDetector:
             density_penalty = len(stage_sequence) / len(clf_predictions) * var_density_scaler
             proba += density_penalty
 
-        if self.propagation:
-            stage_propagation_penalty = (len(np.unique(stage_sequence)) - 1) * var_propagation_scaler
+        if self.propagation and not self.memory:
+            subseq, _ = self._longest_increasing_subsequence(list(stage_sequence))
+            stage_propagation_penalty = len(subseq) * var_propagation_scaler
             proba += stage_propagation_penalty
 
-        if self.stage_filter:
-            stage_sequence = self._stage_filter(stage_sequence)
+        stage_sequence = self.filter_stages(stage_sequence)
 
         if len(stage_sequence) > 0 and self.lifecycle_awareness:
 
@@ -252,15 +285,22 @@ class LifecycleDetector:
                 for key, group in groupby(stage_sequence):
                     new_sequence.append(key)
 
-                proba_list = []
-                subsequences = self._all_subseq(np.array(new_sequence))
+                # proba_list = []
+                # subsequences = self._all_subseq(np.array(new_sequence))
 
-                for subseq in subsequences:
-                    hmm_proba = np.exp(self.hmm.score(np.array(subseq).reshape(-1, 1)))
-                    hmm_proba = np.power(hmm_proba, 1 / len(stage_sequence))  # normalization
-                    proba_list.append(hmm_proba)
+                subseq, _ = self._longest_increasing_subsequence(list(new_sequence))
 
-                proba = np.max(proba_list, axis=0)
+                # for subseq in subsequences:
+                hmm_proba = np.exp(self.hmm.score(np.array(subseq).reshape(-1, 1)))
+                hmm_proba = np.power(hmm_proba, 1 / len(stage_sequence))  # normalization
+
+                subsubseq, _ = self._longest_increasing_subsequence(list(subseq))
+                stage_propagation_penalty = len(subsubseq) * var_propagation_scaler
+
+                hmm_proba += stage_propagation_penalty
+                # proba_list.append(hmm_proba)
+                # proba = np.max(proba_list, axis=0)
+                proba = hmm_proba
 
         return proba
 

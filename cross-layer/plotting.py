@@ -1,0 +1,346 @@
+from pathlib import Path
+
+import numpy as np
+import joblib
+from sklearn.metrics import roc_curve, auc
+
+import ml_pipelines
+from ml_pipelines import global_detector
+import cross_layer_driver as cld
+import random
+
+from tqdm import tqdm
+
+import matplotlib
+matplotlib.use("Qt5Agg")
+import matplotlib.pyplot as plt
+plt.ion()
+
+
+def trace_len_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
+
+
+    gd = global_detector.LifecycleDetector(
+        cwd / "../data/models/syscall_clf.joblib",
+        cwd / "../data/models/network_clf.joblib",
+        cwd / "../data/models/hpc_clf.joblib",
+        lifecycle_awareness=True,
+        stage_filter=False,
+        density=False,
+        propagation=False,
+        memory=False,
+    )
+
+    length_check = 10
+    length_samples = 15
+    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+    benign_scores = []
+    benign_times = []
+    for i in range(1, length_check):
+        for j in range(length_samples):
+            techniques = [random.choice(benign_stages) for _ in range(i)]
+            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+            cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+            proba = gd.score_cross_layer(cross_layer_X)
+            benign_scores.append(proba)
+            benign_times.append(np.sum([item[1] for item in stage_lens]))
+
+    start = 1.5  # 0.5
+    stop = 20
+    step = 0.2
+    time_choices = np.arange(start, stop + step / 2, step, dtype=float).tolist()
+    malware_scores = []
+    malware_times = []
+    for _ in range(length_check * length_samples):
+        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+        proba = gd.score_cross_layer(cross_layer_X)
+        malware_scores.append(proba)
+        malware_times.append(np.sum([item[1] for item in stage_lens]))
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    sc = ax.scatter(benign_times, benign_scores, color="blue", alpha=0.2, edgecolors='none', label="benign")
+    sc = ax.scatter(malware_times, malware_scores, color="red", alpha=0.2, edgecolors='none', label="ransomware")
+
+    ax.legend(loc="best")
+    ax.set_xlabel("Trace Length (seconds)")
+    ax.set_ylabel("Threat Score")
+    ax.grid(True, alpha=0.5)
+    fig.tight_layout()
+    plt.show(block=True)
+
+    return
+
+
+def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
+    combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(8)]
+    model_curves = []
+
+    model_labels = [
+        "LA-***",
+        "LA-**D",
+        "LA-*P*",
+        "LA-*PD",
+        "LA-M**",
+        "LA-M*D",
+        "LA-MP*",
+        "LA-MPD",
+    ]
+
+    for i in range(8):
+
+        la_components = {
+            "density": True if combos[i][0] else False,
+            "propagation": True if combos[i][1] else False,
+            "memory": True if combos[i][2] else False,
+        }
+
+        gd = global_detector.LifecycleDetector(
+            **model_paths,
+            lifecycle_awareness=True,
+            stage_filter=False,
+            **la_components
+        )
+
+        n_samples = 50
+        benign_stages = ml_pipelines.config.GENERATION_BENIGN
+        benign_scores = []
+        for _ in range(n_samples):
+            techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+            cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+            proba = gd.score_cross_layer(cross_layer_X)
+            benign_scores.append(proba)
+
+        malware_scores = []
+        for _ in range(n_samples):
+            techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+            cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+            proba = gd.score_cross_layer(cross_layer_X)
+            malware_scores.append(proba)
+
+        y_scores = malware_scores + benign_scores
+        y_true = np.zeros(len(y_scores))
+        y_true[:len(malware_scores)] = 1
+
+        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+        roc_auc = auc(fpr, tpr)
+
+        model_curves.append((fpr, tpr, roc_auc))
+
+    plt.figure(figsize=(6, 4))
+    for i in range(8):
+        fpr, tpr, roc_auc = model_curves[i]
+        plt.plot(fpr, tpr, lw=2, label=f'{model_labels[i]}: {roc_auc:.3f})')
+
+    plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
+    plt.xlim([-0.01, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.legend(loc="lower right", prop={'family': 'monospace'})
+    plt.tight_layout()
+    plt.grid()
+    plt.show(block=True)
+
+    return
+
+
+def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
+    model_curves = []
+
+    model_labels = [
+        "**-**D",
+        "**-*PD",
+        "LA-***",
+        "LA-MP*",
+        "LA-**D",
+        "LA-MPD",
+    ]
+
+    la_components = [
+        {
+            "lifecycle_awareness": False,
+            "density": True,
+            "propagation": False,
+            "memory": False,
+        },
+        {
+            "lifecycle_awareness": False,
+            "density": True,
+            "propagation": True,
+            "memory": False,
+        },
+        {
+            "lifecycle_awareness": True,
+            "density": False,
+            "propagation": False,
+            "memory": False,
+        },
+        {
+            "lifecycle_awareness": True,
+            "density": False,
+            "propagation": True,
+            "memory": True,
+        },
+        {
+            "lifecycle_awareness": True,
+            "density": True,
+            "propagation": False,
+            "memory": False,
+        },
+        {
+            "lifecycle_awareness": True,
+            "density": True,
+            "propagation": True,
+            "memory": True,
+        },
+    ]
+
+    n_samples = 50
+    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+
+
+
+    b_stage_len_list = []
+    for _ in range(n_samples):
+        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        for _ in range(10):
+            b_techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict) + 1)]
+            b_stage_lens = [(technique, random.choice(time_choices)) for technique in b_techniques]
+            stage_lens.extend(b_stage_lens)
+
+        b_stage_len_list.append(stage_lens)
+
+    m_stage_len_list = []
+    for _ in range(n_samples):
+        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        stage_lens = [(technique, time_choices[0]) for technique in techniques]
+
+        for _ in range(10):
+            b_techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict) + 1)]
+            b_stage_lens = [(technique, random.choice(time_choices)) for technique in b_techniques]
+            stage_lens.extend(b_stage_lens)
+
+        m_stage_len_list.append(stage_lens)
+
+    for i in tqdm(range(len(la_components))):
+
+        gd = global_detector.LifecycleDetector(
+            **model_paths,
+            stage_filter=False,
+            **la_components[i]
+        )
+
+        benign_scores = []
+        for j in range(n_samples):
+            stage_lens = b_stage_len_list[j]
+            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time,
+                                               rng)
+            cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+            proba = gd.score_cross_layer(cross_layer_X)
+            benign_scores.append(proba)
+
+        malware_scores = []
+        for j in range(n_samples):
+            stage_lens = m_stage_len_list[j]
+            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time,
+                                               rng)
+            cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+            proba = gd.score_cross_layer(cross_layer_X)
+            malware_scores.append(proba)
+
+        y_scores = malware_scores + benign_scores
+        y_true = np.zeros(len(y_scores))
+        y_true[:len(malware_scores)] = 1
+
+        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+        roc_auc = auc(fpr, tpr)
+
+        model_curves.append((fpr, tpr, roc_auc))
+
+    plt.figure(figsize=(6, 4))
+    for i in range(len(la_components)):
+        fpr, tpr, roc_auc = model_curves[i]
+        plt.plot(fpr, tpr, lw=2, label=f'{model_labels[i]}: {roc_auc:.3f})')
+
+    plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
+    plt.xlim([-0.01, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.legend(loc="lower right", prop={'family': 'monospace'})
+    plt.tight_layout()
+    plt.grid()
+    plt.show(block=True)
+
+
+
+if __name__ == "__main__":
+    plt.rcParams['font.size'] = 12
+
+    cwd = Path.cwd()
+
+    TRACE_LENS = False
+    MODEL_CURVES = False
+    EVADE_DENSITY = True
+
+    window_size_time = 0.5
+    window_stride_time = 0.2
+    rng = np.random.default_rng(seed=1337)  # optional seed
+
+    start = 1.5  # 0.5
+    stop = 10
+    step = 0.2
+    time_choice_list = np.arange(start, stop + step / 2, step, dtype=float).tolist()
+
+    model_paths = {
+        "syscall_clf_path": cwd / "../data/models/syscall_clf.joblib",
+        "network_clf_path": cwd / "../data/models/network_clf.joblib",
+        "hpc_clf_path": cwd / "../data/models/hpc_clf.joblib",
+    }
+
+    feature_frames_path = cwd / "../data/feature_frames.joblib"
+    feature_frames = joblib.load(feature_frames_path)
+    attack_stages = ml_pipelines.config.GENERATION_ATTACK_STAGES
+
+    attack_stages_dict = attack_stages
+    feature_frames_dict = feature_frames
+    time_choices = time_choice_list
+
+    if TRACE_LENS:
+        trace_len_plot(attack_stages, feature_frames, time_choice_list)
+
+    if MODEL_CURVES:
+        model_curves_plot(attack_stages, feature_frames, time_choice_list)
+
+    if EVADE_DENSITY:
+        evade_density_plot(attack_stages, feature_frames, time_choice_list)
+
+
+    # raise Exception
+
+
+
+
+
+
+

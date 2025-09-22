@@ -757,22 +757,6 @@ if __name__ == "__main__":
 
     attack_stages = ml_pipelines.config.GENERATION_ATTACK_STAGES
 
-    start = 1.5  # 0.5
-    stop = 3
-    step = 0.5
-    time_choices = np.arange(start, stop + step / 2, step, dtype=float).tolist()
-
-    gd = global_detector.LifecycleDetector(
-        cwd / "../data/models/syscall_clf.joblib",
-        cwd / "../data/models/network_clf.joblib",
-        cwd / "../data/models/hpc_clf.joblib",
-        lifecycle_awareness=True,
-        stage_filter=False,
-        density=False,
-        propagation=False,
-        memory=False,
-    )
-
 
     malware_scores = []
     for _ in range(150):
@@ -785,42 +769,6 @@ if __name__ == "__main__":
         proba = gd.score_cross_layer(cross_layer_X)
         malware_scores.append(proba)
 
-
-    # raise Exception
-
-    length_check = 10
-    length_samples = 15
-    distance_measures = [[] for i in range(1, length_check)]
-    benign_scores = []
-    benign_stages = ml_pipelines.config.GENERATION_BENIGN
-
-    for i in range(1, length_check):
-        for j in range(length_samples):
-            techniques = [random.choice(benign_stages) for _ in range(i)]
-            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-
-            attack_X = build_cross_layer_X(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
-            cross_layer_X = cross_layer_concatenate(attack_X)
-
-            proba = gd.score_cross_layer(cross_layer_X)
-            distance_measures[i-1].append(proba)
-            benign_scores.append(proba)
-
-    distance_measures = np.array(distance_measures)
-
-    fig, ax = plt.subplots(figsize=(6, 4))
-    for i in range(distance_measures.shape[0]):
-        x_values = [i + 1 for _ in range(distance_measures.shape[1])]
-        sc = ax.scatter(x_values, distance_measures[i], cmap="viridis", alpha=0.75, edgecolors='none')
-
-    # cb = plt.colorbar(sc, ax=ax)
-    # cb.set_label("Distance (c)")
-    ax.set_title("Scatter with Colorbar", pad=10)
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-    plt.show(block=True)
 
 
     y_scores = malware_scores + benign_scores
