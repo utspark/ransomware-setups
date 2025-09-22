@@ -145,7 +145,7 @@ def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_
     plt.figure(figsize=(6, 4))
     for i in range(8):
         fpr, tpr, roc_auc = model_curves[i]
-        plt.plot(fpr, tpr, lw=2, label=f'{model_labels[i]}: {roc_auc:.3f})')
+        plt.plot(fpr, tpr, lw=2, label=f'{model_labels[i]}: {roc_auc:.3f}')
 
     plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
     plt.xlim([-0.01, 1.0])
@@ -280,7 +280,7 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
     plt.figure(figsize=(6, 4))
     for i in range(len(la_components)):
         fpr, tpr, roc_auc = model_curves[i]
-        plt.plot(fpr, tpr, lw=2, label=f'{model_labels[i]}: {roc_auc:.3f})')
+        plt.plot(fpr, tpr, lw=2, label=f'{model_labels[i]}: {roc_auc:.3f}')
 
     plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
     plt.xlim([-0.01, 1.0])
@@ -377,7 +377,7 @@ def signal_sample_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
     plt.figure(figsize=(6, 4))
     for i in range(len(combos)):
         fpr, tpr, roc_auc = model_curves[i]
-        plt.plot(fpr, tpr, lw=2, label=f'{model_labels[i]}: {roc_auc:.3f})')
+        plt.plot(fpr, tpr, lw=2, label=f'{model_labels[i]}: {roc_auc:.3f}')
 
     plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
     plt.xlim([-0.01, 1.0])
@@ -392,6 +392,204 @@ def signal_sample_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
     return
 
 
+def flow_variations(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
+    preserve_stages = [
+        ["recon", "exfil_1", "exfil_2", "exec_2"],
+        ["recon", "exfil_2", "exec_2"],
+        ["exfil_1", "exfil_2", "exec_2"],
+        ["exfil_2", "exec_2"],
+        ["recon", "exec_2"],
+        ["exec_2"],
+    ]
+
+    flow_labels=[
+        "RE_F1_F2_EX",
+        "RE_**_F2_EX",
+        "**_F1_F2_EX",
+        "**_**_F2_EX",
+        "RE_**_**_EX",
+        "**_**_**_EX",
+    ]
+
+    n_samples = 100
+    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+
+    b_flows = []
+    m_flows = []
+    for preserve_stage_list in preserve_stages:
+        tmp_attack_stages = attack_stages_dict.copy()
+
+        drop_list = []
+        for stage in tmp_attack_stages:
+            if stage not in preserve_stage_list:
+                drop_list.append(stage)
+
+        for key in drop_list:
+            del tmp_attack_stages[key]
+
+        b_stage_len_list = []
+        for _ in range(n_samples):
+            techniques = [random.choice(benign_stages) for _ in range(len(tmp_attack_stages))]
+            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+            b_stage_len_list.append(stage_lens)
+        b_flows.append(b_stage_len_list)
+
+        m_stage_len_list = []
+        for _ in range(n_samples):
+            techniques = [random.choice(ttp_choices) for _, ttp_choices in tmp_attack_stages.items()]
+            stage_lens = [(technique, time_choices[0]) for technique in techniques]
+            m_stage_len_list.append(stage_lens)
+        m_flows.append(m_stage_len_list)
+
+
+    gd = global_detector.LifecycleDetector(
+        cwd / "../data/models/syscall_clf.joblib",
+        cwd / "../data/models/network_clf.joblib",
+        cwd / "../data/models/hpc_clf.joblib",
+        lifecycle_awareness=True,
+        stage_filter=False,
+        density=False,
+        propagation=False,
+        memory=False,
+    )
+
+    flow_scores = []
+    for i in range(len(preserve_stages)):
+        benign_scores = []
+        for stage_lens in b_flows[i]:
+            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+            cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+            proba = gd.score_cross_layer(cross_layer_X)
+            benign_scores.append(proba)
+
+        malware_scores = []
+        for stage_lens in m_flows[i]:
+            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+            cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+            proba = gd.score_cross_layer(cross_layer_X)
+            malware_scores.append(proba)
+
+        y_scores = malware_scores + benign_scores
+        y_true = np.zeros(len(y_scores))
+        y_true[:len(malware_scores)] = 1
+
+        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+        roc_auc = auc(fpr, tpr)
+        flow_scores.append((fpr, tpr, roc_auc))
+
+    plt.figure(figsize=(6, 4))
+    for i in range(len(preserve_stages)):
+        fpr, tpr, roc_auc = flow_scores[i]
+
+        plt.plot(fpr, tpr, lw=2, label=f'{flow_labels[i]}: {roc_auc:.3f}')
+
+    plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
+    plt.xlim([-0.01, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.legend(loc="lower right", prop={'family': 'monospace'})
+    plt.tight_layout()
+    plt.grid()
+    plt.show(block=True)
+
+    return
+
+def benign_app_scores(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
+    gds = [
+        global_detector.LifecycleDetector(
+            cwd / "../data/models/syscall_clf.joblib",
+            cwd / "../data/models/network_clf.joblib",
+            cwd / "../data/models/hpc_clf.joblib",
+            lifecycle_awareness=True,
+            stage_filter=False,
+            density=False,
+            propagation=False,
+            memory=False,
+        ),
+        global_detector.LifecycleDetector(
+            cwd / "../data/models/syscall_clf.joblib",
+            cwd / "../data/models/network_clf.joblib",
+            cwd / "../data/models/hpc_clf.joblib",
+            lifecycle_awareness=True,
+            stage_filter=False,
+            density=True,
+            propagation=True,
+            memory=True,
+        ),
+    ]
+
+    n_samples = 50
+
+
+    malware_model_scores = [[] for _ in gds]
+    for _ in range(n_samples):
+        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+        for i, gd in enumerate(gds):
+            malware_model_scores[i].append(gd.score_cross_layer(cross_layer_X))
+
+    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+    benign_app_scores = []
+
+    for i in range(len(benign_stages)):
+        benign_scores = []
+        benign_model_scores = [[] for _ in gds]
+        for _ in range(n_samples):
+            techniques = [benign_stages[i] for _ in range(len(attack_stages_dict))]
+            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+            cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+            for i, gd in enumerate(gds):
+                benign_model_scores[i].append(gd.score_cross_layer(cross_layer_X))
+
+        benign_app_scores.append(benign_model_scores)
+
+    bars = []
+    for i, app in enumerate(benign_stages):
+        tmp_roc = []
+        for j in range(len(gds)):
+            malware_scores = malware_model_scores[j]
+            benign_scores = benign_app_scores[i][j]
+
+            y_scores = malware_scores + benign_scores
+            y_true = np.zeros(len(y_scores))
+            y_true[:len(malware_scores)] = 1
+
+            fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+            roc_auc = auc(fpr, tpr)
+            tmp_roc.append(roc_auc)
+        bars.append(tmp_roc)
+
+    bars = np.array(bars)
+
+    x = np.arange(bars.shape[0])  # group positions: 0..9
+    w = 0.4  # bar width
+
+    fig, ax = plt.subplots()
+    ax.bar(x - w / 2, bars[:, 0], width=w, label="gd_1", color="#4C78A8")
+    ax.bar(x + w / 2, bars[:, 1], width=w, label="gd_2", color="#F58518")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{benign_stages[i]}" for i in x], rotation=90)  # optional group labels
+    ax.set_xlim(-0.5, x[-1] + 0.5)
+    ax.set_ylim(0.85, 1.05)
+    ax.set_ylabel("ROC-AUC")
+    ax.set_xlabel("Benign Application")
+    ax.legend(loc="lower right")
+    plt.tight_layout()
+    plt.show(block=True)
+
+    return
+
 
 if __name__ == "__main__":
     plt.rcParams['font.size'] = 12
@@ -402,6 +600,8 @@ if __name__ == "__main__":
     MODEL_CURVES = False
     EVADE_DENSITY = False
     SIGNAL_SAMPLES = False
+    FLOW_VARIATIONS = False
+    BENIGN_APP_SCORES = True
 
     window_size_time = 0.5
     window_stride_time = 0.2
@@ -438,28 +638,20 @@ if __name__ == "__main__":
     if SIGNAL_SAMPLES:
         signal_sample_plot(attack_stages, feature_frames, time_choice_list)
 
+    if FLOW_VARIATIONS:
+        flow_variations(attack_stages, feature_frames, time_choice_list)
 
-    preserve_stages = [
-        ["recon", "exfil_1", "exfil_2", "exec_2"],
-        ["recon", "exfil_2", "exec_2"],
-        ["exfil_1", "exfil_2", "exec_2"],
-        ["exfil_2", "exec_2"],
-        ["recon", "exec_2"],
-        ["exec_2"],
-    ]
+    if BENIGN_APP_SCORES:
+        benign_app_scores(attack_stages, feature_frames, time_choice_list)
 
-    for preserve_stage_list in preserve_stages:
-        tmp_attack_stages = attack_stages_dict.copy()
 
-        drop_list = []
-        for stage in tmp_attack_stages:
-            if stage not in preserve_stage_list:
-                drop_list.append(stage)
 
-        for key in drop_list:
-            del tmp_attack_stages[key]
 
-        # model_curves_plot(tmp_attack_stages, feature_frames, time_choice_list)
+
+
+
+
+
 
 
 
