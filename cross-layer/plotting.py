@@ -590,18 +590,100 @@ def benign_app_scores(attack_stages_dict: dict, feature_frames_dict: dict, time_
 
     return
 
+def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
+    gd = global_detector.LifecycleDetector(
+        cwd / "../data/models/syscall_clf.joblib",
+        cwd / "../data/models/network_clf.joblib",
+        cwd / "../data/models/hpc_clf.joblib",
+        lifecycle_awareness=True,
+        stage_filter=False,
+        density=True,
+        propagation=True,
+        memory=True,
+    )
+
+    n_samples = 50
+    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+
+    benign_scores = []
+    for _ in tqdm(range(n_samples)):
+        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time,
+                                           rng)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        progressive_scores = []
+        for i in range(1, len(cross_layer_X[0])):
+            tmp_X = (cross_layer_X[0][:i], cross_layer_X[1][:i], cross_layer_X[2][:i],)
+            proba = gd.score_cross_layer(tmp_X)
+            progressive_scores.append(proba)
+
+        benign_scores.append(progressive_scores)
+
+    malware_scores = []
+    for _ in tqdm(range(n_samples)):
+        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time,
+                                           rng)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        progressive_scores = []
+        for i in range(1, len(cross_layer_X[0])):
+            tmp_X = (cross_layer_X[0][:i], cross_layer_X[1][:i], cross_layer_X[2][:i],)
+            proba = gd.score_cross_layer(tmp_X)
+            progressive_scores.append(proba)
+
+        malware_scores.append(progressive_scores)
+
+    plt.figure(figsize=(6, 4))
+    for i in range(len(benign_scores)):
+        if i == 0:
+            plt.plot(benign_scores[i], color="blue", alpha=0.2, label="benign")
+        else:
+            plt.plot(benign_scores[i], color="blue", alpha=0.2)
+
+    for i in range(len(malware_scores)):
+        if i ==0:
+            plt.plot(malware_scores[i], color="red", alpha=0.2, label="malware")
+        else:
+            plt.plot(malware_scores[i], color="red", alpha=0.2)
+
+    plt.xlabel("Time")
+    plt.ylabel("Threat Score")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    b_scores = [scores[-1] for scores in benign_scores]
+    m_scores = [scores[-1] for scores in malware_scores]
+
+    y_scores = np.concatenate([m_scores, b_scores])
+    y_true = np.zeros(len(y_scores))
+    y_true[:len(malware_scores)] = 1
+
+    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+    roc_auc = auc(fpr, tpr)
+    print(roc_auc)
+
+    return
+
+
 
 if __name__ == "__main__":
     plt.rcParams['font.size'] = 12
 
     cwd = Path.cwd()
 
-    TRACE_LENS = False
-    MODEL_CURVES = False
-    EVADE_DENSITY = False
-    SIGNAL_SAMPLES = False
-    FLOW_VARIATIONS = False
+    TRACE_LENS = True
+    MODEL_CURVES = True
+    EVADE_DENSITY = True
+    SIGNAL_SAMPLES = True
+    FLOW_VARIATIONS = True
     BENIGN_APP_SCORES = True
+    SCORE_OVER_TIME = False
 
     window_size_time = 0.5
     window_stride_time = 0.2
@@ -644,74 +726,8 @@ if __name__ == "__main__":
     if BENIGN_APP_SCORES:
         benign_app_scores(attack_stages, feature_frames, time_choice_list)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # gd = global_detector.LifecycleDetector(
-    #     cwd / "../data/models/syscall_clf.joblib",
-    #     cwd / "../data/models/network_clf.joblib",
-    #     cwd / "../data/models/hpc_clf.joblib",
-    #     lifecycle_awareness=True,
-    #     stage_filter=False,
-    #     density=False,
-    #     propagation=False,
-    #     memory=False,
-    # )
-    #
-    # n_samples = 50
-    # benign_stages = ml_pipelines.config.GENERATION_BENIGN
-    # benign_scores = []
-    # for _ in range(n_samples):
-    #     techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
-    #     stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-    #
-    #     attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
-    #     cross_layer_X = cld.cross_layer_concatenate(attack_X)
-    #
-    #     proba = gd.score_cross_layer(cross_layer_X)
-    #     benign_scores.append(proba)
-    #
-    # malware_scores = []
-    # for _ in range(n_samples):
-    #     techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
-    #     stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-    #
-    #     attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
-    #     cross_layer_X = cld.cross_layer_concatenate(attack_X)
-    #
-    #     proba = gd.score_cross_layer(cross_layer_X)
-    #     malware_scores.append(proba)
-    #
-    # y_scores = malware_scores + benign_scores
-    # y_true = np.zeros(len(y_scores))
-    # y_true[:len(malware_scores)] = 1
-    #
-    # fpr, tpr, thresholds = roc_curve(y_true, y_scores)
-    # roc_auc = auc(fpr, tpr)
-    #
-    # plt.figure(figsize=(6, 4))
-    # plt.plot(fpr, tpr, lw=2, label=f'{roc_auc:.3f})')
-    #
-    # plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
-    # plt.xlim([-0.01, 1.0])
-    # plt.ylim([0.0, 1.05])
-    # plt.xlabel('False Positive Rate')
-    # plt.ylabel('True Positive Rate')
-    # plt.legend(loc="lower right", prop={'family': 'monospace'})
-    # plt.tight_layout()
-    # plt.grid()
-    # plt.show(block=True)
-
+    if SCORE_OVER_TIME:
+        score_over_time(attack_stages, feature_frames, time_choice_list)
 
 
 
