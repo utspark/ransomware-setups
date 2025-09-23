@@ -10,8 +10,8 @@ from typing import List, Tuple
 
 
 var_uniform_subseq_len = 3  # 2  # 3
-var_density_scaler = 0.5
-var_propagation_scaler = 0.5
+var_density_scaler = 0.1
+var_propagation_scaler = 0.1
 
 
 def form_lifecycle_sequence(attack_stages: dict, benign=False):

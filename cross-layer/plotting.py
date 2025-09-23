@@ -94,6 +94,27 @@ def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_
         "LA-MPD",
     ]
 
+    n_samples = 250
+    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+    benign_cross_layer_X = []
+    for _ in range(n_samples):
+        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        benign_cross_layer_X.append(cross_layer_X)
+
+    malware_cross_layer_X = []
+    for _ in range(n_samples):
+        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        malware_cross_layer_X.append(cross_layer_X)
+
+
     for i in range(8):
 
         la_components = {
@@ -109,28 +130,14 @@ def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_
             **la_components
         )
 
-        n_samples = 50
-        benign_stages = ml_pipelines.config.GENERATION_BENIGN
         benign_scores = []
-        for _ in range(n_samples):
-            techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
-            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-
-            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
-            cross_layer_X = cld.cross_layer_concatenate(attack_X)
-
-            proba = gd.score_cross_layer(cross_layer_X)
+        for j in range(n_samples):
+            proba = gd.score_cross_layer(benign_cross_layer_X[j])
             benign_scores.append(proba)
 
         malware_scores = []
-        for _ in range(n_samples):
-            techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
-            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-
-            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
-            cross_layer_X = cld.cross_layer_concatenate(attack_X)
-
-            proba = gd.score_cross_layer(cross_layer_X)
+        for j in range(n_samples):
+            proba = gd.score_cross_layer(malware_cross_layer_X[j])
             malware_scores.append(proba)
 
         y_scores = malware_scores + benign_scores
@@ -162,13 +169,17 @@ def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_
 
 def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
     model_curves = []
+    combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(8)]
 
     model_labels = [
         "**-**D",
-        "**-*PD",
         "LA-***",
-        "LA-MP*",
         "LA-**D",
+        "LA-*P*",
+        "LA-*PD",
+        "LA-M**",
+        "LA-M*D",
+        "LA-MP*",
         "LA-MPD",
     ]
 
@@ -179,44 +190,21 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
             "propagation": False,
             "memory": False,
         },
-        {
-            "lifecycle_awareness": False,
-            "density": True,
-            "propagation": True,
-            "memory": False,
-        },
-        {
-            "lifecycle_awareness": True,
-            "density": False,
-            "propagation": False,
-            "memory": False,
-        },
-        {
-            "lifecycle_awareness": True,
-            "density": False,
-            "propagation": True,
-            "memory": True,
-        },
-        {
-            "lifecycle_awareness": True,
-            "density": True,
-            "propagation": False,
-            "memory": False,
-        },
-        {
-            "lifecycle_awareness": True,
-            "density": True,
-            "propagation": True,
-            "memory": True,
-        },
     ]
+
+    for i in range(len(combos)):
+        components = {
+            "lifecycle_awareness": True,
+            "density": True if combos[i][0] else False,
+            "propagation": True if combos[i][1] else False,
+            "memory": True if combos[i][2] else False,
+        }
+        la_components.append(components)
 
     n_samples = 50
     benign_stages = ml_pipelines.config.GENERATION_BENIGN
 
-
-
-    b_stage_len_list = []
+    b_cross_layer_X = []
     for _ in range(n_samples):
         techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
         stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
@@ -226,9 +214,10 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
             b_stage_lens = [(technique, random.choice(time_choices)) for technique in b_techniques]
             stage_lens.extend(b_stage_lens)
 
-        b_stage_len_list.append(stage_lens)
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+        b_cross_layer_X.append(cld.cross_layer_concatenate(attack_X))
 
-    m_stage_len_list = []
+    m_cross_layer_X = []
     for _ in range(n_samples):
         techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
         stage_lens = [(technique, time_choices[0]) for technique in techniques]
@@ -238,10 +227,10 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
             b_stage_lens = [(technique, random.choice(time_choices)) for technique in b_techniques]
             stage_lens.extend(b_stage_lens)
 
-        m_stage_len_list.append(stage_lens)
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+        m_cross_layer_X.append(cld.cross_layer_concatenate(attack_X))
 
-    for i in tqdm(range(len(la_components))):
-
+    for i in tqdm(range(len(combos)+1)):
         gd = global_detector.LifecycleDetector(
             **model_paths,
             stage_filter=False,
@@ -250,21 +239,13 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
 
         benign_scores = []
         for j in range(n_samples):
-            stage_lens = b_stage_len_list[j]
-            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time,
-                                               rng)
-            cross_layer_X = cld.cross_layer_concatenate(attack_X)
-
+            cross_layer_X = b_cross_layer_X[j]
             proba = gd.score_cross_layer(cross_layer_X)
             benign_scores.append(proba)
 
         malware_scores = []
         for j in range(n_samples):
-            stage_lens = m_stage_len_list[j]
-            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time,
-                                               rng)
-            cross_layer_X = cld.cross_layer_concatenate(attack_X)
-
+            cross_layer_X = m_cross_layer_X[j]
             proba = gd.score_cross_layer(cross_layer_X)
             malware_scores.append(proba)
 
@@ -683,7 +664,7 @@ if __name__ == "__main__":
     SIGNAL_SAMPLES = True
     FLOW_VARIATIONS = True
     BENIGN_APP_SCORES = True
-    SCORE_OVER_TIME = False
+    SCORE_OVER_TIME = True
 
     window_size_time = 0.5
     window_stride_time = 0.2
