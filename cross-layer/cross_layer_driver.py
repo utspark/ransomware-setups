@@ -528,9 +528,9 @@ def cross_layer_concatenate(attack_X: list) -> Tuple[np.ndarray, np.ndarray, np.
 
 if __name__ == "__main__":
     cwd = Path.cwd()
-    SYSCALL = False
-    NETWORK = False
-    HPC = False
+    SYSCALL = True
+    NETWORK = True
+    HPC = True
     TRAIN = False
     REPROCESS_DATA = False
 
@@ -755,188 +755,11 @@ if __name__ == "__main__":
 
     # raise Exception
 
-    attack_stages = ml_pipelines.config.GENERATION_ATTACK_STAGES
-
-
-    malware_scores = []
-    for _ in range(150):
-        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
-        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-
-        attack_X = build_cross_layer_X(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
-        cross_layer_X = cross_layer_concatenate(attack_X)
-
-        proba = gd.score_cross_layer(cross_layer_X)
-        malware_scores.append(proba)
 
 
 
-    y_scores = malware_scores + benign_scores
-    y_true = np.zeros(len(y_scores))
-    y_true[:len(malware_scores)] = 1
-
-    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
-    roc_auc = auc(fpr, tpr)
-
-    plt.figure()
-    plt.plot(fpr, tpr, lw=2, label=f'ROC curve (AUC = {roc_auc:.3f})')
-    plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
-    plt.xlim([-0.01, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic (ROC)')
-    plt.legend(loc="lower right")
-    plt.tight_layout()
-    plt.grid()
-    plt.show(block=True)
 
 
-    malware_scores = []
-    for _ in range(100):
-        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
-        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-
-        attack_X = build_cross_layer_X(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
-        cross_layer_X = cross_layer_concatenate(attack_X)
-
-        proba = gd.score_cross_layer(cross_layer_X)
-        malware_scores.append(proba)
-
-
-    roc_list = []
-    num_detectors = 8
-    for i in range(num_detectors):
-        if i == 0:
-            gd = global_detector.LifecycleDetector(
-                cwd / "../data/models/syscall_clf.joblib",
-                cwd / "../data/models/network_clf.joblib",
-                cwd / "../data/models/hpc_clf.joblib",
-                lifecycle_awareness=True,
-                stage_filter=False,
-                density=False,
-                propagation=False,
-                memory=False,
-            )
-        elif i == 1:
-            gd = global_detector.LifecycleDetector(
-                cwd / "../data/models/syscall_clf.joblib",
-                cwd / "../data/models/network_clf.joblib",
-                cwd / "../data/models/hpc_clf.joblib",
-                lifecycle_awareness=True,
-                stage_filter=False,
-                density=True,
-                propagation=False,
-                memory=False,
-            )
-        elif i == 2:
-            gd = global_detector.LifecycleDetector(
-                cwd / "../data/models/syscall_clf.joblib",
-                cwd / "../data/models/network_clf.joblib",
-                cwd / "../data/models/hpc_clf.joblib",
-                lifecycle_awareness=True,
-                stage_filter=False,
-                density=False,
-                propagation=True,
-                memory=False,
-            )
-        elif i == 3:
-            gd = global_detector.LifecycleDetector(
-                cwd / "../data/models/syscall_clf.joblib",
-                cwd / "../data/models/network_clf.joblib",
-                cwd / "../data/models/hpc_clf.joblib",
-                lifecycle_awareness=True,
-                stage_filter=False,
-                density=True,
-                propagation=True,
-                memory=False,
-            )
-        elif i == 4:
-            gd = global_detector.LifecycleDetector(
-                cwd / "../data/models/syscall_clf.joblib",
-                cwd / "../data/models/network_clf.joblib",
-                cwd / "../data/models/hpc_clf.joblib",
-                lifecycle_awareness=True,
-                stage_filter=False,
-                density=False,
-                propagation=False,
-                memory=True,
-            )
-        elif i == 5:
-            gd = global_detector.LifecycleDetector(
-                cwd / "../data/models/syscall_clf.joblib",
-                cwd / "../data/models/network_clf.joblib",
-                cwd / "../data/models/hpc_clf.joblib",
-                lifecycle_awareness=True,
-                stage_filter=False,
-                density=True,
-                propagation=False,
-                memory=True,
-            )
-        elif i == 6:
-            gd = global_detector.LifecycleDetector(
-                cwd / "../data/models/syscall_clf.joblib",
-                cwd / "../data/models/network_clf.joblib",
-                cwd / "../data/models/hpc_clf.joblib",
-                lifecycle_awareness=True,
-                stage_filter=False,
-                density=False,
-                propagation=True,
-                memory=True,
-            )
-        elif i == 7:
-            gd = global_detector.LifecycleDetector(
-                cwd / "../data/models/syscall_clf.joblib",
-                cwd / "../data/models/network_clf.joblib",
-                cwd / "../data/models/hpc_clf.joblib",
-                lifecycle_awareness=True,
-                stage_filter=False,
-                density=True,
-                propagation=True,
-                memory=True,
-            )
-
-        benign_scores = []
-        for _ in range(100):
-            techniques = [random.choice(benign_stages) for _ in range(len(attack_stages))]
-            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-
-            attack_X = build_cross_layer_X(feature_frames, stage_lens, window_size_time, window_stride_time, rng)
-            cross_layer_X = cross_layer_concatenate(attack_X)
-
-            proba = gd.score_cross_layer(cross_layer_X)
-            benign_scores.append(proba)
-
-        y_scores = malware_scores + benign_scores
-        y_true = np.zeros(len(y_scores))
-        y_true[:len(malware_scores)] = 1
-
-        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
-        roc_auc = auc(fpr, tpr)
-
-        roc_list.append((fpr, tpr, roc_auc))
-
-    plt.figure()
-    for i in range(num_detectors):
-        fpr, tpr, roc_auc = roc_list[i]
-        plt.plot(fpr, tpr, lw=2, label=f'ROC curve (AUC = {roc_auc:.3f})')
-    plt.plot([0, 1], [0, 1], lw=1, linestyle='--', label='Random guess')
-    plt.xlim([-0.01, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic (ROC)')
-    plt.legend(loc="lower right")
-    plt.tight_layout()
-    plt.grid()
-    plt.show(block=True)
-
-
-
-    # TODO
-    #  - scores over time
-    #  - roc-auc with different variants
-    #  - ablation study
 
 
 

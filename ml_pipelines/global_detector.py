@@ -281,26 +281,23 @@ class LifecycleDetector:
                 proba += hmm_proba
 
             else:
-                new_sequence = []
-                for key, group in groupby(stage_sequence):
-                    new_sequence.append(key)
-
-                # proba_list = []
-                # subsequences = self._all_subseq(np.array(new_sequence))
-
-                subseq, _ = self._longest_increasing_subsequence(list(new_sequence))
-
-                # for subseq in subsequences:
-                hmm_proba = np.exp(self.hmm.score(np.array(subseq).reshape(-1, 1)))
+                hmm_proba = np.exp(self.hmm.score(np.array(stage_sequence).reshape(-1, 1)))
                 hmm_proba = np.power(hmm_proba, 1 / len(stage_sequence))  # normalization
+                proba += hmm_proba
 
-                subsubseq, _ = self._longest_increasing_subsequence(list(subseq))
-                stage_propagation_penalty = len(subsubseq) * var_propagation_scaler
+                subseq, idxs = self._longest_increasing_subsequence(list(stage_sequence))
 
-                hmm_proba += stage_propagation_penalty
-                # proba_list.append(hmm_proba)
-                # proba = np.max(proba_list, axis=0)
-                proba = hmm_proba
+                # memory_proba = np.exp(self.hmm.score(np.array(subseq).reshape(-1, 1)))
+                # memory_proba = np.power(memory_proba, 1 / len(subseq))  # normalization
+                idx = idxs[-1]
+                # memory_proba = 1 - idx / len(stage_sequence)
+
+
+                subseq, _ = self._longest_increasing_subsequence(list(subseq))
+                stage_propagation_penalty = len(subseq) * var_propagation_scaler
+
+                proba += stage_propagation_penalty
+                # proba += memory_proba * 0.1
 
         return proba
 

@@ -80,7 +80,7 @@ def trace_len_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_cho
 
 
 def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
-    combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(8)]
+    combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(4)]
     model_curves = []
 
     model_labels = [
@@ -88,13 +88,13 @@ def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_
         "LA-**D",
         "LA-*P*",
         "LA-*PD",
-        "LA-M**",
-        "LA-M*D",
-        "LA-MP*",
-        "LA-MPD",
+        # "LA-M**",
+        # "LA-M*D",
+        # "LA-MP*",
+        # "LA-MPD",
     ]
 
-    n_samples = 250
+    n_samples = 100
     benign_stages = ml_pipelines.config.GENERATION_BENIGN
     benign_cross_layer_X = []
     for _ in range(n_samples):
@@ -115,12 +115,12 @@ def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_
         malware_cross_layer_X.append(cross_layer_X)
 
 
-    for i in range(8):
+    for i in range(4):
 
         la_components = {
-            "density": True if combos[i][0] else False,
+            "density": True if combos[i][2] else False,
             "propagation": True if combos[i][1] else False,
-            "memory": True if combos[i][2] else False,
+            # "memory": True if combos[i][0] else False,
         }
 
         gd = global_detector.LifecycleDetector(
@@ -150,7 +150,7 @@ def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_
         model_curves.append((fpr, tpr, roc_auc))
 
     plt.figure(figsize=(6, 4))
-    for i in range(8):
+    for i in range(len(combos)):
         fpr, tpr, roc_auc = model_curves[i]
         plt.plot(fpr, tpr, lw=2, label=f'{model_labels[i]}: {roc_auc:.3f}')
 
@@ -169,7 +169,7 @@ def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_
 
 def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
     model_curves = []
-    combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(8)]
+    combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(4)]
 
     model_labels = [
         "**-**D",
@@ -177,10 +177,10 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
         "LA-**D",
         "LA-*P*",
         "LA-*PD",
-        "LA-M**",
-        "LA-M*D",
-        "LA-MP*",
-        "LA-MPD",
+        # "LA-M**",
+        # "LA-M*D",
+        # "LA-MP*",
+        # "LA-MPD",
     ]
 
     la_components = [
@@ -195,13 +195,13 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
     for i in range(len(combos)):
         components = {
             "lifecycle_awareness": True,
-            "density": True if combos[i][0] else False,
+            "density": True if combos[i][2] else False,
             "propagation": True if combos[i][1] else False,
-            "memory": True if combos[i][2] else False,
+            # "memory": True if combos[i][0] else False,
         }
         la_components.append(components)
 
-    n_samples = 50
+    n_samples = 100
     benign_stages = ml_pipelines.config.GENERATION_BENIGN
 
     b_cross_layer_X = []
@@ -324,7 +324,7 @@ def signal_sample_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
             cross_layer_X = cld.cross_layer_concatenate(attack_X)
 
             signal_select = combos[i]
-            for k, selection in enumerate(signal_select):
+            for k, selection in enumerate(reversed(signal_select)):
                 if selection == 0:
                     cross_layer_X[k][:] = -1
 
@@ -339,7 +339,7 @@ def signal_sample_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
             cross_layer_X = cld.cross_layer_concatenate(attack_X)
 
             signal_select = combos[i]
-            for k, selection in enumerate(signal_select):
+            for k, selection in enumerate(reversed(signal_select)):
                 if selection == 0:
                     cross_layer_X[k][:] = -1
 
@@ -498,7 +498,7 @@ def benign_app_scores(attack_stages_dict: dict, feature_frames_dict: dict, time_
             stage_filter=False,
             density=True,
             propagation=True,
-            memory=True,
+            memory=False,
         ),
     ]
 
@@ -580,7 +580,7 @@ def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict, time_ch
         stage_filter=False,
         density=True,
         propagation=True,
-        memory=True,
+        memory=False,
     )
 
     n_samples = 50
@@ -709,6 +709,8 @@ if __name__ == "__main__":
 
     if SCORE_OVER_TIME:
         score_over_time(attack_stages, feature_frames, time_choice_list)
+
+
 
 
 
