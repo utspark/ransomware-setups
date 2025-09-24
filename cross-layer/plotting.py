@@ -84,10 +84,10 @@ def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_
     model_curves = []
 
     model_labels = [
-        "LA-***",
-        "LA-**D",
-        "LA-*P*",
-        "LA-*PD",
+        "LA-**",
+        "LA-*D",
+        "LA-P*",
+        "LA-PD",
         # "LA-M**",
         # "LA-M*D",
         # "LA-MP*",
@@ -172,11 +172,11 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
     combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(4)]
 
     model_labels = [
-        "**-**D",
-        "LA-***",
-        "LA-**D",
-        "LA-*P*",
-        "LA-*PD",
+        "**-*D",
+        "LA-**",
+        "LA-*D",
+        "LA-P*",
+        "LA-PD",
         # "LA-M**",
         # "LA-M*D",
         # "LA-MP*",
@@ -201,7 +201,7 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
         }
         la_components.append(components)
 
-    n_samples = 100
+    n_samples = 150
     benign_stages = ml_pipelines.config.GENERATION_BENIGN
 
     b_cross_layer_X = []
@@ -709,6 +709,9 @@ if __name__ == "__main__":
 
     if SCORE_OVER_TIME:
         score_over_time(attack_stages, feature_frames, time_choice_list)
+
+
+
 
 
 
