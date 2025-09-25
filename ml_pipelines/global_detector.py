@@ -10,8 +10,8 @@ from typing import List, Tuple
 
 
 var_uniform_subseq_len = 3  # 2  # 3
-var_density_scaler = 0.1  # 0.1
-var_propagation_scaler = 0.1
+var_density_scaler = 0.08  # 0.1
+var_propagation_scaler = 0.12
 
 
 def form_lifecycle_sequence(attack_stages: dict, benign=False):
@@ -72,7 +72,8 @@ class LifecycleDetector:
         # alternate_start_weights = alternate_start_weights.tolist()
         # alternate_start_weights.insert(0, s_c)
 
-        alternate_start_weights = [i * 1.3 for i in range(1, 5)][::-1]
+        # alternate_start_weights = [np.pow(i, 1/2) for i in range(1, 5)][::-1]
+        alternate_start_weights = [i for i in range(1, 5)][::-1]
         alternate_start_weights = np.array(alternate_start_weights) / np.sum(alternate_start_weights)
         alternate_start_weights = alternate_start_weights.tolist()
 
@@ -269,15 +270,33 @@ class LifecycleDetector:
 
         if self.density:
             density_penalty = len(stage_sequence) / len(clf_predictions) * var_density_scaler
+
+            # density = len(stage_sequence) / len(clf_predictions)
+            # density_penalty = 1 / (1 + np.exp(-1 * density * 3))
+
+            if self.lifecycle_awareness:
+                density_penalty *= 1 / (1 + np.exp(-1 * len(clf_predictions) / 100))
+
             proba += density_penalty
 
         if len(stage_sequence) > 0 and self.lifecycle_awareness:
 
             if self.propagation:
+                # subseq, _ = self._longest_increasing_subsequence(list(stage_sequence))
+                # stage_propagation_penalty = (len(subseq) + 2) * var_propagation_scaler / 2
+                # proba += stage_propagation_penalty
+                #
+                # new_penalty = (np.max(subseq) + 2) * var_propagation_scaler / 2
+                # proba += new_penalty
+
                 subseq, _ = self._longest_increasing_subsequence(list(stage_sequence))
                 stage_propagation_penalty = len(subseq) * var_propagation_scaler
                 proba += stage_propagation_penalty
 
+                # new_penalty = (np.max(subseq) + 2) * var_propagation_scaler / 2
+                # proba += new_penalty
+
+            old_stage_sequence = stage_sequence
             stage_sequence, counts = self.filter(stage_sequence)
 
             # TODO explore this
@@ -295,11 +314,14 @@ class LifecycleDetector:
             # stage_duration_penalty = 1 / (1 + np.exp(-1 * .0001 * stage_duration_penalty)) * 0.2
             # proba += stage_duration_penalty
 
+            # if len(stage_sequence) > 5:
+            #     stage_sequence = stage_sequence[:-5]
+
             hmm_proba = np.exp(self.hmm.score(np.array(stage_sequence).reshape(-1, 1)))
             hmm_proba = np.power(hmm_proba, 1 / len(stage_sequence))  # normalization
             proba += hmm_proba
 
-            proba -= len(clf_predictions) * 0.0001
+            # proba -= len(clf_predictions) * 0.0001
 
             # if self.memory:
             #     subseq, idxs = self._longest_increasing_subsequence(list(stage_sequence))
