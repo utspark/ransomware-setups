@@ -29,6 +29,7 @@ from collections import defaultdict
 import random
 import os
 
+from tqdm import tqdm
 import matplotlib
 
 from ml_pipelines import global_detector
@@ -45,9 +46,10 @@ def files_and_labels_to_X_y(
     malware_map: Mapping[int, list],
     window_size_time: float,
     window_stride_time: float,
+    train_test_split: float,
     *,
     strict: bool = True,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Build (X, y) from a collection of files.
 
@@ -107,12 +109,13 @@ def files_and_labels_to_X_y(
                 continue
 
         y_i = np.full(X_i.shape[0], label, dtype=np.int32)
+
         X_list.append(X_i)
         y_list.append(y_i)
 
     if not X_list:
         # No data; return empty shapes
-        return np.empty((0, 0), dtype=float), np.empty((0,), dtype=np.int32)
+        return np.empty((0, 0), dtype=float), np.empty((0,), dtype=np.int32), np.empty((0, 0), dtype=float), np.empty((0,), dtype=np.int32)
 
     X = np.concatenate(X_list, axis=0)
     y = np.concatenate(y_list, axis=0)
@@ -121,7 +124,33 @@ def files_and_labels_to_X_y(
     if not np.issubdtype(y.dtype, np.integer):
         y = y.astype(np.int32, copy=False)
 
-    return X, y
+    labels = np.unique(y)
+
+    X_train_list = []
+    y_train_list = []
+    X_test_list = []
+    y_test_list = []
+
+    for label in labels:
+        tmp_X = X[y == label]
+        tmp_y = y[y == label]
+
+        n = tmp_X.shape[0]
+        idx = int(np.floor(train_test_split * n))
+        X_train, X_test = np.split(tmp_X, [idx], axis=0)
+        y_train, y_test = np.split(tmp_y, [idx], axis=0)
+
+        X_train_list.append(X_train)
+        y_train_list.append(y_train)
+        X_test_list.append(X_test)
+        y_test_list.append(y_test)
+
+    X_train = np.concatenate(X_train_list, axis=0)
+    y_train = np.concatenate(y_train_list, axis=0)
+    X_test = np.concatenate(X_test_list, axis=0)
+    y_test = np.concatenate(y_test_list, axis=0)
+
+    return X_train, y_train, X_test, y_test
 
 
 def train_model(
@@ -129,7 +158,7 @@ def train_model(
     y_train: np.ndarray,
     sample_weight: np.ndarray,
     *,
-    max_depth: int = 7,
+    max_depth: int = None,  # TODO used to set this to 7
     random_state: Optional[int] = 42,
 ) -> Tuple[DecisionTreeClassifier, LabelBinarizer]:
     """
@@ -382,7 +411,7 @@ def build_features(signal_df_dict, signal_modules, window_size_time, window_stri
     if feature_dict is None:
         feature_dict = {}
 
-    for signal, actions in signal_df_dict.items():
+    for signal, actions in tqdm(signal_df_dict.items()):
         mod = signal_modules[signal]
         # Prefer a parallel extractor if the module provides one; else fall back
         extract = getattr(mod, "file_df_feature_extraction_parallel", None)
@@ -490,7 +519,7 @@ def form_signal_dict(behaviors: dict, signal_modules: dict) -> dict:
     return signal_df_dict
 
 
-def form_feature_frames(feature_dict: dict) -> dict:
+def form_feature_frames(feature_dict: dict, train_test_split: float, train: bool) -> dict:
     feature_frames = {}
 
     for signal, actions in feature_dict.items():
@@ -502,7 +531,14 @@ def form_feature_frames(feature_dict: dict) -> dict:
             if len(pruned) == 0:
                 feature_frames[signal][action] = pd.DataFrame()
             else:
-                feature_frames[signal][action] = pd.concat(pruned, ignore_index=True, sort=False, copy=False)
+                df = pd.concat(pruned, ignore_index=True, sort=False, copy=False)
+
+                n = len(df)
+                idx = int(np.floor(train_test_split * n))
+                df_train = df.iloc[:idx]
+                df_test = df.iloc[idx:]
+
+                feature_frames[signal][action] = df_train if train else df_test
 
     return feature_frames
 
@@ -528,17 +564,19 @@ def cross_layer_concatenate(attack_X: list) -> Tuple[np.ndarray, np.ndarray, np.
 
 if __name__ == "__main__":
     cwd = Path.cwd()
-    SYSCALL = True
-    NETWORK = True
-    HPC = True
+    SYSCALL = False
+    NETWORK = False
+    HPC = False
     TRAIN = False
-    REPROCESS_DATA = False
+    REPROCESS_DATA = True
+    tts = ml_pipelines.config.TRAIN_TEST_SPLIT
 
     # window_size_time = 0.1 / 2  # / 2  # 10
     # window_stride_time = window_size_time / 3
     window_size_time = 0.5
     window_stride_time = 0.2
     rng = np.random.default_rng(seed=1337)  # optional seed
+    random.seed(1337)
 
 
     if SYSCALL:
@@ -565,10 +603,12 @@ if __name__ == "__main__":
         #     subsampled.extend(tmp_list[:subsample])
         # syscall_paths = subsampled
 
-        X, y = files_and_labels_to_X_y(
-            syscall_paths, syscall_signals, MALWARE_DICT, window_size_time, window_stride_time,
+        X, y, xt, yt = files_and_labels_to_X_y(
+            syscall_paths, syscall_signals, MALWARE_DICT, window_size_time, window_stride_time, train_test_split=tts
         )
+
         print(np.unique(y, return_counts=True))
+        print(np.unique(yt, return_counts=True))
 
         if TRAIN:
             save_path = cwd / "../data/models/syscall_clf.joblib"
@@ -600,10 +640,11 @@ if __name__ == "__main__":
         #     subsampled.extend(tmp_list[:subsample])
         # network_paths = subsampled
 
-        X, y = files_and_labels_to_X_y(
-            network_paths, network_signals, MALWARE_DICT, window_size_time, window_stride_time,
+        X, y, Xt, yt  = files_and_labels_to_X_y(
+            network_paths, network_signals, MALWARE_DICT, window_size_time, window_stride_time, train_test_split=tts
         )
         print(np.unique(y, return_counts=True))
+        print(np.unique(yt, return_counts=True))
 
         if TRAIN:
             save_path = cwd / "../data/models/network_clf.joblib"
@@ -635,10 +676,11 @@ if __name__ == "__main__":
             subsampled.extend(tmp_list[:subsample])
         hpc_paths = subsampled
 
-        X, y = files_and_labels_to_X_y(
-            hpc_paths, hpc_signals, MALWARE_DICT, window_size_time, window_stride_time,
+        X, y, Xt, yt = files_and_labels_to_X_y(
+            hpc_paths, hpc_signals, MALWARE_DICT, window_size_time, window_stride_time, train_test_split=tts
         )
         print(np.unique(y, return_counts=True))
+        print(np.unique(yt, return_counts=True))
 
         if TRAIN:
             save_path = cwd / "../data/models/hpc_clf.joblib"
@@ -686,7 +728,7 @@ if __name__ == "__main__":
         # correct_feature_vector_times_2(feature_dict)
         # correct_feature_vector_times(feature_dict)
 
-        feature_frames = form_feature_frames(feature_dict)
+        feature_frames = form_feature_frames(feature_dict, train_test_split=tts, train=False)
         joblib.dump(feature_frames, feature_frames_path)
 
     else:

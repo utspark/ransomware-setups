@@ -839,12 +839,12 @@ if __name__ == "__main__":
 
     cwd = Path.cwd()
 
-    TRACE_LENS = False
-    MODEL_CURVES = False
-    EVADE_DENSITY = False
-    SIGNAL_SAMPLES = False
-    FLOW_VARIATIONS = False
-    BENIGN_APP_SCORES = False
+    TRACE_LENS = True
+    MODEL_CURVES = True
+    EVADE_DENSITY = True
+    SIGNAL_SAMPLES = True
+    FLOW_VARIATIONS = True
+    BENIGN_APP_SCORES = True
     SCORE_OVER_TIME = True
 
     window_size_time = 0.5
