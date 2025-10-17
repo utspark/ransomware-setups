@@ -1,2 +1,7 @@
 **/*.tbl
 *.zip
+**/__pycache__/
+**/trace.dat
+**/outputs*
+**/.nfs*
+**/.ipynb*

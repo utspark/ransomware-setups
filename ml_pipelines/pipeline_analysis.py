@@ -1,7 +1,7 @@
+import joblib
 import matplotlib
 from sklearn.covariance import EllipticEnvelope
 from sklearn.ensemble import IsolationForest
-from sklearn.metrics import roc_auc_score
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.pipeline import make_pipeline
 from sklearn.svm import OneClassSVM, SVC
@@ -19,26 +19,20 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, classification_report, log_loss
 from sklearn.tree import DecisionTreeClassifier
 
-from tensorflow.keras.utils import to_categorical
-
-
 from ml_pipelines.processing import form_one_hot_encoder
 from ml_pipelines.timeseries_processing import ModelSettings, RegressionData
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from sklearn.preprocessing import label_binarize
 from sklearn.preprocessing import LabelBinarizer
 
 import tensorflow as tf
-from tensorflow.keras.datasets import imdb
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import LSTM, Reshape, Input
 from tensorflow.keras.layers import Embedding
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.preprocessing import sequence
 
 
 def roc_auc_plot(y_test: np.array, y_scores: np.array, sample_weight=None) -> None:
@@ -386,7 +380,7 @@ def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
     lb.fit(y_train)
     y_test_ohe = lb.transform(y_test)
 
-    dtree_model = DecisionTreeClassifier(max_depth=5).fit(X_train, y_train, sample_weight=sample_weights)
+    dtree_model = DecisionTreeClassifier(max_depth=7).fit(X_train, y_train, sample_weight=sample_weights)
     y_pred_ohe = dtree_model.predict_proba(X_test)
 
     classes = np.unique(y_test)
@@ -417,6 +411,9 @@ def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
         plt.title('Confusion Matrix')
         plt.tight_layout()
         plt.show(block=True)
+
+    joblib.dump(dtree_model, model_settings.model_path, compress=("zlib", 3))
+    joblib.dump(model_settings, model_settings.settings_path, compress=("zlib", 3))
 
     return
 

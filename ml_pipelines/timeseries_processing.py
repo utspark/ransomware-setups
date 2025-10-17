@@ -1,9 +1,10 @@
-from pathlib import Path
+import io
+import re
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Iterable
 
 import numpy as np
-import io
-
 
 
 @dataclass
@@ -23,6 +24,7 @@ class ModelSettings:
     """
     A simple data container for model preprocessing settings.
     """
+    settings_path: Path = None
     problem_formulation: str = "regression"
     preproc_approach: str = None
     window_length: int = 20
@@ -35,7 +37,68 @@ class ModelSettings:
     plot: bool = False
 
 
-def get_file_arrays(file_path: Path, file_list=None) -> list:
+def first_int(s: str) -> tuple[int, int]:
+    m = re.search(r'\d+', s)
+    # (0, int) if found; (1, 0) if not — so names without numbers go last
+    return (0, int(m.group())) if m else (1, 0)
+
+
+def concat_short_traces(files: Iterable[str | Path],
+                        concat_size: int = 3,
+                        out_dir: str | Path = "concatenated",
+                        base_name: str = "fscan_group",
+                        allow_partial: bool = False) -> list[Path]:
+    """
+    Concatenate files in order, concat_size at a time.
+    - files: iterable of file paths in the exact order to process
+    - out_dir: where to write outputs
+    - base_name: prefix for output files (group_1.txt, group_2.txt, ...)
+    - allow_partial: if True, writes the last group even if it has < 3 files
+    Returns list of output Paths.
+    """
+    paths = [Path(p) for p in files]
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    out_paths: list[Path] = []
+    for i in range(0, len(paths), concat_size):
+        group = paths[i:i + concat_size]
+        if len(group) < concat_size and not allow_partial:
+            break
+        out_path = out_dir / f"{base_name}_{(i // concat_size) + 1}.txt"
+        with out_path.open("w", encoding="utf-8") as out:
+            arr_1 = []
+            arr_2 = []
+            for j, src in enumerate(group):
+                with src.open("r", encoding="utf-8", errors="ignore") as f:
+                    lines = f.readlines()
+                    # chunk = f.read()
+
+                arr_1.append(np.loadtxt(io.StringIO(lines[0]), dtype=int))
+                arr_2.append(np.loadtxt(io.StringIO(lines[1]), dtype=float))
+
+                # out.write(chunk)
+                # ensure separation between files (avoid gluing numbers)
+                # if not chunk.endswith(" "):
+                #     out.write(" ")
+
+            for j in range(1, len(group)):
+                arr_2[j] = arr_2[j] - arr_2[j][0] + (arr_2[j][1] - arr_2[j][0])
+
+            for j in range(1, len(group)):
+                arr_2[j] += arr_2[j-1][-1]
+
+            arr_1 = np.concatenate(arr_1)
+            arr_2 = np.concatenate(arr_2)
+
+            out.write(" ".join(map(str, arr_1)) + "\n")
+            out.write(" ".join(map(str, arr_2)))
+
+        out_paths.append(out_path)
+    return out_paths
+
+
+def get_file_arrays(file_path: Path, file_list=None, verbose=False) -> list:
     trace_list = []
 
     paths = [p for p in file_path.iterdir() if p.is_file()]
@@ -47,7 +110,9 @@ def get_file_arrays(file_path: Path, file_list=None) -> list:
         paths = filtered
 
     for file_name in paths:
-        print(file_name.name)
+        if verbose:
+            print(file_name.name)
+
         file_path = str(file_name)
 
         with open(file_path, "r", newline="") as f:

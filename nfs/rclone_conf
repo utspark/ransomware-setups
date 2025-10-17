@@ -1,0 +1,31 @@
+[anon-s3]
+type = s3
+provider = AWS
+env_auth = false
+region = us-west-2
+location_constraint = us-west-2
+acl = bucket-owner-full-control
+storage_class = STANDARD
+upload_cutoff = 5G
+thread_streams = 0
+thread_cutoff = 0
+no_check_bucket = true
+
+[s3]
+type = s3
+provider = AWS
+env_auth = false
+access_key_id = AKIAXR4Z7B2S5FW3W2DC
+secret_access_key = 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
+region = us-west-2
+location_constraint = us-west-2
+acl = bucket-owner-full-control
+storage_class = STANDARD
+
+[backup]
+type = sftp
+host = node-2.rd-1.spark-cluster-pg0.wisc.cloudlab.us
+user = alice
+port = 2022
+pass = YxUTq1gKGsIzhD51zbw6QWu0YirGdQ
+

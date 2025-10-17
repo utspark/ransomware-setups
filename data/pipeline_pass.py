@@ -1,16 +1,8 @@
 from pathlib import Path
 
 import matplotlib
-from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.model_selection import train_test_split
-from sklearn.multiclass import OneVsRestClassifier, OneVsOneClassifier
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
-from sklearn.utils import compute_class_weight
 
-
-
+from ml_pipelines import config
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -19,7 +11,7 @@ plt.ion()
 import numpy as np
 
 from ml_pipelines.timeseries_processing import RegressionData, ModelSettings, get_windows_and_futures, \
-    preproc_transform, get_system_call_map
+    preproc_transform, get_system_call_map, first_int
 from ml_pipelines.pipeline_analysis import regression_error, binary_supervised_error, unsupervised_error, \
     multiclass_error
 
@@ -138,6 +130,9 @@ def multiclass_analysis(model_settings, benign_path, benign_dict: dict, malware_
     return
 
 
+
+
+
 if __name__ == "__main__":
     cwd = Path.cwd()
 
@@ -160,23 +155,28 @@ if __name__ == "__main__":
     # "full_trace", "syscall_frequency", "windowed_features", "windowed"
     # "isolation_forest", "minimum_covariance_determinant", "local_outlier_factor", "svc"
 
-
     # TODO hardcode options here
     problem_formulation = "multiclass_supervised"
     preproc_approach = "windowed_features"
     window_len = 40  # 10
     future_len = 1  # 3
-    max_trace_length = 500000
+    max_trace_length = 500_000
     system_calls = None
     # model_path = cwd / "basic_lstm.h5"
-    model_type = "svc"
+    model_type = "decision_tree"
     # model_filename = problem_formulation + "_" + preproc_approach + "_" + "lstm.h5"
-    model_filename = problem_formulation + "_" + preproc_approach + "_" + "svc.json"
+    model_filename = ("saved_models/" +
+                      problem_formulation + "_" + preproc_approach + "_" + model_type + ".joblib")
+    settings_filename = ("saved_models/" +
+                         problem_formulation + "_" + preproc_approach + "_" + model_type + "_settings.joblib")
     model_path = cwd / model_filename
+    settings_path = cwd / settings_filename
+
     new_model = True
     plot = True
 
     model_settings = ModelSettings(
+        settings_path=settings_path,
         problem_formulation=problem_formulation,
         preproc_approach=preproc_approach,
         window_length=window_len,
@@ -200,34 +200,20 @@ if __name__ == "__main__":
     }
     benign_list = list(benign_dict.keys())
 
-    malware_path = cwd / "ftrace_results/out_exec_parsed"
-    malware_dict = {
-        # "asymm_0_ints.txt": 0,
-        # "asymm_1_ints.txt": 0,
-        # "asymm_2_ints.txt": 0,
-        # "asymm_3_ints.txt": 0,
-        # "asymm_4_ints.txt": 0,
+    malware_path = cwd / "pipeline_ints"
 
-        "symm_AES_128t_0_ints.txt": 0,
-        "symm_AES_128t_1_ints.txt": 0,
-        "symm_AES_128t_2_ints.txt": 0,
-        "symm_AES_128t_3_ints.txt": 0,
-        "symm_AES_128t_4_ints.txt": 0,
+    parent_dir = malware_path
+    paths = [p for p in parent_dir.iterdir() if p.is_file()]
+    paths = [path.name for path in paths if "fscan" in str(path)]
 
-        # "symm_AES_256t_0_ints.txt": 0,
-        # "symm_AES_256t_1_ints.txt": 0,
-        # "symm_AES_256t_2_ints.txt": 0,
-        # "symm_AES_256t_3_ints.txt": 0,
-        # "symm_AES_256t_4_ints.txt": 0,
+    paths.sort(key=first_int)
+    paths = [str(malware_path) + "/" + p for p in paths]
 
-        "symm_Salsa20_256t_0_ints.txt": 1,
-        "symm_Salsa20_256t_1_ints.txt": 1,
-        "symm_Salsa20_256t_2_ints.txt": 1,
-        "symm_Salsa20_256t_3_ints.txt": 1,
-        "symm_Salsa20_256t_4_ints.txt": 1,
+    # out_paths = concat_short_traces(paths, concat_size=3, allow_partial=True)
 
+    malware_path = cwd / "pipeline_ints"
+    malware_dict = config.SYSCALL_MALWARE_DICT
 
-    }
     malware_list = list(malware_dict.keys())
 
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
