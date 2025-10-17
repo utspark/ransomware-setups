@@ -10,7 +10,7 @@ from typing import List, Tuple
 
 
 var_uniform_subseq_len = 3  # 2  # 3
-var_density_scaler = 0.08  # 0.1
+var_density_scaler = 0.08 # 0.1
 var_propagation_scaler = 0.12
 
 

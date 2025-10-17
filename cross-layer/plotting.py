@@ -212,7 +212,7 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
         techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
         stage_lens = [(technique, time_choices[0]) for technique in techniques]
 
-        for _ in range(10):
+        for _ in range(4):
             b_techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict) + 1)]
             b_stage_lens = [(technique, random.choice(time_choices)) for technique in b_techniques]
             stage_lens.extend(b_stage_lens)
@@ -225,7 +225,7 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
         techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
         stage_lens = [(technique, time_choices[0]) for technique in techniques]
 
-        for _ in range(10):
+        for _ in range(4):
             b_techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict) + 1)]
             b_stage_lens = [(technique, random.choice(time_choices)) for technique in b_techniques]
             stage_lens.extend(b_stage_lens)
@@ -233,7 +233,7 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
         attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
         m_cross_layer_X.append(cld.cross_layer_concatenate(attack_X))
 
-    for i in tqdm(range(len(combos)+1)):
+    for i in tqdm(range(len(la_components))):
         gd = global_detector.LifecycleDetector(
             **model_paths,
             stage_filter=False,
@@ -429,9 +429,9 @@ def signal_sample_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
 
     for i in range(len(combos)):
         fpr, tpr, roc_auc = model_curves[i + len(combos)]
-        plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle=':', label=f'LA {model_labels[i]}: {roc_auc:.3f}')
+        plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle='--', label=f'LA   {model_labels[i]}: {roc_auc:.3f}')
 
-    plt.plot([0, 1], [0, 1], lw=3, alpha=0.5,  color="black", linestyle='--', label='Random Guess')
+    plt.plot([0, 1], [0, 1], lw=3, alpha=0.5,  color="black", linestyle=':', label='Random Guess')
     plt.xlim([-0.01, 1.01])
     plt.ylim([-0.01, 1.01])
     plt.xlabel('False Positive Rate')
@@ -544,7 +544,7 @@ def flow_variations(attack_stages_dict: dict, feature_frames_dict: dict, time_ch
 
         plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{flow_labels[i]}: {roc_auc:.3f}')
 
-    plt.plot([0, 1], [0, 1], lw=2, alpha=0.5, color="black", linestyle='--', label='Random guess')
+    plt.plot([0, 1], [0, 1], lw=3, alpha=0.5, color="black", linestyle='--', label='Random guess')
     plt.xlim([-0.01, 1.0])
     plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate')
@@ -667,9 +667,9 @@ def benign_app_scores(attack_stages_dict: dict, feature_frames_dict: dict, time_
         # ax.bar(x + w / 2, bars[:, 1], width=w, label="gd_2", alpha=0.7)
 
     ax.set_xticks(x)
-    ax.set_xticklabels([f"{benign_stages[i]}" for i in x], rotation=60, fontsize=14)  # optional group labels
+    ax.set_xticklabels([f"{benign_stages[i]}" for i in x], rotation=80, fontsize=14)  # optional group labels
     ax.set_xlim(-0.5, x[-1] + 0.5)
-    ax.set_ylim(0.95, 1.01)
+    ax.set_ylim(0.85, 1.005)
     ax.set_ylabel("ROC-AUC")
     # ax.set_xlabel("Benign Application")
     ax.legend(loc="lower right", prop={'size': 14})
@@ -839,13 +839,13 @@ if __name__ == "__main__":
 
     cwd = Path.cwd()
 
-    TRACE_LENS = True
-    MODEL_CURVES = True
-    EVADE_DENSITY = True
-    SIGNAL_SAMPLES = True
-    FLOW_VARIATIONS = True
-    BENIGN_APP_SCORES = True
-    SCORE_OVER_TIME = True
+    TRACE_LENS = False
+    MODEL_CURVES = False
+    EVADE_DENSITY = False
+    SIGNAL_SAMPLES = False
+    FLOW_VARIATIONS = False
+    BENIGN_APP_SCORES = False
+    SCORE_OVER_TIME = False
 
     window_size_time = 0.5
     window_stride_time = 0.2
@@ -894,7 +894,190 @@ if __name__ == "__main__":
 
 
 
+    gd = global_detector.LifecycleDetector(
+        cwd / "../data/models/syscall_clf.joblib",
+        cwd / "../data/models/network_clf.joblib",
+        cwd / "../data/models/hpc_clf.joblib",
+        lifecycle_awareness=True,
+        stage_filter=False,
+        density=True,
+        propagation=True,
+        memory=False,
+    )
 
+    n_samples = 150
+    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+
+    benign_scores = []
+    b_stage_len_list = []
+    m_stage_len_list = []
+    for _ in tqdm(range(n_samples)):
+        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+        b_stage_len_list.append(stage_lens)
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time,
+                                           rng)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        progressive_scores = []
+        for i in range(1, len(cross_layer_X[0])):
+            tmp_X = (cross_layer_X[0][:i], cross_layer_X[1][:i], cross_layer_X[2][:i],)
+            proba = gd.score_cross_layer(tmp_X)
+            progressive_scores.append(proba)
+
+        benign_scores.append(progressive_scores)
+
+    malware_scores = []
+    m_stage_len_list = []
+    for _ in tqdm(range(n_samples)):
+        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+        m_stage_len_list.append(stage_lens)
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time,
+                                           rng)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        progressive_scores = []
+        for i in range(1, len(cross_layer_X[0])):
+            tmp_X = (cross_layer_X[0][:i], cross_layer_X[1][:i], cross_layer_X[2][:i],)
+            proba = gd.score_cross_layer(tmp_X)
+            progressive_scores.append(proba)
+
+        malware_scores.append(progressive_scores)
+
+    thresh = 0.7
+
+    trip_idx = []
+    for score in benign_scores:
+        cond = np.array(score) >= thresh
+        idx = int(np.argmax(cond)) if cond.any() else -1
+        trip_idx.append(idx)
+
+    m_trip_idx = []
+    for score in malware_scores:
+        cond = np.array(score) >= thresh
+        idx = int(np.argmax(cond)) if cond.any() else -1
+        m_trip_idx.append(idx)
+
+    mean_trip_time = window_size_time + (np.mean(m_trip_idx) - 1) * window_stride_time
+
+    early_trips = 0
+    for i, trip_idx in enumerate(m_trip_idx):
+        stage_lens = m_stage_len_list[i]
+        stage_times = [val[1] for val in stage_lens]
+        exec_time = np.sum(stage_times[:3])
+
+        trip_time = window_size_time + (trip_idx - 1) * window_stride_time
+
+        if trip_time < exec_time:
+            early_trips += 1
+
+
+    raise Exception
+    b_scores = [np.max(scores) for scores in benign_scores]
+    m_scores = [np.max(scores) for scores in malware_scores]
+
+    y_scores = np.concatenate([m_scores, b_scores])
+    y_true = np.zeros(len(y_scores))
+    y_true[:len(malware_scores)] = 1
+
+    t = [0.4, 0.5, 0.6, 0.7, 0.8]
+    threshold_results = {
+        "accuracy": [],
+        "tpr": [],
+        "fpr": [],
+        "f1": [],
+    }
+
+    from sklearn.metrics import confusion_matrix
+    from sklearn.metrics import f1_score
+
+    for thresh in t:
+        y_binary = (y_scores >= thresh).astype(int)
+        accuracy = accuracy_score(y_true, y_binary)
+        f1_val = f1_score(y_true, y_binary)
+
+        TN, FP, FN, TP = confusion_matrix(y_true, y_binary, labels=[0, 1]).ravel()
+
+        TPR = TP / (TP + FN)
+        # Specificity or true negative rate
+        TNR = TN / (TN + FP)
+        # Precision or positive predictive value
+        PPV = TP / (TP + FP)
+        # Negative predictive value
+        NPV = TN / (TN + FN)
+        # Fall out or false positive rate
+        FPR = FP / (FP + TN)
+        # False negative rate
+        FNR = FN / (TP + FN)
+        # False discovery rate
+        FDR = FP / (TP + FP)
+
+        threshold_results["accuracy"].append(accuracy)
+        threshold_results["tpr"].append(TPR)
+        threshold_results["fpr"].append(FPR)
+        threshold_results["f1"].append(f1_val)
+        print("Accuracy: ", accuracy)
+
+    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+    roc_auc = auc(fpr, tpr)
+    print(roc_auc)
+
+
+
+    max_x = 0
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for i in range(len(benign_scores)):
+        x_count = len(benign_scores[i])
+        x_vals = window_size_time + window_stride_time * np.arange(x_count)
+
+        if x_vals[-1] > max_x:
+            max_x = x_vals[-1]
+
+
+        plt.plot(x_vals, benign_scores[i], linewidth=2, color="blue", alpha=0.2)
+
+    for i in range(len(malware_scores)):
+        x_count = len(malware_scores[i])
+        x_vals = window_size_time + window_stride_time * np.arange(x_count)
+
+        if x_vals[-1] > max_x:
+            max_x = x_vals[-1]
+
+
+        plt.plot(x_vals, malware_scores[i], linewidth=2, color="red", alpha=0.2)
+
+    x_vals = np.arange(int(max_x))
+    for i in range(len(t)):
+        y_vals = np.zeros(int(max_x))
+        y_vals += t[i]
+        plt.plot(x_vals, y_vals,  linewidth=4, color="black", linestyle='--', alpha=0.3)
+
+    props = dict(boxstyle='round', facecolor='white', alpha=0.7)
+    ax.text(0.97, 0.03,
+            f"Threshold 0.4 | ACC:{threshold_results['accuracy'][0]:5.2f}  TPR:{threshold_results['tpr'][0]:5.2f}  FPR:{threshold_results['fpr'][0]:5.2f}  F1:{threshold_results['f1'][0]:5.2f}\n"
+            f"Threshold 0.5 | ACC:{threshold_results['accuracy'][1]:5.2f}  TPR:{threshold_results['tpr'][1]:5.2f}  FPR:{threshold_results['fpr'][1]:5.2f}  F1:{threshold_results['f1'][1]:5.2f}\n"
+            f"Threshold 0.6 | ACC:{threshold_results['accuracy'][2]:5.2f}  TPR:{threshold_results['tpr'][2]:5.2f}  FPR:{threshold_results['fpr'][2]:5.2f}  F1:{threshold_results['f1'][2]:5.2f}\n"
+            f"Threshold 0.7 | ACC:{threshold_results['accuracy'][3]:5.2f}  TPR:{threshold_results['tpr'][3]:5.2f}  FPR:{threshold_results['fpr'][3]:5.2f}  F1:{threshold_results['f1'][3]:5.2f}\n"
+            f"Threshold 0.8 | ACC:{threshold_results['accuracy'][4]:5.2f}  TPR:{threshold_results['tpr'][4]:5.2f}  FPR:{threshold_results['fpr'][4]:5.2f}  F1:{threshold_results['f1'][4]:5.2f}",
+            transform=ax.transAxes,
+            va='bottom', ha='right', bbox=props, fontsize=14)
+
+    handles = [
+        Line2D([0], [0], color="blue", lw=3, alpha=0.6, label="Benign"),
+        Line2D([0], [0], color="red", lw=3, alpha=0.6, label="Ransomware"),
+        Line2D([0], [0], color="black", lw=4, linestyle="--", alpha=0.3, label="Alarm Threshold"),
+    ]
+    ax.legend(handles=handles, loc="center right", prop={'size': 14})
+
+
+    plt.xlabel("Time (s)")
+    plt.ylabel("Threat Score")
+    plt.grid(True, alpha=0.3)
+    # plt.legend(loc="center right", prop={'size': 14})
+    plt.tight_layout()
+    plt.show(block=True)
 
 
 
