@@ -17,6 +17,9 @@ from tensorflow.keras.layers import Embedding
 from tensorflow.keras.layers import LSTM, Reshape, Input
 from tensorflow.keras.models import Sequential, load_model
 
+import torch
+import torch.nn as nn
+
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 plt.ion()
@@ -531,9 +534,36 @@ def regression_error():
     print(f"ROC AUC Score: {auc:.3f}")
 
 
+# Sample data: sine wave
+def generate_data(seq_len=30, total_len=1000):
+    x = np.arange(total_len)
+    series = np.sin(0.02 * x)  # periodic signal
+    data = []
+    for i in range(total_len - seq_len):
+        seq = series[i:i + seq_len]
+        label = series[i + seq_len]  # predict next value
+        data.append((seq, label))
+    return torch.tensor([s for s, _ in data], dtype=torch.float32), \
+        torch.tensor([l for _, l in data], dtype=torch.float32)
 
 
+# Simple Transformer model for regression
+class TimeSeriesTransformer(nn.Module):
+    def __init__(self, input_dim=1, d_model=64, nhead=8, num_layers=2, dim_feedforward=128):
+        super().__init__()
+        self.input_proj = nn.Linear(input_dim, d_model)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward)
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.decoder = nn.Linear(d_model, 1)
 
+    def forward(self, x):
+        # x: [batch, seq_len]
+        x = x.unsqueeze(-1)  # [batch, seq_len, 1]
+        x = self.input_proj(x)  # [batch, seq_len, d_model]
+        x = x.permute(1, 0, 2)  # [seq_len, batch, d_model]
+        out = self.transformer(x)
+        out = out[-1]  # last time step
+        return self.decoder(out).squeeze(-1)
 
 
 
@@ -562,859 +592,60 @@ if __name__ == "__main__":
 
     # regression_error()
 
-    # raise Exception
+
+    # Data preparation
+    seq_len = 30
+    X, y = generate_data(seq_len)
+    train_X, train_y = X[:800], y[:800]
+
+    model = TimeSeriesTransformer()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    criterion = nn.MSELoss()
+
+    # Training loop
+    for epoch in range(20):
+        optimizer.zero_grad()
+        preds = model(train_X)
+        loss = criterion(preds, train_y)
+        loss.backward()
+        optimizer.step()
+        print(f"Epoch {epoch + 1:02d}, Loss: {loss.item():.6f}")
+
+    # Forecast example
+    # with torch.no_grad():
+    #     test_seq = X[900:901]
+    #     pred = model(test_seq).item()
+    #     print("Predicted next value:", pred)
+
+    with torch.no_grad():
+        test_seq = X[900:]
+        pred_seq = model(test_seq)
+        preq_seq = np.array(pred_seq)
+
+    # Create sample data
+    x = [i for i in range(len(test_seq[0]))]
+    y = test_seq[0]
+
+    # Create a simple line plot
+    plt.plot([i for i in range(1, len(pred_seq))],X[900:][:, -1][1:], color="blue")
+    plt.plot(pred_seq, color="red")
+
+    # Display the grid and plot
+    plt.grid(True)
+    plt.show()
+
+    raise Exception
 
     # TODO start here
     # https://huggingface.co/blog/time-series-transformers
     # https://docs.pytorch.org/tutorials/beginner/basics/quickstart_tutorial.html
     # https://www.geeksforgeeks.org/python/start-learning-pytorch-for-beginners/
 
-
-    # raise Exception
-
-    from datasets import load_dataset
-
-    dataset = load_dataset("monash_tsf", "tourism_monthly")
-
-    train_dataset = dataset["train"]
-    test_dataset = dataset["test"]
-
-    train_example = dataset['train'][0]
-    train_example.keys()
-
-    validation_example = dataset['validation'][0]
-    validation_example.keys()
-
-    # raise Exception
-
-    freq = "1S"
-    prediction_length = 24
-
-    assert len(train_example["target"]) + prediction_length == len(
-        validation_example["target"]
-    )
-
-    # import matplotlib.pyplot as plt
-    #
-    # figure, axes = plt.subplots()
-    # axes.plot(train_example["target"], color="blue")
-    # axes.plot(validation_example["target"], color="red", alpha=0.5)
-    #
-    # plt.show()
-
-    from functools import lru_cache
-
-    import pandas as pd
-    import numpy as np
-
-    @lru_cache(maxsize=10_000)
-    def convert_to_pandas_period(date, freq):
-        return pd.Period(date, freq)
-
-
-    def transform_start_field(batch, freq):
-        batch["start"] = [convert_to_pandas_period(date, freq) for date in batch["start"]]
-        return batch
-
-
-
-    from functools import partial
-
-    train_dataset.set_transform(partial(transform_start_field, freq=freq))
-    test_dataset.set_transform(partial(transform_start_field, freq=freq))
-
-    from gluonts.time_feature import get_lags_for_frequency
-
-    lags_sequence = get_lags_for_frequency(freq)
-    # lags_sequence = [i for i in range(prediction_length)]
-    # lags_sequence = [1]
-    print(lags_sequence)
-
-    from gluonts.time_feature import time_features_from_frequency_str
-
-    time_features = time_features_from_frequency_str(freq)
-    print(time_features)
-
-    from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerForPrediction
-
-    config = TimeSeriesTransformerConfig(
-        prediction_length=prediction_length,
-        # context length:
-        context_length=prediction_length * 2,
-        # lags coming from helper given the freq:
-        # lags_sequence=lags_sequence,
-        # we'll add 2 time features ("month of year" and "age", see further):
-        num_time_features=len(time_features) + 1,
-        # we have a single static categorical feature, namely time series ID:
-        num_static_categorical_features=1,
-        # it has 366 possible values:
-        cardinality=[len(train_dataset)],
-        # the model will learn an embedding of size 2 for each of the 366 possible values:
-        embedding_dimension=[2],
-
-        # transformer params:
-        encoder_layers=4,
-        decoder_layers=4,
-        d_model=32,
-    )
-
-    model = TimeSeriesTransformerForPrediction(config)
-
-    ### *** Define transformations
-    from gluonts.time_feature import (
-        time_features_from_frequency_str,
-        get_lags_for_frequency,
-    )
-    from gluonts.dataset.field_names import FieldName
-    from gluonts.transform import (
-        AddAgeFeature,
-        AddObservedValuesIndicator,
-        AddTimeFeatures,
-        AsNumpyArray,
-        Chain,
-        ExpectedNumInstanceSampler,
-        InstanceSplitter,
-        RemoveFields,
-        TestSplitSampler,
-        Transformation,
-        ValidationSplitSampler,
-        VstackFeatures,
-        RenameFields,
-    )
-
-    from transformers import PretrainedConfig
-
-
-    def create_transformation(freq: str, config: PretrainedConfig) -> Transformation:
-        remove_field_names = []
-        if config.num_static_real_features == 0:
-            remove_field_names.append(FieldName.FEAT_STATIC_REAL)
-        if config.num_dynamic_real_features == 0:
-            remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
-        if config.num_static_categorical_features == 0:
-            remove_field_names.append(FieldName.FEAT_STATIC_CAT)
-
-        # a bit like torchvision.transforms.Compose
-        return Chain(
-            # step 1: remove static/dynamic fields if not specified
-            [RemoveFields(field_names=remove_field_names)]
-            # step 2: convert the data to NumPy (potentially not needed)
-            + (
-                [
-                    AsNumpyArray(
-                        field=FieldName.FEAT_STATIC_CAT,
-                        expected_ndim=1,
-                        dtype=int,
-                    )
-                ]
-                if config.num_static_categorical_features > 0
-                else []
-            )
-            + (
-                [
-                    AsNumpyArray(
-                        field=FieldName.FEAT_STATIC_REAL,
-                        expected_ndim=1,
-                    )
-                ]
-                if config.num_static_real_features > 0
-                else []
-            )
-            + [
-                AsNumpyArray(
-                    field=FieldName.TARGET,
-                    # we expect an extra dim for the multivariate case:
-                    expected_ndim=1 if config.input_size == 1 else 2,
-                ),
-                # step 3: handle the NaN's by filling in the target with zero
-                # and return the mask (which is in the observed values)
-                # true for observed values, false for nan's
-                # the decoder uses this mask (no loss is incurred for unobserved values)
-                # see loss_weights inside the xxxForPrediction model
-                AddObservedValuesIndicator(
-                    target_field=FieldName.TARGET,
-                    output_field=FieldName.OBSERVED_VALUES,
-                ),
-                # step 4: add temporal features based on freq of the dataset
-                # month of year in the case when freq="M"
-                # these serve as positional encodings
-                AddTimeFeatures(
-                    start_field=FieldName.START,
-                    target_field=FieldName.TARGET,
-                    output_field=FieldName.FEAT_TIME,
-                    time_features=time_features_from_frequency_str(freq),
-                    pred_length=config.prediction_length,
-                ),
-                # step 5: add another temporal feature (just a single number)
-                # tells the model where in its life the value of the time series is,
-                # sort of a running counter
-                AddAgeFeature(
-                    target_field=FieldName.TARGET,
-                    output_field=FieldName.FEAT_AGE,
-                    pred_length=config.prediction_length,
-                    log_scale=True,
-                ),
-                # step 6: vertically stack all the temporal features into the key FEAT_TIME
-                VstackFeatures(
-                    output_field=FieldName.FEAT_TIME,
-                    input_fields=[FieldName.FEAT_TIME, FieldName.FEAT_AGE]
-                                 + (
-                                     [FieldName.FEAT_DYNAMIC_REAL]
-                                     if config.num_dynamic_real_features > 0
-                                     else []
-                                 ),
-                ),
-                # step 7: rename to match HuggingFace names
-                RenameFields(
-                    mapping={
-                        FieldName.FEAT_STATIC_CAT: "static_categorical_features",
-                        FieldName.FEAT_STATIC_REAL: "static_real_features",
-                        FieldName.FEAT_TIME: "time_features",
-                        FieldName.TARGET: "values",
-                        FieldName.OBSERVED_VALUES: "observed_mask",
-                    }
-                ),
-            ]
-        )
-
-
-    ### *** Define Instance Splitter
-    from gluonts.transform.sampler import InstanceSampler
-    from typing import Optional
-
-
-    def create_instance_splitter(
-            config: PretrainedConfig,
-            mode: str,
-            train_sampler: Optional[InstanceSampler] = None,
-            validation_sampler: Optional[InstanceSampler] = None,
-    ) -> Transformation:
-        assert mode in ["train", "validation", "test"]
-
-        instance_sampler = {
-            "train": train_sampler
-                     or ExpectedNumInstanceSampler(
-                num_instances=1.0, min_future=config.prediction_length
-            ),
-            "validation": validation_sampler
-                          or ValidationSplitSampler(min_future=config.prediction_length),
-            "test": TestSplitSampler(),
-        }[mode]
-
-        return InstanceSplitter(
-            target_field="values",
-            is_pad_field=FieldName.IS_PAD,
-            start_field=FieldName.START,
-            forecast_start_field=FieldName.FORECAST_START,
-            instance_sampler=instance_sampler,
-            past_length=config.context_length + max(config.lags_sequence),
-            # past_length=config.context_length,
-            future_length=config.prediction_length,
-            time_series_fields=["time_features", "observed_mask"],
-        )
-
-
-    ### *** Create Dataloaders
-    from typing import Iterable
-
-    import torch
-    from gluonts.itertools import Cached, Cyclic
-    from gluonts.dataset.loader import as_stacked_batches
-
-
-    def create_train_dataloader(
-            config: PretrainedConfig,
-            freq,
-            data,
-            batch_size: int,
-            num_batches_per_epoch: int,
-            shuffle_buffer_length: Optional[int] = None,
-            cache_data: bool = True,
-            **kwargs,
-    ) -> Iterable:
-        PREDICTION_INPUT_NAMES = [
-            "past_time_features",
-            "past_values",
-            "past_observed_mask",
-            "future_time_features",
-        ]
-        if config.num_static_categorical_features > 0:
-            PREDICTION_INPUT_NAMES.append("static_categorical_features")
-
-        if config.num_static_real_features > 0:
-            PREDICTION_INPUT_NAMES.append("static_real_features")
-
-        TRAINING_INPUT_NAMES = PREDICTION_INPUT_NAMES + [
-            "future_values",
-            "future_observed_mask",
-        ]
-
-        transformation = create_transformation(freq, config)
-        transformed_data = transformation.apply(data, is_train=True)
-        if cache_data:
-            transformed_data = Cached(transformed_data)
-
-        # we initialize a Training instance
-        instance_splitter = create_instance_splitter(config, "train")
-
-        # the instance splitter will sample a window of
-        # context length + lags + prediction length (from the 366 possible transformed time series)
-        # randomly from within the target time series and return an iterator.
-        stream = Cyclic(transformed_data).stream()
-        training_instances = instance_splitter.apply(stream)
-
-        return as_stacked_batches(
-            training_instances,
-            batch_size=batch_size,
-            shuffle_buffer_length=shuffle_buffer_length,
-            field_names=TRAINING_INPUT_NAMES,
-            output_type=torch.tensor,
-            num_batches_per_epoch=num_batches_per_epoch,
-        )
-
-
-    def create_backtest_dataloader(
-            config: PretrainedConfig,
-            freq,
-            data,
-            batch_size: int,
-            **kwargs,
-    ):
-        PREDICTION_INPUT_NAMES = [
-            "past_time_features",
-            "past_values",
-            "past_observed_mask",
-            "future_time_features",
-        ]
-        if config.num_static_categorical_features > 0:
-            PREDICTION_INPUT_NAMES.append("static_categorical_features")
-
-        if config.num_static_real_features > 0:
-            PREDICTION_INPUT_NAMES.append("static_real_features")
-
-        transformation = create_transformation(freq, config)
-        transformed_data = transformation.apply(data)
-
-        # we create a Validation Instance splitter which will sample the very last
-        # context window seen during training only for the encoder.
-        instance_sampler = create_instance_splitter(config, "validation")
-
-        # we apply the transformations in train mode
-        testing_instances = instance_sampler.apply(transformed_data, is_train=True)
-
-        return as_stacked_batches(
-            testing_instances,
-            batch_size=batch_size,
-            output_type=torch.tensor,
-            field_names=PREDICTION_INPUT_NAMES,
-        )
-
-
-    def create_test_dataloader(
-            config: PretrainedConfig,
-            freq,
-            data,
-            batch_size: int,
-            **kwargs,
-    ):
-        PREDICTION_INPUT_NAMES = [
-            "past_time_features",
-            "past_values",
-            "past_observed_mask",
-            "future_time_features",
-        ]
-        if config.num_static_categorical_features > 0:
-            PREDICTION_INPUT_NAMES.append("static_categorical_features")
-
-        if config.num_static_real_features > 0:
-            PREDICTION_INPUT_NAMES.append("static_real_features")
-
-        transformation = create_transformation(freq, config)
-        transformed_data = transformation.apply(data, is_train=False)
-
-        # We create a test Instance splitter to sample the very last
-        # context window from the dataset provided.
-        instance_sampler = create_instance_splitter(config, "test")
-
-        # We apply the transformations in test mode
-        testing_instances = instance_sampler.apply(transformed_data, is_train=False)
-
-        return as_stacked_batches(
-            testing_instances,
-            batch_size=batch_size,
-            output_type=torch.tensor,
-            field_names=PREDICTION_INPUT_NAMES,
-        )
-
-
-    train_dataloader = create_train_dataloader(
-        config=config,
-        freq=freq,
-        data=train_dataset,
-        batch_size=256,
-        num_batches_per_epoch=100,
-    )
-
-    test_dataloader = create_backtest_dataloader(
-        config=config,
-        freq=freq,
-        data=test_dataset,
-        batch_size=64,
-    )
-
-    batch = next(iter(train_dataloader))
-    for k, v in batch.items():
-        print(k, v.shape, v.type())
-
-    raise Exception
-
-    ### *** Single forward pass
-    outputs = model(
-        past_values=batch["past_values"],
-        past_time_features=batch["past_time_features"],
-        past_observed_mask=batch["past_observed_mask"],
-        static_categorical_features=batch["static_categorical_features"]
-        if config.num_static_categorical_features > 0
-        else None,
-        static_real_features=batch["static_real_features"]
-        if config.num_static_real_features > 0
-        else None,
-        future_values=batch["future_values"],
-        future_time_features=batch["future_time_features"],
-        future_observed_mask=batch["future_observed_mask"],
-        output_hidden_states=True,
-    )
-
-    print("Loss:", outputs.loss.item())
-
-    ### *** Train Model
-    from accelerate import Accelerator
-    from torch.optim import AdamW
-
-    accelerator = Accelerator()
-    device = accelerator.device
-
-    model.to(device)
-    optimizer = AdamW(model.parameters(), lr=6e-4, betas=(0.9, 0.95), weight_decay=1e-1)
-
-    model, optimizer, train_dataloader = accelerator.prepare(
-        model,
-        optimizer,
-        train_dataloader,
-    )
-
-    model.train()
-    for epoch in range(3):
-        for idx, batch in enumerate(train_dataloader):
-            optimizer.zero_grad()
-            outputs = model(
-                static_categorical_features=batch["static_categorical_features"].to(device)
-                if config.num_static_categorical_features > 0
-                else None,
-                static_real_features=batch["static_real_features"].to(device)
-                if config.num_static_real_features > 0
-                else None,
-                past_time_features=batch["past_time_features"].to(device),
-                past_values=batch["past_values"].to(device),
-                future_time_features=batch["future_time_features"].to(device),
-                future_values=batch["future_values"].to(device),
-                past_observed_mask=batch["past_observed_mask"].to(device),
-                future_observed_mask=batch["future_observed_mask"].to(device),
-            )
-            loss = outputs.loss
-
-            # Backpropagation
-            accelerator.backward(loss)
-            optimizer.step()
-
-            if idx % 100 == 0:
-                print(loss.item())
-
-    ### *** Inference
-    model.eval()
-
-    forecasts = []
-
-    for batch in test_dataloader:
-        outputs = model.generate(
-            static_categorical_features=batch["static_categorical_features"].to(device)
-            if config.num_static_categorical_features > 0
-            else None,
-            static_real_features=batch["static_real_features"].to(device)
-            if config.num_static_real_features > 0
-            else None,
-            past_time_features=batch["past_time_features"].to(device),
-            past_values=batch["past_values"].to(device),
-            future_time_features=batch["future_time_features"].to(device),
-            past_observed_mask=batch["past_observed_mask"].to(device),
-        )
-        forecasts.append(outputs.sequences.cpu().numpy())
-
-    forecasts = np.vstack(forecasts)
-    print(forecasts.shape)
-
-    ### *** Results
-    from evaluate import load
-    from gluonts.time_feature import get_seasonality
-
-    mase_metric = load("evaluate-metric/mase")
-    smape_metric = load("evaluate-metric/smape")
-
-    forecast_median = np.median(forecasts, 1)
-
-    mase_metrics = []
-    # smape_metrics = []
-    for item_id, ts in enumerate(test_dataset):
-        training_data = ts["target"][:-prediction_length]
-        ground_truth = ts["target"][-prediction_length:]
-        mase = mase_metric.compute(
-            predictions=forecast_median[item_id],
-            references=np.array(ground_truth),
-            training=np.array(training_data),
-            periodicity=get_seasonality(freq))
-        mase_metrics.append(mase["mase"])
-
-        # smape = smape_metric.compute(
-        #     predictions=forecast_median[item_id],
-        #     references=np.array(ground_truth),
-        # )
-        # smape_metrics.append(smape["smape"])
-
-    print(f"MASE: {np.mean(mase_metrics)}")
-    # print(f"sMAPE: {np.mean(smape_metrics)}")
-
-    ### *** Plotting
-    import matplotlib.dates as mdates
-
-
-    def plot(ts_index):
-        fig, ax = plt.subplots()
-
-        index = pd.period_range(
-            start=test_dataset[ts_index][FieldName.START],
-            periods=len(test_dataset[ts_index][FieldName.TARGET]),
-            freq=freq,
-        ).to_timestamp()
-
-        # Major ticks every half year, minor ticks every month,
-        ax.xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 7)))
-        ax.xaxis.set_minor_locator(mdates.MonthLocator())
-
-        ax.plot(
-            index[-2 * prediction_length:],
-            test_dataset[ts_index]["target"][-2 * prediction_length:],
-            label="actual",
-        )
-
-        plt.plot(
-            index[-prediction_length:],
-            np.median(forecasts[ts_index], axis=0),
-            label="median",
-        )
-
-        plt.fill_between(
-            index[-prediction_length:],
-            forecasts[ts_index].mean(0) - forecasts[ts_index].std(axis=0),
-            forecasts[ts_index].mean(0) + forecasts[ts_index].std(axis=0),
-            alpha=0.3,
-            interpolate=True,
-            label="+/- 1-std",
-        )
-        plt.legend()
-        plt.show()
-
-
-    plot(334)
-
-    raise Exception
-
-    # {"zero-padded_trace", "syscall_frequency", "windowed_features","windowed"}
-
-    # {"svc", "xgb", "lstm"}
-    # supervised_detector(preproc_mode="windowed", model="lstm")
-
-    # {
-    #     "isolation_forest",
-    #     "minimum_covariance_determinant",
-    #     "local_outlier_factor",
-    #     "svc"
-    #     "lstm"
-    # }
-    # unsupervised_detector(preproc_mode="windowed_features", model="isolation_forest")
-
-    # regression_error()
-
-    benign_wdws, benign_futures, malware_wdws, malware_futures = regression_preproc_transform()
-
-    unique_vals = np.unique(benign_wdws.reshape(-1))
-    new_labels = np.arange(len(unique_vals))
-    max_val = unique_vals.max()
-    lookup = np.full(max_val + 1, -1, dtype=int)
-    lookup[unique_vals] = new_labels
-
-    mapped_benign_wdws = lookup[benign_wdws]
-    mapped_benign_futures = lookup[benign_futures]
-    mapped_malware_wdws = lookup[malware_wdws]
-    mapped_malware_futures = lookup[malware_futures]
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        mapped_benign_wdws, mapped_benign_futures, test_size=0.3, random_state=42
-    )
-
-    X_test = np.concatenate((X_test, mapped_malware_wdws))
-    y_test = np.concatenate((y_test, mapped_malware_futures))
-
-    # enc = mpp.form_one_hot_encoder(X_train)
-    #
-    # a, b = X_train.shape
-    # X_train = enc.transform(X_train.reshape(-1, 1)).toarray()
-    # X_train = X_train.reshape(a, b, -1)
-    #
-    # a, b = X_test.shape
-    # X_test = enc.transform(X_test.reshape(-1, 1)).toarray()
-    # X_test = X_test.reshape(a, b, -1)
-    #
-    # a, b = y_train.shape
-    # y_train = enc.transform(y_train.reshape(-1, 1)).toarray()
-    # y_train = y_train.reshape(a, b, -1)
-    #
-    # a, b = y_test.shape
-    # y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
-    # y_test = y_test.reshape(a, b, -1)
-
-    # raise Exception
-
-    import torch
-
-    import torch
-
-    import numpy as np
-    import torch
-    from transformers import (
-        TimeSeriesTransformerConfig,
-        TimeSeriesTransformerForPrediction,
-        Trainer,
-        TrainingArguments,
-    )
-    from torch.utils.data import Dataset
-
-
-    # 1) Define a small Dataset that returns dicts of past/future pairs
-    class TimeSeriesDataset(Dataset):
-        def __init__(self, series: np.ndarray, context_length: int):
-            """
-            series: 1D array of floats, length N = context_length + n_forecast
-            We’ll slice windows of size context_length+1 and treat the last as label.
-            """
-            self.series = series
-            self.context_length = context_length
-            self.windows = [
-                series[i: i + context_length + 1]
-                for i in range(len(series) - context_length)
-            ]
-
-        def __len__(self):
-            return len(self.windows)
-
-        def __getitem__(self, idx):
-            w = self.windows[idx]
-            return {
-                "past_values": torch.tensor(w[: self.context_length], dtype=torch.float32),
-                "future_values": torch.tensor(w[self.context_length:], dtype=torch.float32),
-                # no time features or static features in this simple example
-            }
-
-
-    # 2) Hyperparameters and config
-    context_length = 20
-    prediction_length = 1
-    input_size = 1  # univariate
-    d_model = 64
-    encoder_layers = 2
-    encoder_heads = 2
-    encoder_ffn_dim = 32
-    dropout = 0.1
-
-    config = TimeSeriesTransformerConfig(
-        context_length=context_length,
-        prediction_length=prediction_length,
-        input_size=input_size,
-        lags_sequence=[1],  # only look back 1 step (fits small data)
-        num_time_features=0,  # no extra time‐of‐day features
-        num_static_categorical_features=0,
-        num_static_real_features=0,
-        d_model=d_model,
-        encoder_layers=encoder_layers,
-        encoder_attention_heads=encoder_heads,
-        encoder_ffn_dim=encoder_ffn_dim,
-        dropout=dropout,
-        use_cache=False,
-    )
-
-    # 3) Instantiate the for-prediction model
-    model = TimeSeriesTransformerForPrediction(config)  # :contentReference[oaicite:0]{index=0}
-
-    # 4) Prepare your synthetic data
-    #    Here we’ll forecast the next point of a sine wave
-    N = 2000
-    data = np.sin(np.linspace(0, 100, N + context_length + prediction_length))
-    dataset = TimeSeriesDataset(data, context_length)
-    # split train/val
-    train_size = int(0.8 * len(dataset))
-    train_ds, val_ds = torch.utils.data.random_split(dataset, [train_size, len(dataset) - train_size])
-
-    # 5) Set up Hugging Face Trainer
-    training_args = TrainingArguments(
-        output_dir="ts_transformer_out",
-        per_device_train_batch_size=32,
-        per_device_eval_batch_size=64,
-        num_train_epochs=10,
-        # evaluation_strategy="epoch",
-    )
-
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_ds,
-        eval_dataset=val_ds,
-    )
-
-    # 6) Train!
-    trainer.train()
-
-    """
-    import numpy as np
-    import tensorflow as tf
-    from tensorflow.keras import layers, Model, Input
-
-
-    # ——— Positional Encoding Layer ———
-    class PositionalEncoding(layers.Layer):
-        def __init__(self, sequence_length, d_model):
-            super().__init__()
-            pos = np.arange(sequence_length)[:, np.newaxis]
-            i = np.arange(d_model)[np.newaxis, :]
-            angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
-            angle_rads = pos * angle_rates
-            # apply sin to even indices; cos to odd
-            pe = np.zeros((sequence_length, d_model))
-            pe[:, 0::2] = np.sin(angle_rads[:, 0::2])
-            pe[:, 1::2] = np.cos(angle_rads[:, 1::2])
-            self.pos_encoding = tf.cast(pe[np.newaxis, ...], tf.float32)
-
-        def call(self, x):
-            return x + self.pos_encoding[:, : tf.shape(x)[1], :]
-
-
-    # ——— Transformer Encoder Block ———
-    def transformer_encoder(inputs, head_size, num_heads, ff_dim, dropout=0.1):
-        # Multi-Head Self-Attention
-        x = layers.MultiHeadAttention(num_heads=num_heads, key_dim=head_size)(inputs, inputs)
-        x = layers.Dropout(dropout)(x)
-        x = layers.Add()([x, inputs])
-        x = layers.LayerNormalization(epsilon=1e-6)(x)
-        # Feed-Forward
-        y = layers.Dense(ff_dim, activation="relu")(x)
-        y = layers.Dense(inputs.shape[-1])(y)
-        y = layers.Dropout(dropout)(y)
-        out = layers.Add()([y, x])
-        return layers.LayerNormalization(epsilon=1e-6)(out)
-
-
-    # ——— Build the Model ———
-    seq_len = 20
-    feature_dim = 1
-
-    inp = Input(shape=(seq_len, feature_dim))
-    x = PositionalEncoding(sequence_length=seq_len, d_model=32)(inp)
-    x = transformer_encoder(x, head_size=32, num_heads=4, ff_dim=64, dropout=0.1)
-    x = layers.GlobalAveragePooling1D()(x)
-    out = layers.Dense(1, activation="linear")(x)
-
-    model = Model(inputs=inp, outputs=out)
-    model.compile(optimizer="adam", loss="mse", metrics=["mae"])
-    model.summary()
-
-    X_train = X_train[..., np.newaxis]
-    X_test = X_test[..., np.newaxis]
-
-    history = model.fit(
-        X_train, y_train,
-        validation_split=0.2,
-        epochs=100,
-        batch_size=32,
-        verbose=2
-    )
-
-    y_pred = model.predict(X_test)
-    y_pred = y_pred.reshape(-1)
-    y_test = y_test.reshape(-1)
-    deltas = np.abs(y_pred - y_test)
-    # deltas = np.sum(deltas, axis=2)
-
-    fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
-    ax.plot(deltas, color="blue")
-    plt.tight_layout()
-    plt.show()
-
-    y_discrete = np.zeros((len(y_test)))
-    y_discrete[len(y_discrete) - len(malware_futures):] = 1
-    classes = np.unique(y_discrete)
-    class_weights = compute_class_weight('balanced', classes=classes, y=y_discrete)
-    sample_weights = class_weights[y_discrete.astype(int)]
-    auc = roc_auc_score(y_discrete, deltas, sample_weight=sample_weights)
-    print(f"ROC AUC Score: {auc:.3f}")
-    """
-
-    """
-    import torch
-    from transformers import TimeSeriesTransformerForPrediction
-
-    configuration = TimeSeriesTransformerConfig(prediction_length=1)
-    model = TimeSeriesTransformerForPrediction(configuration)
-
-    outputs = model(
-        past_values=batch["past_values"],
-        past_time_features=batch["past_time_features"],
-        past_observed_mask=batch["past_observed_mask"],
-        static_categorical_features=batch["static_categorical_features"],
-        static_real_features=batch["static_real_features"],
-        future_values=batch["future_values"],
-        future_time_features=batch["future_time_features"],
-    )
-    """
-
-
-
-
     # TODO
     #  - START HERE
     #  - ADFA-IDS LD dictionary approach
-    #  - one-hot-encode then temporal models
 
-
-
-
-    # max_len = benign_array.shape[1]
-    # padded_matrix = benign_array.reshape(-1, 1)
-    # padded_matrix = padded_matrix.reshape(-1, max_len)
-    # enc = mpp.form_one_hot_encoder(benign_array)
-    # X = enc.transform(padded_matrix).toarray()
-    # X = X.reshape(-1, max_len, max_syscall)
-
-
-    # """
-    # The words have been replaced by integers that indicate the ordered frequency of each word in the dataset.
-    # The sentences in each review are therefore comprised of a sequence of integers.
-    # """
-    # from collections import Counter
-    # all_vals = X.ravel()
-    # counts = Counter(all_vals)
-    # sorted_vals = [val for val, _ in counts.most_common()]
-    # mapping = {val: rank for rank, val in enumerate(sorted_vals)}
-    # X = np.vectorize(mapping.__getitem__)(X)
-
-
-
+    # TODO
+    #  - compare transformer to other regression or classification approaches
 
 
