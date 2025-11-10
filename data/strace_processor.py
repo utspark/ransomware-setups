@@ -1,10 +1,18 @@
 import io
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import List
+from zipimport import END_CENTRAL_DIR_SIZE
+
+from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor, as_completed  # or ThreadPoolExecutor
+import os
 
 import matplotlib
 import numpy as np
 import requests
+from tqdm import tqdm
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -111,9 +119,9 @@ def write_out_syscalls(syscall_dict: dict, syscall_lines: list, output_file_path
                 continue
                 # raise ValueError(f"Invalid syscall: {row}")
 
-        with open(output_file_path, 'w', encoding='utf-8') as f:
-            f.write(" ".join(map(str, syscall_ints)) + "\n")
-            f.write(" ".join(map(str, syscall_time)))
+    with open(output_file_path, 'w', encoding='utf-8') as f:
+        f.write(" ".join(map(str, syscall_ints)) + "\n")
+        f.write(" ".join(map(str, syscall_time)))
 
     return
 
@@ -136,6 +144,10 @@ def process_one_file(input_file_path: Path, syscall_dict: dict, file_line_subsam
         idx = next((i for i, s in enumerate(syscall_lines) if s.startswith("cpus=")), -1) + 1
         syscall_lines = syscall_lines[idx:]
         write_out_syscalls(syscall_dict, syscall_lines, output_file_path)
+
+        # TODO START HERE
+        #  --------------
+        #  --------------
 
     except Exception as e:
         # Bubble up with file context to see which file failed
@@ -168,10 +180,10 @@ def process_files_in_parallel(files, syscall_dict: dict, n_workers: int | None =
 
 
 if __name__ == "__main__":
-    TRANSLATE_SYSCALL_FILES = False
+    TRANSLATE_SYSCALL_FILES = True
     SPECIFY_FILES = False
-    DATA_DIR = Path.cwd() / "ftrace_results"
-    FILE_LINE_SUBSAMPLE = 100_000
+    DATA_DIR = Path.cwd() / "current_data/ransomware_data/ftrace_results/out_recon"
+    # FILE_LINE_CUTOFF = 50_000
 
     if TRANSLATE_SYSCALL_FILES:
 
@@ -191,11 +203,16 @@ if __name__ == "__main__":
         else:
             file_list = find_non_txt_files(DATA_DIR)
 
-        # process_one_file(file_list[0], syscall_dict)
-        process_files_in_parallel(file_list, syscall_dict, n_workers=10, file_line_subsample=FILE_LINE_SUBSAMPLE)
 
 
+        # process_files_in_parallel(file_list, syscall_dict, n_workers=4)
+        paths = [Path(p) for p in file_list]
+        for p in tqdm(paths):
+            process_one_file(p, syscall_dict)
 
+    
+
+    """
     cwd = Path.cwd()
     file_list = [
         # "ftrace_results_subsampled_ints/out_exec_parsed/asymm_0_ints.txt",
@@ -253,7 +270,8 @@ if __name__ == "__main__":
     raise Exception
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 4), sharey=True)
-    ax.plot(trace_list[1], color="blue", marker='o', linestyle="None")
+    ax.plot(trace_list[0], color="blue", marker='o', linestyle="None")
+    ax.plot(trace_list[1], color="red", marker='o', linestyle="None")
     ax.plot(trace_list[3], color="green", marker='o', linestyle="None")
     plt.tight_layout()
     plt.show()
@@ -371,7 +389,7 @@ if __name__ == "__main__":
 
     for name in english_names:
         print(name)
-
+"""
 
 
 
