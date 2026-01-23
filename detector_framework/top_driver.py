@@ -25,7 +25,7 @@ from pathlib import Path
 
 import os
 
-import ml_pipelines.processing as mpp
+import detector_framework.processing as mpp
 
 os.environ["QT_QPA_PLATFORM"] = "wayland"
 

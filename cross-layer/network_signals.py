@@ -5,7 +5,7 @@ import pandas as pd
 
 import feature_extraction
 
-import ml_pipelines
+import detector_framework
 
 from concurrent.futures import ProcessPoolExecutor
 from itertools import islice
@@ -54,7 +54,7 @@ def get_file_df(filepath: Path) -> pd.DataFrame:
         data_row = pd.DataFrame([old_cols], columns=header_cols)
         df = pd.concat([data_row, df2], ignore_index=True)
 
-    # df = df[::ml_pipelines.config.SUBSAMPLE_NETWORK_DATA]
+    # df = df[::detector_framework.config.SUBSAMPLE_NETWORK_DATA]
 
     df.reset_index(drop=True, inplace=True)
     df["tcp.srcport"] = df["tcp.srcport"].fillna(0)

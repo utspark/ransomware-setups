@@ -7,7 +7,7 @@ from sklearn.tree import DecisionTreeClassifier
 import network_signals
 import syscall_signals
 import hpc_signals
-import ml_pipelines.config
+import detector_framework.config
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -32,7 +32,7 @@ import os
 from tqdm import tqdm
 import matplotlib
 
-from ml_pipelines import global_detector
+from detector_framework import global_detector
 
 
 matplotlib.use("Qt5Agg")
@@ -569,7 +569,7 @@ if __name__ == "__main__":
     HPC = True
     TRAIN = True
     REPROCESS_DATA = True
-    tts = ml_pipelines.config.TRAIN_TEST_SPLIT
+    tts = detector_framework.config.TRAIN_TEST_SPLIT
 
     # window_size_time = 0.1 / 2  # / 2  # 10
     # window_stride_time = window_size_time / 3
@@ -584,8 +584,8 @@ if __name__ == "__main__":
         syscall_paths = [p for p in syscall_dir.iterdir() if p.is_file()]
         syscall_paths.sort()
 
-        # MALWARE_DICT = ml_pipelines.config.SYSCALL_MALWARE_DICT
-        MALWARE_DICT = ml_pipelines.config.SYSCALL_BENIGN_MALWARE_DICT
+        # MALWARE_DICT = detector_framework.config.SYSCALL_MALWARE_DICT
+        MALWARE_DICT = detector_framework.config.SYSCALL_BENIGN_MALWARE_DICT
         malware_keys = [item for sublist in MALWARE_DICT.values() for item in sublist]
         malware_keys = set(malware_keys)
 
@@ -621,8 +621,8 @@ if __name__ == "__main__":
         network_paths = [p for p in network_dir.iterdir() if p.is_file()]
         network_paths.sort()
 
-        # MALWARE_DICT = ml_pipelines.config.NETWORK_MALWARE_DICT
-        MALWARE_DICT = ml_pipelines.config.NETWORK_BENIGN_MALWARE_DICT
+        # MALWARE_DICT = detector_framework.config.NETWORK_MALWARE_DICT
+        MALWARE_DICT = detector_framework.config.NETWORK_BENIGN_MALWARE_DICT
         malware_keys = [item for sublist in MALWARE_DICT.values() for item in sublist]
         malware_keys = set(malware_keys)
 
@@ -658,8 +658,8 @@ if __name__ == "__main__":
         hpc_paths = [p for p in hpc_dir.iterdir() if p.is_file()]
         hpc_paths.sort()
 
-        # MALWARE_DICT = ml_pipelines.config.HPC_MALWARE_DICT
-        MALWARE_DICT = ml_pipelines.config.HPC_BENIGN_MALWARE_DICT
+        # MALWARE_DICT = detector_framework.config.HPC_MALWARE_DICT
+        MALWARE_DICT = detector_framework.config.HPC_BENIGN_MALWARE_DICT
         malware_keys = [item for sublist in MALWARE_DICT.values() for item in sublist]
         malware_keys = set(malware_keys)
 
@@ -699,7 +699,7 @@ if __name__ == "__main__":
         "hpc": hpc_signals,
     }
 
-    behaviors = deepcopy(ml_pipelines.config.BEHAVIOR_FILES)
+    behaviors = deepcopy(detector_framework.config.BEHAVIOR_FILES)
 
     feature_frames_path = cwd / "../data/feature_frames.joblib"
 

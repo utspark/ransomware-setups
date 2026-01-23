@@ -2,17 +2,15 @@ from pathlib import Path
 
 import matplotlib
 
-from ml_pipelines import config
-
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 plt.ion()
 
 import numpy as np
 
-from ml_pipelines.timeseries_processing import RegressionData, ModelSettings, get_windows_and_futures, \
-    preproc_transform, get_system_call_map, first_int
-from ml_pipelines.pipeline_analysis import regression_error, binary_supervised_error, unsupervised_error, \
+from detector_framework.timeseries_processing import RegressionData, ModelSettings, get_windows_and_futures, \
+    preproc_transform, get_system_call_map
+from detector_framework.local_detector.predictions import regression_error, binary_supervised_error, unsupervised_error, \
     multiclass_error
 
 
@@ -130,9 +128,6 @@ def multiclass_analysis(model_settings, benign_path, benign_dict: dict, malware_
     return
 
 
-
-
-
 if __name__ == "__main__":
     cwd = Path.cwd()
 
@@ -163,14 +158,16 @@ if __name__ == "__main__":
     max_trace_length = 500_000
     system_calls = None
     # model_path = cwd / "basic_lstm.h5"
+
+    data_path = cwd / "data"
     model_type = "decision_tree"
     # model_filename = problem_formulation + "_" + preproc_approach + "_" + "lstm.h5"
-    model_filename = ("saved_models/" +
+    model_filename = ("models/local_detector_analysis/" +
                       problem_formulation + "_" + preproc_approach + "_" + model_type + ".joblib")
-    settings_filename = ("saved_models/" +
+    settings_filename = ("models/local_detector_analysis/" +
                          problem_formulation + "_" + preproc_approach + "_" + model_type + "_settings.joblib")
-    model_path = cwd / model_filename
-    settings_path = cwd / settings_filename
+    model_path = data_path / model_filename
+    settings_path = data_path / settings_filename
 
     new_model = True
     plot = True
@@ -193,28 +190,36 @@ if __name__ == "__main__":
     # *** File Selection ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    benign_path = cwd / "ftrace/benign"
+    benign_path = data_path / "ftrace/benign"
     benign_dict = {
-        # "idle_20_trace_system_timed_ints.txt": 0,
+        "idle_20_trace_system_timed_ints.txt": 0,
         # "gzip_system_timed_ints.txt": 1,
     }
     benign_list = list(benign_dict.keys())
 
-    malware_path = cwd / "pipeline_ints"
+    malware_path = data_path / "ftrace/malware"
 
-    parent_dir = malware_path
-    paths = [p for p in parent_dir.iterdir() if p.is_file()]
-    paths = [path.name for path in paths if "fscan" in str(path)]
+    malware_dict = {
+        "AES_O_exfil_aws1_system_timed_ints.txt": 0,
+        "AES_O_exfil_aws2_system_timed_ints.txt": 0,
+        "AES_O_exfil_sftp1_system_timed_ints.txt": 0,
+        "AES_O_exfil_sftp2_system_timed_ints.txt": 0,
+        "gzip_system_timed_ints.txt": 1,
+    }
+    malware_list = list(malware_dict.keys())
 
-    paths.sort(key=first_int)
-    paths = [str(malware_path) + "/" + p for p in paths]
+    # parent_dir = malware_path
+    # paths = [p for p in parent_dir.iterdir() if p.is_file()]
+    # paths = [path.name for path in paths if "fscan" in str(path)]
+    #
+    # paths.sort(key=first_int)
+    # paths = [str(malware_path) + "/" + p for p in paths]
 
     # out_paths = concat_short_traces(paths, concat_size=3, allow_partial=True)
 
-    malware_path = cwd / "pipeline_ints"
-    malware_dict = config.SYSCALL_MALWARE_DICT
-
-    malware_list = list(malware_dict.keys())
+    # malware_path = data_path / "ftrace/malware"
+    # malware_dict = config.SYSCALL_MALWARE_DICT
+    # malware_list = list(malware_dict.keys())
 
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # *** Pipeline Execution ++++++++++++++++++++++++++++++++++++++++++++++++++++++

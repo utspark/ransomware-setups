@@ -4,7 +4,7 @@ import joblib
 import numpy as np
 from hmmlearn import hmm
 
-from ml_pipelines import config
+from detector_framework import config
 from bisect import bisect_left
 from typing import List, Tuple
 

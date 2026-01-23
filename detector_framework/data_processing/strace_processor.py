@@ -48,7 +48,7 @@ def read_tbl_into_strings(path: Path, file_line_subsample: int | None = None) ->
 
 
 def form_syscall_dict() -> dict:
-    file_path = Path("syscall_64.tbl")
+    file_path = Path("../../data/syscall_64.tbl")
 
     if not file_path.exists() or not file_path.is_file():
         raw_url = "https://raw.githubusercontent.com/torvalds/linux/refs/heads/master/arch/x86/entry/syscalls/syscall_64.tbl"
@@ -61,7 +61,7 @@ def form_syscall_dict() -> dict:
         dest.write_bytes(resp.content)
         print(f"Downloaded {raw_url!r} → {dest}")
 
-    tbl_path = Path('syscall_64.tbl')
+    tbl_path = Path('../../data/syscall_64.tbl')
     rows_as_strings = read_tbl_into_strings(tbl_path)
 
     filtered = [s for s in rows_as_strings

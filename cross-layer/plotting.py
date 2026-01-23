@@ -4,8 +4,8 @@ import numpy as np
 import joblib
 from sklearn.metrics import roc_curve, auc, accuracy_score
 
-import ml_pipelines
-from ml_pipelines import global_detector
+import detector_framework
+from detector_framework import global_detector
 import cross_layer_driver as cld
 import random
 
@@ -34,7 +34,7 @@ def trace_len_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_cho
 
     length_check = 10
     length_samples = 15
-    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN
     benign_scores = []
     benign_times = []
     for i in range(1, length_check):
@@ -96,7 +96,7 @@ def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_
     ]
 
     n_samples = 100
-    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN
     benign_cross_layer_X = []
     for _ in range(n_samples):
         techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
@@ -391,7 +391,7 @@ def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
     la_components.append(density_descriptor)
 
     n_samples = 150
-    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN
 
     b_cross_layer_X = []
     for _ in range(n_samples):
@@ -489,7 +489,7 @@ def signal_sample_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
     )
 
     n_samples = 150
-    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN
 
     b_stage_len_list = []
     for _ in range(n_samples):
@@ -650,7 +650,7 @@ def flow_variations(attack_stages_dict: dict, feature_frames_dict: dict, time_ch
     ]
 
     n_samples = 150
-    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN
 
     b_flows = []
     m_flows = []
@@ -807,7 +807,7 @@ def benign_app_scores(attack_stages_dict: dict, feature_frames_dict: dict, time_
         for i, gd in enumerate(gds):
             malware_model_scores[i].append(gd.score_cross_layer(cross_layer_X))
 
-    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN
     benign_app_scores = []
 
     for i in range(len(benign_stages)):
@@ -877,7 +877,7 @@ def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict, time_ch
     )
 
     n_samples = 50
-    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN
 
     benign_scores = []
     for _ in tqdm(range(n_samples)):
@@ -1051,7 +1051,7 @@ if __name__ == "__main__":
 
     feature_frames_path = cwd / "../data/feature_frames.joblib"
     feature_frames = joblib.load(feature_frames_path)
-    attack_stages = ml_pipelines.config.GENERATION_ATTACK_STAGES
+    attack_stages = detector_framework.config.GENERATION_ATTACK_STAGES
 
     attack_stages_dict = attack_stages
     feature_frames_dict = feature_frames
@@ -1094,7 +1094,7 @@ if __name__ == "__main__":
     )
 
     n_samples = 150
-    benign_stages = ml_pipelines.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN
 
     benign_scores = []
     b_stage_len_list = []

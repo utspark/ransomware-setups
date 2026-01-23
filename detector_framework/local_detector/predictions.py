@@ -3,8 +3,8 @@ from pathlib import Path
 import joblib
 import numpy as np
 
-from ml_pipelines import config
-from ml_pipelines.timeseries_processing import ModelSettings, preproc_transform
+from detector_framework import config
+from detector_framework.timeseries_processing import ModelSettings, preproc_transform
 
 
 def get_prescored_predictions(stage_keys: list, stage_windows: list, prescored_dir: Path) -> (np.ndarray, np.array):
