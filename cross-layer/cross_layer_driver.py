@@ -564,10 +564,10 @@ def cross_layer_concatenate(attack_X: list) -> Tuple[np.ndarray, np.ndarray, np.
 
 if __name__ == "__main__":
     cwd = Path.cwd()
-    SYSCALL = False
-    NETWORK = False
-    HPC = False
-    TRAIN = False
+    SYSCALL = True
+    NETWORK = True
+    HPC = True
+    TRAIN = True
     REPROCESS_DATA = True
     tts = ml_pipelines.config.TRAIN_TEST_SPLIT
 

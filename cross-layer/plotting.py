@@ -168,6 +168,192 @@ def model_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_
     return
 
 
+def compression_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
+    combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(4)]
+    model_curves = []
+
+    model_labels = [
+        "LA-**",
+        "LA-*D",
+        "LA-P*",
+        "LA-PD",
+        # "LA-M**",
+        # "LA-M*D",
+        # "LA-MP*",
+        # "LA-MPD",
+    ]
+
+    n_samples = 100
+    benign_stages = [
+        "compress_gzip_1t",
+        "compress_gzip_8t",
+        "compress_zstd_1t",
+        "compress_zstd_8t",
+    ]
+    benign_cross_layer_X = []
+    for _ in range(n_samples):
+        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        benign_cross_layer_X.append(cross_layer_X)
+
+    malware_cross_layer_X = []
+    for _ in range(n_samples):
+        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        malware_cross_layer_X.append(cross_layer_X)
+
+
+    for i in range(4):
+
+        la_components = {
+            "density": True if combos[i][2] else False,
+            "propagation": True if combos[i][1] else False,
+            # "memory": True if combos[i][0] else False,
+        }
+
+        gd = global_detector.LifecycleDetector(
+            **model_paths,
+            lifecycle_awareness=True,
+            stage_filter=False,
+            **la_components
+        )
+
+        benign_scores = []
+        for j in range(n_samples):
+            proba = gd.score_cross_layer(benign_cross_layer_X[j])
+            benign_scores.append(proba)
+
+        malware_scores = []
+        for j in range(n_samples):
+            proba = gd.score_cross_layer(malware_cross_layer_X[j])
+            malware_scores.append(proba)
+
+        y_scores = malware_scores + benign_scores
+        y_true = np.zeros(len(y_scores))
+        y_true[:len(malware_scores)] = 1
+
+        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+        roc_auc = auc(fpr, tpr)
+
+        model_curves.append((fpr, tpr, roc_auc))
+
+    plt.figure(figsize=(8, 5))
+    for i in range(len(combos)):
+        fpr, tpr, roc_auc = model_curves[i]
+        plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
+
+    plt.plot([0, 1], [0, 1], lw=4, color="black", alpha=0.5, linestyle='--', label='Random Guess')
+    plt.xlim([-0.01, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.legend(loc="lower right", prop={'family': 'monospace'})
+    plt.tight_layout()
+    plt.grid()
+    plt.show(block=True)
+
+    return
+
+
+def encryption_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
+    combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(4)]
+    model_curves = []
+
+    model_labels = [
+        "LA-**",
+        "LA-*D",
+        "LA-P*",
+        "LA-PD",
+        # "LA-M**",
+        # "LA-M*D",
+        # "LA-MP*",
+        # "LA-MPD",
+    ]
+
+    n_samples = 100
+    benign_stages = [
+        "symm_AES_128b",
+        "symm_AES_256b",
+        "symm_Salsa20_128b",
+        "symm_Salsa20_256b",
+    ]
+    benign_cross_layer_X = []
+    for _ in range(n_samples):
+        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        benign_cross_layer_X.append(cross_layer_X)
+
+    malware_cross_layer_X = []
+    for _ in range(n_samples):
+        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time, rng)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        malware_cross_layer_X.append(cross_layer_X)
+
+
+    for i in range(4):
+
+        la_components = {
+            "density": True if combos[i][2] else False,
+            "propagation": True if combos[i][1] else False,
+            # "memory": True if combos[i][0] else False,
+        }
+
+        gd = global_detector.LifecycleDetector(
+            **model_paths,
+            lifecycle_awareness=True,
+            stage_filter=False,
+            **la_components
+        )
+
+        benign_scores = []
+        for j in range(n_samples):
+            proba = gd.score_cross_layer(benign_cross_layer_X[j])
+            benign_scores.append(proba)
+
+        malware_scores = []
+        for j in range(n_samples):
+            proba = gd.score_cross_layer(malware_cross_layer_X[j])
+            malware_scores.append(proba)
+
+        y_scores = malware_scores + benign_scores
+        y_true = np.zeros(len(y_scores))
+        y_true[:len(malware_scores)] = 1
+
+        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+        roc_auc = auc(fpr, tpr)
+
+        model_curves.append((fpr, tpr, roc_auc))
+
+    plt.figure(figsize=(8, 5))
+    for i in range(len(combos)):
+        fpr, tpr, roc_auc = model_curves[i]
+        plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
+
+    plt.plot([0, 1], [0, 1], lw=4, color="black", alpha=0.5, linestyle='--', label='Random Guess')
+    plt.xlim([-0.01, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.legend(loc="lower right", prop={'family': 'monospace'})
+    plt.tight_layout()
+    plt.grid()
+    plt.show(block=True)
+
+    return
+
+
 def evade_density_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
     model_curves = []
     combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(4)]
@@ -840,7 +1026,7 @@ if __name__ == "__main__":
     cwd = Path.cwd()
 
     TRACE_LENS = False
-    MODEL_CURVES = False
+    MODEL_CURVES = True
     EVADE_DENSITY = False
     SIGNAL_SAMPLES = False
     FLOW_VARIATIONS = False
@@ -876,6 +1062,8 @@ if __name__ == "__main__":
 
     if MODEL_CURVES:
         model_curves_plot(attack_stages, feature_frames, time_choice_list)
+        compression_curves_plot(attack_stages, feature_frames, time_choice_list)
+        encryption_curves_plot(attack_stages, feature_frames, time_choice_list)
 
     if EVADE_DENSITY:
         evade_density_plot(attack_stages, feature_frames, time_choice_list)
