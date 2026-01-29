@@ -2,15 +2,17 @@ from pathlib import Path
 
 import matplotlib
 
+from detector_framework import config
+
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 plt.ion()
 
 import numpy as np
 
-from detector_framework.timeseries_processing import RegressionData, ModelSettings, get_windows_and_futures, \
+from detector_framework.data_processing.timeseries_processing import RegressionData, ModelSettings, get_windows_and_futures, \
     preproc_transform, get_system_call_map
-from detector_framework.local_detector.predictions import regression_error, binary_supervised_error, unsupervised_error, \
+from detector_framework.local_detector.metrics import regression_error, binary_supervised_error, unsupervised_error, \
     multiclass_error
 
 
@@ -100,22 +102,30 @@ def unsupervised_analysis(model_settings, benign_path, benign_list, malware_path
     return
 
 
+def get_keyword_filenames(keyword, file_dir: Path):
+    """
+    Retrieve a list of filenames in a provided directory matching keyword.
+    """
+    keywords = set(keyword if isinstance(keyword, list) else [keyword])
+    return [p.name for p in file_dir.iterdir() if p.is_file() and any(kw in p.name for kw in keywords)]
+
+
 def multiclass_analysis(model_settings, benign_path, benign_dict: dict, malware_path, malware_dict: dict):
     transformed_data = []
     labels = []
 
-    for key in benign_dict:
-            tmp_list = [key]
-            transformed = preproc_transform(model_settings, benign_path, tmp_list)
-            tmp_labels = np.zeros((len(transformed))) + benign_dict[key]
+    for key, val in benign_dict.items():
+        tmp_list = get_keyword_filenames(val, benign_path)
+        transformed = preproc_transform(model_settings, benign_path, tmp_list)
+        tmp_labels = np.zeros((len(transformed))) + key
 
-            transformed_data.append(transformed)
-            labels.append(tmp_labels)
+        transformed_data.append(transformed)
+        labels.append(tmp_labels)
 
-    for key in malware_dict:
-        tmp_list = [key]
+    for key, val in malware_dict.items():
+        tmp_list = get_keyword_filenames(val, malware_path)
         transformed = preproc_transform(model_settings, malware_path, tmp_list)
-        tmp_labels = np.zeros((len(transformed))) + malware_dict[key]
+        tmp_labels = np.zeros((len(transformed))) + key
 
         transformed_data.append(transformed)
         labels.append(tmp_labels)
@@ -155,7 +165,7 @@ if __name__ == "__main__":
     preproc_approach = "windowed_features"
     window_len = 40  # 10
     future_len = 1  # 3
-    max_trace_length = 500_000
+    max_trace_length = 800_000
     system_calls = None
     # model_path = cwd / "basic_lstm.h5"
 
@@ -190,36 +200,36 @@ if __name__ == "__main__":
     # *** File Selection ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    benign_path = data_path / "ftrace/benign"
-    benign_dict = {
-        "idle_20_trace_system_timed_ints.txt": 0,
-        # "gzip_system_timed_ints.txt": 1,
-    }
-    benign_list = list(benign_dict.keys())
+    benign_path = data_path / "current_data/syscall_bucket"
+    # benign_dict = {
+    #     "idle_20_trace_system_timed_ints.txt": 0,
+    #     # "gzip_system_timed_ints.txt": 1,
+    # }
+    # benign_list = list(benign_dict.keys())
 
-    malware_path = data_path / "ftrace/malware"
+    malware_path = data_path / "current_data/syscall_bucket"
+    # malware_dict = {
+    #     "AES_O_exfil_aws1_system_timed_ints.txt": 0,
+    #     "AES_O_exfil_aws2_system_timed_ints.txt": 0,
+    #     "AES_O_exfil_sftp1_system_timed_ints.txt": 0,
+    #     "AES_O_exfil_sftp2_system_timed_ints.txt": 0,
+    #     "gzip_system_timed_ints.txt": 1,
+    # }
 
-    malware_dict = {
-        "AES_O_exfil_aws1_system_timed_ints.txt": 0,
-        "AES_O_exfil_aws2_system_timed_ints.txt": 0,
-        "AES_O_exfil_sftp1_system_timed_ints.txt": 0,
-        "AES_O_exfil_sftp2_system_timed_ints.txt": 0,
-        "gzip_system_timed_ints.txt": 1,
-    }
-    malware_list = list(malware_dict.keys())
+    malware_dict = config.SYSCALL_MALWARE_DICT
+    malware_list = list(malware_dict.values())
 
-    # parent_dir = malware_path
-    # paths = [p for p in parent_dir.iterdir() if p.is_file()]
-    # paths = [path.name for path in paths if "fscan" in str(path)]
-    #
-    # paths.sort(key=first_int)
-    # paths = [str(malware_path) + "/" + p for p in paths]
+    benign_malware_dict = config.SYSCALL_BENIGN_MALWARE_DICT
 
-    # out_paths = concat_short_traces(paths, concat_size=3, allow_partial=True)
+    A = benign_malware_dict
+    B = malware_dict
+    benign_dict = {k: A[k] for k in A if k not in B}
+    benign_list = list(benign_dict.values())
 
-    # malware_path = data_path / "ftrace/malware"
-    # malware_dict = config.SYSCALL_MALWARE_DICT
-    # malware_list = list(malware_dict.keys())
+
+    malware_dict = {i: val for i, val in enumerate(malware_dict.values())}
+    offset = len(malware_dict)
+    benign_dict = {i + offset: val for i, val in enumerate(benign_dict.values())}
 
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # *** Pipeline Execution ++++++++++++++++++++++++++++++++++++++++++++++++++++++

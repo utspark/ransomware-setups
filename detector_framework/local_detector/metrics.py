@@ -19,8 +19,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, classification_report, log_loss
 from sklearn.tree import DecisionTreeClassifier
 
-from detector_framework.processing import form_one_hot_encoder
-from detector_framework.timeseries_processing import ModelSettings, RegressionData
+from detector_framework.data_processing.processing import form_one_hot_encoder
+from detector_framework.data_processing.timeseries_processing import ModelSettings, RegressionData
 import numpy as np
 import pandas as pd
 import seaborn as sns

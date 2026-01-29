@@ -4,7 +4,8 @@ import joblib
 import numpy as np
 
 from detector_framework import config
-from detector_framework.timeseries_processing import ModelSettings, preproc_transform
+from detector_framework.data_processing.timeseries_processing import ModelSettings, preproc_transform
+from detector_framework.local_detector.local_detector_run import get_keyword_filenames
 
 
 def get_prescored_predictions(stage_keys: list, stage_windows: list, prescored_dir: Path) -> (np.ndarray, np.array):
@@ -38,7 +39,7 @@ def get_live_predictions(stage_keys: list, stage_windows: list, classifier, mode
 
     for ttp, window_seq_len in zip(stage_keys, stage_windows):
         rng = np.random.default_rng()
-        malware_list = config.TTP_DICT[ttp]
+        malware_list = get_keyword_filenames(ttp, malware_path)
         transformed = preproc_transform(model_settings, malware_path, malware_list)
 
         idx = rng.integers(0, len(transformed) - window_seq_len)

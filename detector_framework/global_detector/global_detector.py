@@ -47,17 +47,23 @@ def form_lifecycle_sequence(attack_stages: dict, benign=False):
 
 
 class LifecycleDetector:
-    def __init__(self, syscall_clf_path, network_clf_path, hpc_clf_path,
+    def __init__(self,
+                 syscall_clf_path=None,
+                 network_clf_path=None,
+                 hpc_clf_path=None,
                  lifecycle_awareness=True,
                  stage_filter=False,
                  density=False,
                  propagation=False,
                  memory=False
                  ):
+        if not any([syscall_clf_path, network_clf_path, hpc_clf_path]):
+            raise ValueError("At least one classifier path must be provided (syscall_clf_path, network_clf_path, or hpc_clf_path).")
+
         self.hmm = self._get_markov()
-        self.syscall_clf = joblib.load(syscall_clf_path)[0]
-        self.network_clf = joblib.load(network_clf_path)[0]
-        self.hpc_clf = joblib.load(hpc_clf_path)[0]
+        self.syscall_clf = joblib.load(syscall_clf_path) if syscall_clf_path else None
+        self.network_clf = joblib.load(network_clf_path) if network_clf_path else None
+        self.hpc_clf = joblib.load(hpc_clf_path) if hpc_clf_path else None
         self.lifecycle_awareness = lifecycle_awareness
         self.stage_filter = stage_filter
         self.density = density
@@ -127,7 +133,7 @@ class LifecycleDetector:
         ]
 
         for clf, layer_data, translation in zip(clfs, cross_layer_X, translations):
-            if np.all(layer_data == -1):
+            if clf is None or np.all(layer_data == -1):
                 classes = layer_data[:, 0]
                 probas = layer_data[:, 0]
             else:

@@ -28,10 +28,10 @@ SYSCALL_BENIGN_MALWARE_DICT: Final = {
         "transfer_sftp_8t_",
     ],
     6: [
-        "symm_AES_128t_",
-        "symm_AES_256t_",
-        "symm_Salsa20_128t_",
-        "symm_Salsa20_256t_",
+        "symm_AES_128b_",
+        "symm_AES_256b_",
+        "symm_Salsa20_128b_",
+        "symm_Salsa20_256b_",
     ],
     7: [
         "browser_compute_",
@@ -91,10 +91,10 @@ SYSCALL_MALWARE_DICT: Final = {
         "transfer_sftp_8t_",
     ],
     6: [
-        "symm_AES_128t_",
-        "symm_AES_256t_",
-        "symm_Salsa20_128t_",
-        "symm_Salsa20_256t_",
+        "symm_AES_128b_",
+        "symm_AES_256b_",
+        "symm_Salsa20_128b_",
+        "symm_Salsa20_256b_",
     ],
 }
 
@@ -281,6 +281,7 @@ SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION: Final = {
     11: -1,
     12: -1,
     13: -1,
+    14: -1,
 }
 
 NETWORK_MALWARE_CLASS_TRANSLATION: Final = {
