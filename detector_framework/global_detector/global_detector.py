@@ -60,10 +60,16 @@ class LifecycleDetector:
         if not any([syscall_clf_path, network_clf_path, hpc_clf_path]):
             raise ValueError("At least one classifier path must be provided (syscall_clf_path, network_clf_path, or hpc_clf_path).")
 
+        def _load_clf(path):
+            if path is None:
+                return None
+            clf = joblib.load(path)
+            return clf[0] if isinstance(clf, tuple) else clf
+
+        self.syscall_clf = _load_clf(syscall_clf_path)
+        self.network_clf = _load_clf(network_clf_path)
+        self.hpc_clf = _load_clf(hpc_clf_path)
         self.hmm = self._get_markov()
-        self.syscall_clf = joblib.load(syscall_clf_path) if syscall_clf_path else None
-        self.network_clf = joblib.load(network_clf_path) if network_clf_path else None
-        self.hpc_clf = joblib.load(hpc_clf_path) if hpc_clf_path else None
         self.lifecycle_awareness = lifecycle_awareness
         self.stage_filter = stage_filter
         self.density = density

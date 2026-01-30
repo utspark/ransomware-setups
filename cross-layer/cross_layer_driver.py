@@ -580,7 +580,7 @@ if __name__ == "__main__":
 
 
     if SYSCALL:
-        syscall_dir = cwd / "../data/current_data/syscall_bucket"
+        syscall_dir = cwd / "data/current_data/syscall_bucket"
         syscall_paths = [p for p in syscall_dir.iterdir() if p.is_file()]
         syscall_paths.sort()
 
@@ -611,13 +611,13 @@ if __name__ == "__main__":
         print(np.unique(yt, return_counts=True))
 
         if TRAIN:
-            save_path = cwd / "../data/models/syscall_clf.joblib"
+            save_path = cwd / "data/models/syscall_clf.joblib"
             train_and_save_model(X, y, save_path)
         else:
             train_and_test_report(X, y)
 
     if NETWORK:
-        network_dir = cwd / "../data/current_data/network_bucket"
+        network_dir = cwd / "data/current_data/network_bucket"
         network_paths = [p for p in network_dir.iterdir() if p.is_file()]
         network_paths.sort()
 
@@ -647,14 +647,14 @@ if __name__ == "__main__":
         print(np.unique(yt, return_counts=True))
 
         if TRAIN:
-            save_path = cwd / "../data/models/network_clf.joblib"
+            save_path = cwd / "data/models/network_clf.joblib"
             train_and_save_model(X, y, save_path)
         else:
             train_and_test_report(X, y)
 
     if HPC:
 
-        hpc_dir = cwd / "../data/current_data/hpc_bucket"
+        hpc_dir = cwd / "data/current_data/hpc_bucket"
         hpc_paths = [p for p in hpc_dir.iterdir() if p.is_file()]
         hpc_paths.sort()
 
@@ -669,12 +669,13 @@ if __name__ == "__main__":
         ]
         hpc_paths = filtered
 
-        subsampled = []
-        for key in malware_keys:
-            tmp_list = [path for path in hpc_paths if key in str(path)]
-            subsample = int(len(tmp_list) * 0.6)
-            subsampled.extend(tmp_list[:subsample])
-        hpc_paths = subsampled
+        # TODO uncomment this
+        # subsampled = []
+        # for key in malware_keys:
+        #     tmp_list = [path for path in hpc_paths if key in str(path)]
+        #     subsample = int(len(tmp_list) * 0.6)
+        #     subsampled.extend(tmp_list[:subsample])
+        # hpc_paths = subsampled
 
         X, y, Xt, yt = files_and_labels_to_X_y(
             hpc_paths, hpc_signals, MALWARE_DICT, window_size_time, window_stride_time, train_test_split=tts
@@ -683,15 +684,15 @@ if __name__ == "__main__":
         print(np.unique(yt, return_counts=True))
 
         if TRAIN:
-            save_path = cwd / "../data/models/hpc_clf.joblib"
+            save_path = cwd / "data/models/hpc_clf.joblib"
             train_and_save_model(X, y, save_path)
         else:
             train_and_test_report(X, y)
 
 
-    syscall_dir = cwd / "../data/current_data/syscall_bucket"
-    network_dir = cwd / "../data/current_data/network_bucket"
-    hpc_dir = cwd / "../data/current_data/hpc_bucket"
+    syscall_dir = cwd / "data/current_data/syscall_bucket"
+    network_dir = cwd / "data/current_data/network_bucket"
+    hpc_dir = cwd / "data/current_data/hpc_bucket"
 
     signal_modules = {
         "syscall": syscall_signals,
@@ -701,7 +702,7 @@ if __name__ == "__main__":
 
     behaviors = deepcopy(detector_framework.config.BEHAVIOR_FILES)
 
-    feature_frames_path = cwd / "../data/feature_frames.joblib"
+    feature_frames_path = cwd / "data/feature_frames.joblib"
 
     # key = "filebench_fileserver"
     # tmp_dict = {key: behaviors[key]}

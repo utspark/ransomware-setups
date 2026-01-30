@@ -5,7 +5,7 @@ import joblib
 from sklearn.metrics import roc_curve, auc, accuracy_score
 
 import detector_framework
-from detector_framework import global_detector
+from detector_framework.global_detector import global_detector
 import cross_layer_driver as cld
 import random
 
@@ -22,9 +22,9 @@ def trace_len_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_cho
 
 
     gd = global_detector.LifecycleDetector(
-        cwd / "../data/models/syscall_clf.joblib",
-        cwd / "../data/models/network_clf.joblib",
-        cwd / "../data/models/hpc_clf.joblib",
+        cwd / "data/models/syscall_clf.joblib",
+        cwd / "data/models/network_clf.joblib",
+        cwd / "data/models/hpc_clf.joblib",
         lifecycle_awareness=True,
         stage_filter=False,
         density=True,
@@ -478,9 +478,9 @@ def signal_sample_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
     ]
 
     gd = global_detector.LifecycleDetector(
-        cwd / "../data/models/syscall_clf.joblib",
-        cwd / "../data/models/network_clf.joblib",
-        cwd / "../data/models/hpc_clf.joblib",
+        cwd / "data/models/syscall_clf.joblib",
+        cwd / "data/models/network_clf.joblib",
+        cwd / "data/models/hpc_clf.joblib",
         lifecycle_awareness=True,
         stage_filter=False,
         density=True,
@@ -545,9 +545,9 @@ def signal_sample_plot(attack_stages_dict: dict, feature_frames_dict: dict, time
         model_curves.append((fpr, tpr, roc_auc))
 
     gd = global_detector.LifecycleDetector(
-        cwd / "../data/models/syscall_clf.joblib",
-        cwd / "../data/models/network_clf.joblib",
-        cwd / "../data/models/hpc_clf.joblib",
+        cwd / "data/models/syscall_clf.joblib",
+        cwd / "data/models/network_clf.joblib",
+        cwd / "data/models/hpc_clf.joblib",
         lifecycle_awareness=True,
         stage_filter=False,
         density=False,
@@ -688,9 +688,9 @@ def flow_variations(attack_stages_dict: dict, feature_frames_dict: dict, time_ch
 
 
     gd = global_detector.LifecycleDetector(
-        cwd / "../data/models/syscall_clf.joblib",
-        cwd / "../data/models/network_clf.joblib",
-        cwd / "../data/models/hpc_clf.joblib",
+        cwd / "data/models/syscall_clf.joblib",
+        cwd / "data/models/network_clf.joblib",
+        cwd / "data/models/hpc_clf.joblib",
         lifecycle_awareness=True,
         stage_filter=False,
         density=True,
@@ -745,9 +745,9 @@ def flow_variations(attack_stages_dict: dict, feature_frames_dict: dict, time_ch
 def benign_app_scores(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
     gds = [
         global_detector.LifecycleDetector(
-            cwd / "../data/models/syscall_clf.joblib",
-            cwd / "../data/models/network_clf.joblib",
-            cwd / "../data/models/hpc_clf.joblib",
+            cwd / "data/models/syscall_clf.joblib",
+            cwd / "data/models/network_clf.joblib",
+            cwd / "data/models/hpc_clf.joblib",
             lifecycle_awareness=True,
             stage_filter=False,
             density=False,
@@ -755,9 +755,9 @@ def benign_app_scores(attack_stages_dict: dict, feature_frames_dict: dict, time_
             memory=False,
         ),
         global_detector.LifecycleDetector(
-            cwd / "../data/models/syscall_clf.joblib",
-            cwd / "../data/models/network_clf.joblib",
-            cwd / "../data/models/hpc_clf.joblib",
+            cwd / "data/models/syscall_clf.joblib",
+            cwd / "data/models/network_clf.joblib",
+            cwd / "data/models/hpc_clf.joblib",
             lifecycle_awareness=True,
             stage_filter=False,
             density=True,
@@ -765,9 +765,9 @@ def benign_app_scores(attack_stages_dict: dict, feature_frames_dict: dict, time_
             memory=False,
         ),
         global_detector.LifecycleDetector(
-            cwd / "../data/models/syscall_clf.joblib",
-            cwd / "../data/models/network_clf.joblib",
-            cwd / "../data/models/hpc_clf.joblib",
+            cwd / "data/models/syscall_clf.joblib",
+            cwd / "data/models/network_clf.joblib",
+            cwd / "data/models/hpc_clf.joblib",
             lifecycle_awareness=True,
             stage_filter=False,
             density=False,
@@ -775,9 +775,9 @@ def benign_app_scores(attack_stages_dict: dict, feature_frames_dict: dict, time_
             memory=False,
         ),
         global_detector.LifecycleDetector(
-            cwd / "../data/models/syscall_clf.joblib",
-            cwd / "../data/models/network_clf.joblib",
-            cwd / "../data/models/hpc_clf.joblib",
+            cwd / "data/models/syscall_clf.joblib",
+            cwd / "data/models/network_clf.joblib",
+            cwd / "data/models/hpc_clf.joblib",
             lifecycle_awareness=True,
             stage_filter=False,
             density=True,
@@ -866,9 +866,9 @@ def benign_app_scores(attack_stages_dict: dict, feature_frames_dict: dict, time_
 
 def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
     gd = global_detector.LifecycleDetector(
-        cwd / "../data/models/syscall_clf.joblib",
-        cwd / "../data/models/network_clf.joblib",
-        cwd / "../data/models/hpc_clf.joblib",
+        cwd / "data/models/syscall_clf.joblib",
+        cwd / "data/models/network_clf.joblib",
+        cwd / "data/models/hpc_clf.joblib",
         lifecycle_awareness=True,
         stage_filter=False,
         density=True,
@@ -1025,13 +1025,13 @@ if __name__ == "__main__":
 
     cwd = Path.cwd()
 
-    TRACE_LENS = False
+    TRACE_LENS = True
     MODEL_CURVES = True
-    EVADE_DENSITY = False
-    SIGNAL_SAMPLES = False
-    FLOW_VARIATIONS = False
-    BENIGN_APP_SCORES = False
-    SCORE_OVER_TIME = False
+    EVADE_DENSITY = True
+    SIGNAL_SAMPLES = True
+    FLOW_VARIATIONS = True
+    BENIGN_APP_SCORES = True
+    SCORE_OVER_TIME = True
 
     window_size_time = 0.5
     window_stride_time = 0.2
@@ -1044,12 +1044,12 @@ if __name__ == "__main__":
     time_choice_list = np.arange(start, stop + step / 2, step, dtype=float).tolist()
 
     model_paths = {
-        "syscall_clf_path": cwd / "../data/models/syscall_clf.joblib",
-        "network_clf_path": cwd / "../data/models/network_clf.joblib",
-        "hpc_clf_path": cwd / "../data/models/hpc_clf.joblib",
+        "syscall_clf_path": cwd / "data/models/syscall_clf.joblib",
+        "network_clf_path": cwd / "data/models/network_clf.joblib",
+        "hpc_clf_path": cwd / "data/models/hpc_clf.joblib",
     }
 
-    feature_frames_path = cwd / "../data/feature_frames.joblib"
+    feature_frames_path = cwd / "data/feature_frames.joblib"
     feature_frames = joblib.load(feature_frames_path)
     attack_stages = detector_framework.config.GENERATION_ATTACK_STAGES
 
@@ -1083,9 +1083,7 @@ if __name__ == "__main__":
 
 
     gd = global_detector.LifecycleDetector(
-        cwd / "../data/models/syscall_clf.joblib",
-        cwd / "../data/models/network_clf.joblib",
-        cwd / "../data/models/hpc_clf.joblib",
+        **model_paths,
         lifecycle_awareness=True,
         stage_filter=False,
         density=True,

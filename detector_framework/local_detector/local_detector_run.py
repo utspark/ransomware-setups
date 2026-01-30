@@ -165,7 +165,7 @@ if __name__ == "__main__":
     preproc_approach = "windowed_features"
     window_len = 40  # 10
     future_len = 1  # 3
-    max_trace_length = 800_000
+    max_trace_length = 500_000
     system_calls = None
     # model_path = cwd / "basic_lstm.h5"
 
