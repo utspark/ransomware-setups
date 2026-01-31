@@ -21,6 +21,7 @@ from sklearn.tree import DecisionTreeClassifier
 
 from detector_framework.data_processing.processing import form_one_hot_encoder
 from detector_framework.data_processing.timeseries_processing import ModelSettings, RegressionData
+from detector_framework import config
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -33,6 +34,9 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import LSTM, Reshape, Input
 from tensorflow.keras.layers import Embedding
 from tensorflow.keras.callbacks import EarlyStopping
+
+# Global seed setting moved to entry points, but we can also set it here for safety
+# config.set_seed()
 
 
 def roc_auc_plot(y_test: np.array, y_scores: np.array, sample_weight=None) -> None:
@@ -391,7 +395,8 @@ def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
     print(f"Log Loss Score: {loss_ohe:.3f}")
     y_pred = lb.inverse_transform(y_pred_ohe)
 
-    print(classification_report(y_test, y_pred, sample_weight=sample_weights))
+    report  = classification_report(y_test, y_pred, sample_weight=sample_weights)
+    print(report)
 
     if model_settings.plot:
         cm = confusion_matrix(y_test, y_pred, sample_weight=sample_weights, normalize='true')
@@ -415,7 +420,7 @@ def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
     joblib.dump(dtree_model, model_settings.model_path, compress=("zlib", 3))
     joblib.dump(model_settings, model_settings.settings_path, compress=("zlib", 3))
 
-    return
+    return loss_ohe
 
 
 

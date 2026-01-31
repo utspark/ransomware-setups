@@ -8,6 +8,7 @@ import network_signals
 import syscall_signals
 import hpc_signals
 import detector_framework.config
+detector_framework.config.set_seed()
 import numpy as np
 import pandas as pd
 import seaborn as sns

@@ -3,6 +3,7 @@ from pathlib import Path
 import matplotlib
 
 from detector_framework import config
+config.set_seed()
 
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -133,110 +134,14 @@ def multiclass_analysis(model_settings, benign_path, benign_dict: dict, malware_
     X = np.concatenate(transformed_data)
     y = np.concatenate(labels)
 
-    multiclass_error(model_settings, X, y)
+    loss_ohe = multiclass_error(model_settings, X, y)
 
-    return
+    return loss_ohe
 
 
-if __name__ == "__main__":
-    cwd = Path.cwd()
-
-    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    # *** Approach and Model Settings +++++++++++++++++++++++++++++++++++++++++++++
-    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-    # ***
-    # "binary_supervised"
-    # "full_trace", "syscall_frequency", "windowed_features", "windowed"
-    # "svc", "xgb", "lstm"
-
-    # ***
-    # "regression"
-    # "windowed"
-    # "lstm"
-
-    # ***
-    # "unsupervised"
-    # "full_trace", "syscall_frequency", "windowed_features", "windowed"
-    # "isolation_forest", "minimum_covariance_determinant", "local_outlier_factor", "svc"
-
-    # TODO hardcode options here
-    problem_formulation = "multiclass_supervised"
-    preproc_approach = "windowed_features"
-    window_len = 40  # 10
-    future_len = 1  # 3
-    max_trace_length = 500_000
-    system_calls = None
-    # model_path = cwd / "basic_lstm.h5"
-
-    data_path = cwd / "data"
-    model_type = "decision_tree"
-    # model_filename = problem_formulation + "_" + preproc_approach + "_" + "lstm.h5"
-    model_filename = ("models/local_detector_analysis/" +
-                      problem_formulation + "_" + preproc_approach + "_" + model_type + ".joblib")
-    settings_filename = ("models/local_detector_analysis/" +
-                         problem_formulation + "_" + preproc_approach + "_" + model_type + "_settings.joblib")
-    model_path = data_path / model_filename
-    settings_path = data_path / settings_filename
-
-    new_model = True
-    plot = True
-
-    model_settings = ModelSettings(
-        settings_path=settings_path,
-        problem_formulation=problem_formulation,
-        preproc_approach=preproc_approach,
-        window_length=window_len,
-        future_length=future_len,
-        max_trace_length=max_trace_length,
-        # system_calls
-        model_type=model_type,
-        model_path=model_path,
-        new_model=new_model,
-        plot=plot,
-    )
-
-    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    # *** File Selection ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-    benign_path = data_path / "current_data/syscall_bucket"
-    # benign_dict = {
-    #     "idle_20_trace_system_timed_ints.txt": 0,
-    #     # "gzip_system_timed_ints.txt": 1,
-    # }
-    # benign_list = list(benign_dict.keys())
-
-    malware_path = data_path / "current_data/syscall_bucket"
-    # malware_dict = {
-    #     "AES_O_exfil_aws1_system_timed_ints.txt": 0,
-    #     "AES_O_exfil_aws2_system_timed_ints.txt": 0,
-    #     "AES_O_exfil_sftp1_system_timed_ints.txt": 0,
-    #     "AES_O_exfil_sftp2_system_timed_ints.txt": 0,
-    #     "gzip_system_timed_ints.txt": 1,
-    # }
-
-    malware_dict = config.SYSCALL_MALWARE_DICT
-    malware_list = list(malware_dict.values())
-
-    benign_malware_dict = config.SYSCALL_BENIGN_MALWARE_DICT
-
-    A = benign_malware_dict
-    B = malware_dict
-    benign_dict = {k: A[k] for k in A if k not in B}
+def run_local_detector(model_settings, benign_path, benign_dict, malware_path, malware_dict):
     benign_list = list(benign_dict.values())
-
-
-    malware_dict = {i: val for i, val in enumerate(malware_dict.values())}
-    offset = len(malware_dict)
-    benign_dict = {i + offset: val for i, val in enumerate(benign_dict.values())}
-
-    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    # *** Pipeline Execution ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    #
-    # *** Should not have to modify any code below
-    #
-    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    malware_list = list(malware_dict.values())
 
     if model_settings.problem_formulation == "regression":
         regression_analysis(
@@ -259,8 +164,59 @@ if __name__ == "__main__":
         )
 
     else:  # "multiclass_supervised"
-        multiclass_analysis(
+        loss_ohe = multiclass_analysis(
             model_settings, benign_path, benign_dict, malware_path, malware_dict
         )
+        return loss_ohe
 
+
+def get_default_config():
+    cwd = Path.cwd()
+    data_path = cwd / "data"
+
+    problem_formulation = "multiclass_supervised"
+    preproc_approach = "windowed_features"
+    window_len = 40
+    future_len = 1
+    max_trace_length = 250_000
+    model_type = "decision_tree"
+
+    model_filename = ("models/local_detector_analysis/" +
+                      problem_formulation + "_" + preproc_approach + "_" + model_type + ".joblib")
+    settings_filename = ("models/local_detector_analysis/" +
+                         problem_formulation + "_" + preproc_approach + "_" + model_type + "_settings.joblib")
+    model_path = data_path / model_filename
+    settings_path = data_path / settings_filename
+
+    model_settings = ModelSettings(
+        settings_path=settings_path,
+        problem_formulation=problem_formulation,
+        preproc_approach=preproc_approach,
+        window_length=window_len,
+        future_length=future_len,
+        max_trace_length=max_trace_length,
+        model_type=model_type,
+        model_path=model_path,
+        new_model=True,
+        plot=True,
+    )
+
+    benign_path = data_path / "current_data/syscall_bucket"
+    malware_path = data_path / "current_data/syscall_bucket"
+
+    malware_dict = config.SYSCALL_MALWARE_DICT
+    benign_malware_dict = config.SYSCALL_BENIGN_MALWARE_DICT
+
+    benign_dict = {k: benign_malware_dict[k] for k in benign_malware_dict if k not in malware_dict}
+
+    malware_dict = {i: val for i, val in enumerate(malware_dict.values())}
+    offset = len(malware_dict)
+    benign_dict = {i + offset: val for i, val in enumerate(benign_dict.values())}
+
+    return model_settings, benign_path, benign_dict, malware_path, malware_dict
+
+
+if __name__ == "__main__":
+    model_settings, benign_path, benign_dict, malware_path, malware_dict = get_default_config()
+    run_local_detector(model_settings, benign_path, benign_dict, malware_path, malware_dict)
 

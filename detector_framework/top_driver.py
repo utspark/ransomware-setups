@@ -24,6 +24,8 @@ plt.ion()
 from pathlib import Path
 
 import os
+import detector_framework.config as config
+config.set_seed()
 
 import detector_framework.data_processing.processing as mpp
 

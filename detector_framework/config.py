@@ -1,7 +1,47 @@
-from typing import Final
+from typing import Final, Optional
+import random
+import os
 
 SUBSAMPLE_NETWORK_DATA : Final = 10
 TRAIN_TEST_SPLIT : Final = 0.9
+RANDOM_SEED : Final = 42
+
+def set_seed(seed: Optional[int] = RANDOM_SEED):
+    """
+    Globally set all random seeds for reproducibility.
+    """
+    if seed is None:
+        return
+
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+
+    try:
+        import numpy as np
+        np.random.seed(seed)
+    except ImportError:
+        pass
+
+    try:
+        import tensorflow as tf
+        tf.random.set_seed(seed)
+        # For deterministic operations in some TensorFlow versions/operations
+        os.environ['TF_DETERMINISTIC_OPS'] = '1'
+        os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
+    except ImportError:
+        pass
+
+    try:
+        import torch
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+        # For deterministic operations in PyTorch
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    except ImportError:
+        pass
 
 SYSCALL_BENIGN_MALWARE_DICT: Final = {
     0: [

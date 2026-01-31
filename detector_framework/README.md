@@ -17,9 +17,9 @@ Welcome to the **Detector Framework documentation**.
 
 ### 2.) Ensure data is placed in the correct directory
 
-    detector_framework/../data/hpc_bucket/
-    detector_framework/../data/network_bucket/
-    detector_framework/../data/syscall_bucket/
+    detector_framework/data/hpc_bucket/
+    detector_framework/data/network_bucket/
+    detector_framework/data/syscall_bucket/
 
 ### 3.) Analyze Local Detectors [Optional]
 1. Execute `local_detector_analysis.py`
