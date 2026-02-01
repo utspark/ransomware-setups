@@ -4,9 +4,9 @@ from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
 
-import network_signals
-import syscall_signals
-import hpc_signals
+from cross_layer import network_signals
+from cross_layer import syscall_signals
+from cross_layer import hpc_signals
 import detector_framework.config
 detector_framework.config.set_seed()
 import numpy as np
@@ -27,7 +27,8 @@ from copy import deepcopy
 from typing import Iterable, Tuple, Sequence
 from collections import defaultdict
 
-import random
+from detector_framework import config
+
 import os
 
 from tqdm import tqdm
@@ -161,7 +162,7 @@ def train_model(
     *,
     max_depth: int = None,  # TODO used to set this to 7
     random_state: Optional[int] = 42,
-) -> Tuple[DecisionTreeClassifier, LabelBinarizer]:
+) -> tuple[DecisionTreeClassifier, object, float]:
     """
     Train a DecisionTreeClassifier with required per-sample weights.
 
@@ -198,8 +199,9 @@ def train_model(
 
     clf = DecisionTreeClassifier(max_depth=max_depth, random_state=random_state)
     clf.fit(X_train, y_arr, sample_weight=w)
+    score = clf.score(X_train, y_arr, sample_weight=w)
 
-    return clf, lb
+    return clf, lb, score
 
 
 def compute_train_test_sample_weights(
@@ -325,7 +327,7 @@ def train_and_test_report(X: np.ndarray, y: np.ndarray) -> None:
     )
     train_sample_weights, test_sample_weights, _ = compute_train_test_sample_weights(y_train, y_test)
 
-    dtree_model, lb = train_model(X_train, y_train, train_sample_weights)
+    dtree_model, lb, _ = train_model(X_train, y_train, train_sample_weights)
     y_pred_ohe = dtree_model.predict_proba(X_test)
 
     results = prediction_analysis(y_test, y_pred_ohe, lb=lb, sample_weight=test_sample_weights, plot=True)
@@ -335,7 +337,7 @@ def train_and_test_report(X: np.ndarray, y: np.ndarray) -> None:
     return
 
 
-def train_and_save_model(X: np.ndarray, y: np.ndarray, save_path: Path) -> None:
+def train_and_save_model(X: np.ndarray, y: np.ndarray, save_path: Path) -> float:
     y = np.asarray(y).ravel()
 
     classes = np.unique(y)
@@ -347,11 +349,11 @@ def train_and_save_model(X: np.ndarray, y: np.ndarray, save_path: Path) -> None:
 
     sample_weights = compute_sample_weight(class_weight=class_weight_map, y=y)
 
-    dtree_model, lb = train_model(X, y, sample_weights)
+    dtree_model, lb, train_score = train_model(X, y, sample_weights)
 
     joblib.dump((dtree_model, lb), save_path)
 
-    return
+    return train_score
 
 
 def correct_feature_vector_times(feature_dict: dict):
@@ -435,7 +437,6 @@ def build_cross_layer_X(
         attack_lens: Iterable[Tuple[str, float]],
         window_size_time: float,
         window_stride_time: float,
-        rng: np.random.Generator,
         signals: Sequence[str] = ("syscall", "network", "hpc"),
 ) -> list[list[pd.DataFrame]]:
     cross_layer_X = []
@@ -470,7 +471,7 @@ def build_cross_layer_X(
         # Sample aligned windows for each signal
         X_list = []
         for df, n in zip(sig_frames, sig_lengths):
-            start = rng.integers(0, n - num_windows + 1)
+            start = np.random.choice(range(0, n - num_windows + 1))
             X_list.append(df.iloc[start:start + num_windows])
 
         cross_layer_X.append(X_list)
@@ -563,38 +564,29 @@ def cross_layer_concatenate(attack_X: list) -> Tuple[np.ndarray, np.ndarray, np.
     return cross_layer_X
 
 
-if __name__ == "__main__":
-    cwd = Path.cwd()
-    SYSCALL = True
-    NETWORK = True
-    HPC = True
-    TRAIN = True
-    REPROCESS_DATA = True
-    tts = detector_framework.config.TRAIN_TEST_SPLIT
+def outer_train_loop(parameter_dict: dict, window_size_time, window_stride_time, tts, train: bool) -> list:
+    train_scores = []
 
-    # window_size_time = 0.1 / 2  # / 2  # 10
-    # window_stride_time = window_size_time / 3
-    window_size_time = 0.5
-    window_stride_time = 0.2
-    rng = np.random.default_rng(seed=1337)  # optional seed
-    random.seed(1337)
+    for params in parameter_dict.values():
+        if not params["signal_selection"]:
+            continue
 
+        data_dir = params["data_dir"]
+        malware_dict = params["malware_dictionary"]
+        signal_fe = params["feature_extraction_module"]
+        save_path = params["save_path"]
 
-    if SYSCALL:
-        syscall_dir = cwd / "data/current_data/syscall_bucket"
-        syscall_paths = [p for p in syscall_dir.iterdir() if p.is_file()]
-        syscall_paths.sort()
+        data_paths = [p for p in data_dir.iterdir() if p.is_file()]
+        data_paths.sort()
 
-        # MALWARE_DICT = detector_framework.config.SYSCALL_MALWARE_DICT
-        MALWARE_DICT = detector_framework.config.SYSCALL_BENIGN_MALWARE_DICT
-        malware_keys = [item for sublist in MALWARE_DICT.values() for item in sublist]
+        malware_keys = [item for sublist in malware_dict.values() for item in sublist]
         malware_keys = set(malware_keys)
 
         filtered = [
-            path for path in syscall_paths
+            path for path in data_paths
             if any(key in path.name for key in malware_keys)
         ]
-        syscall_paths = filtered
+        data_paths = filtered
 
         # TODO uncomment this
         # subsampled = []
@@ -605,95 +597,71 @@ if __name__ == "__main__":
         # syscall_paths = subsampled
 
         X, y, xt, yt = files_and_labels_to_X_y(
-            syscall_paths, syscall_signals, MALWARE_DICT, window_size_time, window_stride_time, train_test_split=tts
+            data_paths,
+            signal_fe,
+            malware_dict,
+            window_size_time,
+            window_stride_time,
+            train_test_split=tts
         )
 
-        print(np.unique(y, return_counts=True))
-        print(np.unique(yt, return_counts=True))
+        # print(np.unique(y, return_counts=True))
+        # print(np.unique(yt, return_counts=True))
 
-        if TRAIN:
-            save_path = cwd / "data/models/syscall_clf.joblib"
-            train_and_save_model(X, y, save_path)
+        if train:
+            train_score = train_and_save_model(X, y, save_path)
+            train_scores.append(train_score)
+            print(f"Train Score: {train_score}")
         else:
             train_and_test_report(X, y)
 
-    if NETWORK:
-        network_dir = cwd / "data/current_data/network_bucket"
-        network_paths = [p for p in network_dir.iterdir() if p.is_file()]
-        network_paths.sort()
-
-        # MALWARE_DICT = detector_framework.config.NETWORK_MALWARE_DICT
-        MALWARE_DICT = detector_framework.config.NETWORK_BENIGN_MALWARE_DICT
-        malware_keys = [item for sublist in MALWARE_DICT.values() for item in sublist]
-        malware_keys = set(malware_keys)
-
-        filtered = [
-            path for path in network_paths
-            if any(key in path.name for key in malware_keys)
-        ]
-        network_paths = filtered
-
-        # TODO uncomment this
-        # subsampled = []
-        # for key in malware_keys:
-        #     tmp_list = [path for path in network_paths if key in str(path)]
-        #     subsample = int(len(tmp_list) * 0.6)
-        #     subsampled.extend(tmp_list[:subsample])
-        # network_paths = subsampled
-
-        X, y, Xt, yt  = files_and_labels_to_X_y(
-            network_paths, network_signals, MALWARE_DICT, window_size_time, window_stride_time, train_test_split=tts
-        )
-        print(np.unique(y, return_counts=True))
-        print(np.unique(yt, return_counts=True))
-
-        if TRAIN:
-            save_path = cwd / "data/models/network_clf.joblib"
-            train_and_save_model(X, y, save_path)
-        else:
-            train_and_test_report(X, y)
-
-    if HPC:
-
-        hpc_dir = cwd / "data/current_data/hpc_bucket"
-        hpc_paths = [p for p in hpc_dir.iterdir() if p.is_file()]
-        hpc_paths.sort()
-
-        # MALWARE_DICT = detector_framework.config.HPC_MALWARE_DICT
-        MALWARE_DICT = detector_framework.config.HPC_BENIGN_MALWARE_DICT
-        malware_keys = [item for sublist in MALWARE_DICT.values() for item in sublist]
-        malware_keys = set(malware_keys)
-
-        filtered = [
-            path for path in hpc_paths
-            if any(key in path.name for key in malware_keys)
-        ]
-        hpc_paths = filtered
-
-        # TODO uncomment this
-        # subsampled = []
-        # for key in malware_keys:
-        #     tmp_list = [path for path in hpc_paths if key in str(path)]
-        #     subsample = int(len(tmp_list) * 0.6)
-        #     subsampled.extend(tmp_list[:subsample])
-        # hpc_paths = subsampled
-
-        X, y, Xt, yt = files_and_labels_to_X_y(
-            hpc_paths, hpc_signals, MALWARE_DICT, window_size_time, window_stride_time, train_test_split=tts
-        )
-        print(np.unique(y, return_counts=True))
-        print(np.unique(yt, return_counts=True))
-
-        if TRAIN:
-            save_path = cwd / "data/models/hpc_clf.joblib"
-            train_and_save_model(X, y, save_path)
-        else:
-            train_and_test_report(X, y)
+    return train_scores
 
 
-    syscall_dir = cwd / "data/current_data/syscall_bucket"
-    network_dir = cwd / "data/current_data/network_bucket"
-    hpc_dir = cwd / "data/current_data/hpc_bucket"
+if __name__ == "__main__":
+    config.set_seed()
+
+    SYSCALL = True
+    NETWORK = True
+    HPC = True
+    TRAIN = True
+    REPROCESS_DATA = True
+
+    cwd = Path.cwd()
+    tts = detector_framework.config.TRAIN_TEST_SPLIT
+
+    # window_size_time = 0.1 / 2  # / 2  # 10
+    # window_stride_time = window_size_time / 3
+    window_size_time = 0.5
+    window_stride_time = 0.2
+    # rng = np.random.default_rng(seed=1337)  # optional seed
+    # random.seed(1337)
+
+    iteration_dict = {
+        "syscall": {
+            "signal_selection": SYSCALL,
+            "data_dir": cwd / "data/current_data/syscall_bucket",
+            "malware_dictionary": detector_framework.config.SYSCALL_BENIGN_MALWARE_DICT,
+            "feature_extraction_module": syscall_signals,
+            "save_path": cwd / "data/models/syscall_clf.joblib"
+        },
+        "network": {
+            "signal_selection": NETWORK,
+            "data_dir": cwd / "data/current_data/network_bucket",
+            "malware_dictionary": detector_framework.config.NETWORK_BENIGN_MALWARE_DICT,
+            "feature_extraction_module": network_signals,
+            "save_path": cwd / "data/models/network_clf.joblib"
+        },
+        "hpc": {
+            "signal_selection": HPC,
+            "data_dir": cwd / "data/current_data/hpc_bucket",
+            "malware_dictionary": detector_framework.config.HPC_BENIGN_MALWARE_DICT,
+            "feature_extraction_module": hpc_signals,
+            "save_path": cwd / "data/models/hpc_clf.joblib"
+        }
+    }
+
+    outer_train_loop(iteration_dict, window_size_time, window_stride_time, tts, TRAIN)
 
     signal_modules = {
         "syscall": syscall_signals,
@@ -705,11 +673,10 @@ if __name__ == "__main__":
 
     feature_frames_path = cwd / "data/feature_frames.joblib"
 
-    # key = "filebench_fileserver"
-    # tmp_dict = {key: behaviors[key]}
-    # behaviors = tmp_dict
-
     if REPROCESS_DATA:
+        syscall_dir = cwd / "data/current_data/syscall_bucket"
+        network_dir = cwd / "data/current_data/network_bucket"
+        hpc_dir = cwd / "data/current_data/hpc_bucket"
 
         for behavior in behaviors:
             for signal_dir, signal in zip([syscall_dir, network_dir, hpc_dir], signal_modules.keys()):
@@ -735,6 +702,28 @@ if __name__ == "__main__":
 
     else:
         feature_frames = joblib.load(feature_frames_path)
+
+    raise Exception
+
+    syscall_dir = cwd / "data/current_data/syscall_bucket"
+    network_dir = cwd / "data/current_data/network_bucket"
+    hpc_dir = cwd / "data/current_data/hpc_bucket"
+
+    signal_modules = {
+        "syscall": syscall_signals,
+        "network": network_signals,
+        "hpc": hpc_signals,
+    }
+
+    behaviors = deepcopy(detector_framework.config.BEHAVIOR_FILES)
+
+    feature_frames_path = cwd / "data/feature_frames.joblib"
+
+    # key = "filebench_fileserver"
+    # tmp_dict = {key: behaviors[key]}
+    # behaviors = tmp_dict
+
+
 
     #  form attack data
     # gd = global_detector.LifecycleDetector()

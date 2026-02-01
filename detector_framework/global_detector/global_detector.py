@@ -37,11 +37,11 @@ def form_lifecycle_sequence(attack_stages: dict, benign=False):
 
     # for state, technique in zip(states, techniques):
     #     stage_keys.append("s" + str(state) + technique)
-    #     stage_windows.append(np.random.choice([i for i in range(10, 100, 10)]))
+    #     stage_windows.append(np.random.choice(np.arange(10, 100, 10)))
 
     for technique in techniques:
         stage_keys.append(technique)
-        stage_windows.append(np.random.choice([i for i in range(10, 100, 10)]))
+        stage_windows.append(np.random.choice(np.arange(10, 100, 10)))
 
     return stage_keys, stage_windows
 

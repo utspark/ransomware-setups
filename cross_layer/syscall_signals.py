@@ -4,7 +4,7 @@ import io
 
 import pandas as pd
 
-import feature_extraction
+from cross_layer import feature_extraction
 
 
 def get_file_df(filepath: Path) -> pd.DataFrame:
