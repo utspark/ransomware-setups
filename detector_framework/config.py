@@ -3,7 +3,7 @@ import random
 import os
 
 SUBSAMPLE_NETWORK_DATA : Final = 10
-TRAIN_TEST_SPLIT : Final = 0.9
+TRAIN_TEST_SPLIT : Final = 0.70
 RANDOM_SEED : Final = 42
 
 def set_seed(seed: Optional[int] = RANDOM_SEED):

@@ -632,8 +632,8 @@ if __name__ == "__main__":
 
     # window_size_time = 0.1 / 2  # / 2  # 10
     # window_stride_time = window_size_time / 3
-    window_size_time = 0.5
-    window_stride_time = 0.2
+    window_size_time = 0.7
+    window_stride_time = 0.1
     # rng = np.random.default_rng(seed=1337)  # optional seed
     # random.seed(1337)
 
