@@ -100,9 +100,9 @@ SYSCALL_BENIGN_MALWARE_DICT: Final = {
         "mediaserver_index_",
     ],
     14: [
-        "spec_gcc",
+        "spec_gcc_",
         "spec_leela_",
-        "spec_deepsjeng",
+        "spec_deepsjeng_",
     ],
 }
 

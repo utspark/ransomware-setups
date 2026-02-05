@@ -1,5 +1,7 @@
 import argparse
 import os
+
+import joblib
 import numpy as np
 import itertools
 import multiprocessing
@@ -134,6 +136,53 @@ def count_ngram_occurrences(ngram: np.ndarray, array: np.ndarray) -> int:
     # Count how many windows match the n-gram
     matches = np.all(windows == ngram, axis=1)
     return np.sum(matches)
+
+
+def build_ngram_vocabulary(sequences: list[np.ndarray], word_length: int, unique: bool = True) -> tuple[np.ndarray, Counter]:
+    """
+    Builds an n-gram vocabulary from a list of sequences.
+    
+    Returns:
+        tuple: (array_n, counts) where array_n is a sorted numpy array of n-grams 
+               and counts is a Counter object of n-gram frequencies.
+    """
+    print(f"Building vocabulary from sequences (word_length={word_length})...")
+    all_ngrams = []
+    for seq in sequences:
+        windows = sliding_window_sampling(seq, window_size=word_length, window_stride=1)
+        if windows.size > 0:
+            all_ngrams.append(windows)
+    
+    if all_ngrams:
+        all_ngrams = np.concatenate(all_ngrams, axis=0)
+        
+        # Count frequencies for sorting
+        counts = Counter(map(tuple, all_ngrams))
+        
+        # Get unique windows sorted by frequency
+        # most_common() returns a list of ((n-gram tuple), count) sorted by count descending
+        sorted_vocab = [np.array(item[0]) for item in counts.most_common()]
+        array_n = np.array(sorted_vocab)
+    else:
+        array_n = np.empty((0, word_length), dtype=int)
+        counts = Counter()
+
+    if unique:
+        unique_arrays = []
+        for array in array_n:
+            if np.unique(array).size > 1:
+                unique_arrays.append(array)
+            else:
+                counts.pop(tuple(array))
+
+        array_n = np.array(unique_arrays)
+
+        
+    print(f"Vocabulary size ({word_length}-grams): {len(array_n)}")
+    if len(array_n) > 0:
+        print(f"Most frequent {word_length}-gram: {array_n[0]} (count: {counts[tuple(array_n[0])]})")
+        
+    return array_n, counts
 
 
 def convert_data_to_list(data: dict) -> list:
@@ -313,6 +362,84 @@ def get_phrase_frequencies(data_list: list, phrases_vocab: np.ndarray, word_leng
 
 
 
+def generate_multigram_phrases(train_subset, array_n, word_length, n_workers, max_length=6):
+    """
+    Generates top phrases for lengths 1 through max_length.
+    """
+    all_phrases = []
+    
+    # Configuration for each phrase length: (array_n_slice, top_k)
+    # Based on existing hardcoded values
+    configs = {
+        1: (100, 200),
+        2: (50, 200),
+        3: (30, 100),
+        4: (15, 100),
+        5: (15, 100),
+        6: (5, 100)
+    }
+    
+    for i in range(1, max_length + 1):
+        print(f"Generating {i}-word phrases...")
+        n_slice, top_k = configs.get(i, (5, 100)) # Default to (5, 100) for i > 6
+        
+        phrases = create_phrases(i, array_n[0:n_slice])
+        phrase_freqs = get_phrase_frequencies(train_subset, phrases, word_length, n_workers)
+        top_phrases = np.array([phrase for phrase, _ in phrase_freqs[:top_k]])
+        all_phrases.append(top_phrases)
+        
+    return all_phrases
+
+
+def get_features(data_list, all_phrases, word_length, n_workers, name="data"):
+    print(f"Calculating features for {name}...")
+    feats = []
+    for i, phrases in enumerate(all_phrases):
+        feat = count_phrases(data_list, phrases, word_length, num_processes=n_workers)
+        feats.append(feat)
+    return np.stack(feats, axis=1)
+
+
+def evaluate(model, name, classifier_type, X_test, y_test):
+    print(f"\n--- Evaluation: {name} ---")
+
+    if classifier_type in ["one_class_svm", "isolation_forest"]:
+        # These models return 1 for inliers (benign) and -1 for outliers (attack)
+        y_pred_raw = model.predict(X_test)
+        y_pred = np.where(y_pred_raw == 1, 1, 0)
+        y_prob = model.score_samples(X_test)
+    else:
+        y_pred = model.predict(X_test)
+        y_prob = model.predict_proba(X_test)[:, 1]
+
+    print(classification_report(y_test, y_pred, target_names=['Attack', 'Benign']))
+
+    auc = roc_auc_score(y_test, y_prob)
+    print(f"ROC AUC Score: {auc:.4f}")
+
+    fpr, tpr, _ = roc_curve(y_test, y_prob)
+
+    # Plot ROC Curve
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {auc:.2f})')
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(f'Receiver Operating Characteristic - {name}')
+    plt.legend(loc="lower right")
+
+    # Save the plot
+    file_name = f"roc_auc_{name.lower().replace(' ', '_')}.png"
+    plt.savefig(file_name)
+    print(f"ROC curve saved to {file_name}")
+
+    # plt.show(block=False)
+
+    return (fpr, tpr, auc)
+
+
 if __name__ == "__main__":
     # --- Constants ---
     WORD_LENGTH = 7  # Length of the system call word (range: 3-7)
@@ -345,82 +472,15 @@ if __name__ == "__main__":
     val_subset = val_data[:500]
     attack_subset = attack_data
 
-    print(f"Building vocabulary from training subset (word_length={WORD_LENGTH})...")
     # n-call word dictionary
-    all_ngrams = []
-    for seq in train_subset:
-        windows = sliding_window_sampling(seq, window_size=WORD_LENGTH, window_stride=1)
-        if windows.size > 0:
-            all_ngrams.append(windows)
-    
-    if all_ngrams:
-        all_ngrams = np.concatenate(all_ngrams, axis=0)
-        
-        # Count frequencies for sorting
-        counts = Counter(map(tuple, all_ngrams))
-        
-        # Get unique windows sorted by frequency
-        # most_common() returns a list of ((n-gram tuple), count) sorted by count descending
-        sorted_vocab = [np.array(item[0]) for item in counts.most_common()]
-        array_n = np.array(sorted_vocab)
-    else:
-        array_n = np.empty((0, WORD_LENGTH), dtype=int)
-        
-    print(f"Vocabulary size ({WORD_LENGTH}-grams): {len(array_n)}")
-    if len(array_n) > 0:
-        print(f"Most frequent {WORD_LENGTH}-gram: {array_n[0]} (count: {counts[tuple(array_n[0])]})")
+    array_n, counts = build_ngram_vocabulary(train_subset, WORD_LENGTH)
 
-    array_1 = array_n[0:100]
-    array_2 = array_n[0:50]
-    array_3 = array_n[0:30]
-    array_4 = array_n[0:15]
-    array_5 = array_n[0:15]
-    array_6 = array_n[0:5]
+    # Generate multigram phrases (lengths 1 to 6)
+    all_phrases = generate_multigram_phrases(train_subset, array_n, WORD_LENGTH, n_workers, max_length=6)
 
-    # 1-word phrase
-    print("Generating 1-word phrases...")
-    phrases_1 = create_phrases(1, array_1)
-    phrase_freqs = get_phrase_frequencies(train_subset, phrases_1, WORD_LENGTH, n_workers)
-    phrases_1 = np.array([phrase for phrase, _ in phrase_freqs[:200]])
-
-    print("Generating 2-word phrases...")
-    phrases_2 = create_phrases(2, array_2)
-    phrase_freqs = get_phrase_frequencies(train_subset, phrases_2, WORD_LENGTH, n_workers)
-    phrases_2 = np.array([phrase for phrase, _ in phrase_freqs[:200]])
-
-    print("Generating 3-word phrases...")
-    phrases_3 = create_phrases(3, array_3)
-    phrase_freqs = get_phrase_frequencies(train_subset, phrases_3, WORD_LENGTH, n_workers)
-    phrases_3 = np.array([phrase for phrase, _ in phrase_freqs[:100]])
-
-    print("Generating 4-word phrases...")
-    phrases_4 = create_phrases(4, array_4)
-    phrase_freqs = get_phrase_frequencies(train_subset, phrases_4, WORD_LENGTH, n_workers)
-    phrases_4 = np.array([phrase for phrase, _ in phrase_freqs[:100]])
-
-    print("Generating 5-word phrases...")
-    phrases_5 = create_phrases(5, array_5)
-    phrase_freqs = get_phrase_frequencies(train_subset, phrases_5, WORD_LENGTH, n_workers)
-    phrases_5 = np.array([phrase for phrase, _ in phrase_freqs[:100]])
-
-    print("Generating 6-word phrases...")
-    phrases_6 = create_phrases(6, array_6)
-    phrase_freqs = get_phrase_frequencies(train_subset, phrases_6, WORD_LENGTH, n_workers)
-    phrases_6 = np.array([phrase for phrase, _ in phrase_freqs[:100]])
-    
-    def get_features(data_list, name="data"):
-        print(f"Calculating features for {name}...")
-        feat1 = count_phrases(data_list, phrases_1, WORD_LENGTH, num_processes=n_workers)
-        feat2 = count_phrases(data_list, phrases_2, WORD_LENGTH, num_processes=n_workers)
-        feat3 = count_phrases(data_list, phrases_3, WORD_LENGTH, num_processes=n_workers)
-        feat4 = count_phrases(data_list, phrases_4, WORD_LENGTH, num_processes=n_workers)
-        feat5 = count_phrases(data_list, phrases_5, WORD_LENGTH, num_processes=n_workers)
-        feat6 = count_phrases(data_list, phrases_6, WORD_LENGTH, num_processes=n_workers)
-        return np.stack([feat1, feat2, feat3, feat4, feat5, feat6], axis=1)
-
-    X_train = get_features(train_subset, "training data")
-    X_val = get_features(val_subset, "validation data")
-    X_attack = get_features(attack_subset, "attack data")
+    X_train = get_features(train_subset, all_phrases, WORD_LENGTH, n_workers, "training data")
+    X_val = get_features(val_subset, all_phrases, WORD_LENGTH, n_workers, "validation data")
+    X_attack = get_features(attack_subset, all_phrases, WORD_LENGTH, n_workers, "attack data")
 
     # --- Normalize ---
     print("Normalizing features...")
@@ -459,44 +519,9 @@ if __name__ == "__main__":
     clf.fit(X_train, y_train)
 
     # --- Evaluation ---
-    def evaluate(model, name):
-        print(f"\n--- Evaluation: {name} ---")
-
-        if CLASSIFIER in ["one_class_svm", "isolation_forest"]:
-            # These models return 1 for inliers (benign) and -1 for outliers (attack)
-            y_pred_raw = model.predict(X_test)
-            y_pred = np.where(y_pred_raw == 1, 1, 0)
-            y_prob = model.score_samples(X_test)
-        else:
-            y_pred = model.predict(X_test)
-            y_prob = model.predict_proba(X_test)[:, 1]
-
-        print(classification_report(y_test, y_pred, target_names=['Attack', 'Benign']))
-
-        auc = roc_auc_score(y_test, y_prob)
-        print(f"ROC AUC Score: {auc:.4f}")
-
-        fpr, tpr, _ = roc_curve(y_test, y_prob)
-
-        # Plot ROC Curve
-        plt.figure(figsize=(8, 6))
-        plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {auc:.2f})')
-        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-        plt.xlim([0.0, 1.0])
-        plt.ylim([0.0, 1.05])
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title(f'Receiver Operating Characteristic - {name}')
-        plt.legend(loc="lower right")
-
-        # Save the plot
-        file_name = f"roc_auc_{name.lower().replace(' ', '_')}.png"
-        plt.savefig(file_name)
-        print(f"ROC curve saved to {file_name}")
-
-        plt.show(block=True)
-
-    evaluate(clf, CLASSIFIER.replace("_", " ").title())
+    fpr, tpr, auc = evaluate(clf, CLASSIFIER.replace("_", " ").title(), CLASSIFIER, X_test, y_test)
+    filename = f"detector_framework/adfa_replicate/results/adfa_data_curve.joblib"
+    joblib.dump((fpr, tpr, auc), filename)
 
 
 

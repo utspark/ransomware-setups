@@ -83,16 +83,18 @@ def files_and_labels_to_X_y(
     """
     X_list: list[np.ndarray] = []
     y_list: list[np.ndarray] = []
-    label = None
 
     for p in paths:
+        label = None
         for key, malware_list in malware_map.items():
             if any(malware in p.name for malware in malware_list):
                 label = key
                 break
 
-        if strict and label is None:
-            raise KeyError(f"No label found in malware_map for file: {p.name}")
+        if label is None:
+            if strict:
+                raise KeyError(f"No label found in malware_map for file: {p.name}")
+            continue
 
         df = signal_module.get_file_df(p)
 
