@@ -1,0 +1,27 @@
+import pytest
+import numpy as np
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+import joblib
+import os
+
+from detector_framework.data_processing.timeseries_processing import ModelSettings
+from detector_framework.local_detector.local_detector_run import run_local_detector, get_default_config
+
+from detector_framework import config
+
+
+
+def test_multiclass_analysis():
+    config.set_seed()
+
+    model_settings, benign_path, benign_dict, malware_path, malware_dict = get_default_config()
+
+    loss_ohe = run_local_detector(
+        model_settings, benign_path, benign_dict, malware_path, malware_dict
+    )
+
+    assert loss_ohe == pytest.approx(1.0324, abs=1e-3)
+
+
+

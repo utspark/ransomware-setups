@@ -3,12 +3,12 @@ from pathlib import Path
 import joblib
 import numpy as np
 
-from ml_pipelines import config
-from ml_pipelines.timeseries_processing import ModelSettings, preproc_transform
+from detector_framework import config
+from detector_framework.data_processing.timeseries_processing import ModelSettings, preproc_transform
+from detector_framework.local_detector.local_detector_run import get_keyword_filenames
 
 
 def get_prescored_predictions(stage_keys: list, stage_windows: list, prescored_dir: Path) -> (np.ndarray, np.array):
-    rng = np.random.default_rng()
     trace_classes = []
     trace_values = []
 
@@ -17,7 +17,7 @@ def get_prescored_predictions(stage_keys: list, stage_windows: list, prescored_d
         prescored_path = prescored_dir / prescored_filename
         label_class, label_val = joblib.load(prescored_path)
 
-        idx = rng.integers(0, len(label_class) - window_seq_len)
+        idx = np.random.randint(0, len(label_class) - window_seq_len)
 
         tmp_class = label_class[idx:idx + window_seq_len]
         tmp_val = label_val[idx:idx + window_seq_len]
@@ -37,11 +37,10 @@ def get_live_predictions(stage_keys: list, stage_windows: list, classifier, mode
     trace_values = []
 
     for ttp, window_seq_len in zip(stage_keys, stage_windows):
-        rng = np.random.default_rng()
-        malware_list = config.TTP_DICT[ttp]
+        malware_list = get_keyword_filenames(ttp, malware_path)
         transformed = preproc_transform(model_settings, malware_path, malware_list)
 
-        idx = rng.integers(0, len(transformed) - window_seq_len)
+        idx = np.random.randint(0, len(transformed) - window_seq_len)
         transformed = transformed[idx:idx + window_seq_len]
 
         y_pred_ohe = classifier.predict_proba(transformed)

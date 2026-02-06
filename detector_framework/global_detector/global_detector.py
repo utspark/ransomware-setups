@@ -4,7 +4,7 @@ import joblib
 import numpy as np
 from hmmlearn import hmm
 
-from ml_pipelines import config
+from detector_framework import config
 from bisect import bisect_left
 from typing import List, Tuple
 
@@ -37,27 +37,39 @@ def form_lifecycle_sequence(attack_stages: dict, benign=False):
 
     # for state, technique in zip(states, techniques):
     #     stage_keys.append("s" + str(state) + technique)
-    #     stage_windows.append(np.random.choice([i for i in range(10, 100, 10)]))
+    #     stage_windows.append(np.random.choice(np.arange(10, 100, 10)))
 
     for technique in techniques:
         stage_keys.append(technique)
-        stage_windows.append(np.random.choice([i for i in range(10, 100, 10)]))
+        stage_windows.append(np.random.choice(np.arange(10, 100, 10)))
 
     return stage_keys, stage_windows
 
 
 class LifecycleDetector:
-    def __init__(self, syscall_clf_path, network_clf_path, hpc_clf_path,
+    def __init__(self,
+                 syscall_clf_path=None,
+                 network_clf_path=None,
+                 hpc_clf_path=None,
                  lifecycle_awareness=True,
                  stage_filter=False,
                  density=False,
                  propagation=False,
                  memory=False
                  ):
+        if not any([syscall_clf_path, network_clf_path, hpc_clf_path]):
+            raise ValueError("At least one classifier path must be provided (syscall_clf_path, network_clf_path, or hpc_clf_path).")
+
+        def _load_clf(path):
+            if path is None:
+                return None
+            clf = joblib.load(path)
+            return clf[0] if isinstance(clf, tuple) else clf
+
+        self.syscall_clf = _load_clf(syscall_clf_path)
+        self.network_clf = _load_clf(network_clf_path)
+        self.hpc_clf = _load_clf(hpc_clf_path)
         self.hmm = self._get_markov()
-        self.syscall_clf = joblib.load(syscall_clf_path)[0]
-        self.network_clf = joblib.load(network_clf_path)[0]
-        self.hpc_clf = joblib.load(hpc_clf_path)[0]
         self.lifecycle_awareness = lifecycle_awareness
         self.stage_filter = stage_filter
         self.density = density
@@ -127,7 +139,7 @@ class LifecycleDetector:
         ]
 
         for clf, layer_data, translation in zip(clfs, cross_layer_X, translations):
-            if np.all(layer_data == -1):
+            if clf is None or np.all(layer_data == -1):
                 classes = layer_data[:, 0]
                 probas = layer_data[:, 0]
             else:

@@ -98,7 +98,7 @@ def concat_short_traces(files: Iterable[str | Path],
     return out_paths
 
 
-def get_file_arrays(file_path: Path, file_list=None, verbose=False) -> list:
+def get_file_arrays(file_path: Path, file_list=None, verbose=False, max_trace_len=0) -> list:
     trace_list = []
 
     paths = [p for p in file_path.iterdir() if p.is_file()]
@@ -119,6 +119,10 @@ def get_file_arrays(file_path: Path, file_list=None, verbose=False) -> list:
             lines = f.readlines()
             arr1 = np.loadtxt(io.StringIO(lines[0]), dtype=int)
             # arr2 = np.loadtxt(io.StringIO(lines[1]), dtype=float)
+
+            if max_trace_len != 0:
+                arr1 = arr1[:max_trace_len]
+
             trace_list.append(arr1)
 
     return trace_list
@@ -173,7 +177,7 @@ def trace_list_to_windows(model_settings: ModelSettings, trace_list: list):
 
 
 def get_windows_and_futures(model_settings: ModelSettings, file_dir: Path, file_list=None):
-    trace_list = get_file_arrays(file_dir, file_list)
+    trace_list = get_file_arrays(file_dir, file_list, max_trace_len=model_settings.max_trace_length)
     windows, futures = trace_list_to_windows(model_settings, trace_list)
 
     return windows, futures

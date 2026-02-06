@@ -24,8 +24,10 @@ plt.ion()
 from pathlib import Path
 
 import os
+import detector_framework.config as config
+config.set_seed()
 
-import ml_pipelines.processing as mpp
+import detector_framework.data_processing.processing as mpp
 
 os.environ["QT_QPA_PLATFORM"] = "wayland"
 
