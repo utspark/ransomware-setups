@@ -200,6 +200,77 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
     return auc_values
 
 
+def adfa_comparison_plot(model_paths, attack_stages_dict: dict, feature_frames_dict: dict,
+                      window_size_time, window_stride_time, time_choices: list):
+
+    n_samples = 50
+    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION_ONLY
+    benign_cross_layer_X = []
+    for _ in range(n_samples):
+        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        benign_cross_layer_X.append(cross_layer_X)
+
+    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION_ONLY
+    worst_case_benign_cross_layer_X = []
+    for _ in range(n_samples):
+        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        worst_case_benign_cross_layer_X.append(cross_layer_X)
+
+    malware_cross_layer_X = []
+    for _ in range(n_samples):
+        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        malware_cross_layer_X.append(cross_layer_X)
+
+
+    la_components = {
+        "density": True,
+        "propagation": True,
+    }
+
+    gd = global_detector.LifecycleDetector(
+        **model_paths,
+        lifecycle_awareness=True,
+        stage_filter=False,
+        **la_components
+    )
+
+    benign_scores = []
+    for j in range(n_samples):
+        proba = gd.score_cross_layer(benign_cross_layer_X[j])
+        benign_scores.append(proba)
+
+    malware_scores = []
+    for j in range(n_samples):
+        proba = gd.score_cross_layer(malware_cross_layer_X[j])
+        malware_scores.append(proba)
+
+    y_scores = malware_scores + benign_scores
+    y_true = np.zeros(len(y_scores))
+    y_true[:len(malware_scores)] = 1
+
+    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+    roc_auc = auc(fpr, tpr)
+
+    data = (fpr, tpr, roc_auc)
+
+    filename = f"detector_framework/adfa_replicate/results/lapd_exclude_encryption_curve.joblib"
+    joblib.dump(data, filename)
+
+    return
+
+
 def compression_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, time_choices: list):
     combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(4)]
     auc_values = []
@@ -423,18 +494,30 @@ def evade_density_plot(model_paths, attack_stages_dict: dict, feature_frames_dic
 
     la_components.append(density_descriptor)
 
-    n_samples = 150
-    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION
+    n_samples = 100
+    filler_count = 1
+    attack_time = 1
+    benign_time = 5
+    benign_stages = detector_framework.config.GENERATION_BENIGN
 
     b_cross_layer_X = []
     for _ in range(n_samples):
         techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
-        stage_lens = [(technique, time_choices[0]) for technique in techniques]
+        m_stage_lens = [(technique, attack_time) for technique in techniques]
 
-        for _ in range(4):
-            b_techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict) + 1)]
-            b_stage_lens = [(technique, random.choice(time_choices)) for technique in b_techniques]
-            stage_lens.extend(b_stage_lens)
+        filler_stage_lens = []
+        for _ in range(filler_count):
+            b_techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+            b_stage_lens = [(technique, benign_time) for technique in b_techniques]
+            filler_stage_lens.append(b_stage_lens)
+
+        stage_lens = []
+        for i in range(4):
+            m_stage_len = m_stage_lens[i]
+            stage_lens.append(m_stage_len)
+
+            for b_stage_lens in filler_stage_lens:
+                stage_lens.append(b_stage_lens[i])
 
         attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
         b_cross_layer_X.append(cld.cross_layer_concatenate(attack_X))
@@ -442,12 +525,21 @@ def evade_density_plot(model_paths, attack_stages_dict: dict, feature_frames_dic
     m_cross_layer_X = []
     for _ in range(n_samples):
         techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
-        stage_lens = [(technique, time_choices[0]) for technique in techniques]
+        m_stage_lens = [(technique, attack_time) for technique in techniques]
 
-        for _ in range(4):
-            b_techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict) + 1)]
-            b_stage_lens = [(technique, random.choice(time_choices)) for technique in b_techniques]
-            stage_lens.extend(b_stage_lens)
+        filler_stage_lens = []
+        for _ in range(filler_count):
+            b_techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+            b_stage_lens = [(technique, benign_time) for technique in b_techniques]
+            filler_stage_lens.append(b_stage_lens)
+
+        stage_lens = []
+        for i in range(4):
+            m_stage_len = m_stage_lens[i]
+            stage_lens.append(m_stage_len)
+
+            for b_stage_lens in filler_stage_lens:
+                stage_lens.append(b_stage_lens[i])
 
         attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
         m_cross_layer_X.append(cld.cross_layer_concatenate(attack_X))
@@ -538,6 +630,184 @@ def signal_sample_plot(
     m_stage_len_list = []
     for _ in range(n_samples):
         techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+        m_stage_len_list.append(stage_lens)
+
+    for i in range(7):
+
+        benign_scores = []
+        for j in range(n_samples):
+            stage_lens = b_stage_len_list[j]
+
+            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
+            cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+            signal_select = combos[i]
+            for k, selection in enumerate(reversed(signal_select)):
+                if selection == 0:
+                    cross_layer_X[k][:] = -1
+
+            proba = gd.score_cross_layer(cross_layer_X)
+            benign_scores.append(proba)
+
+        malware_scores = []
+        for j in range(n_samples):
+            stage_lens = m_stage_len_list[j]
+
+            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
+            cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+            signal_select = combos[i]
+            for k, selection in enumerate(reversed(signal_select)):
+                if selection == 0:
+                    cross_layer_X[k][:] = -1
+
+            proba = gd.score_cross_layer(cross_layer_X)
+            malware_scores.append(proba)
+
+        y_scores = malware_scores + benign_scores
+        y_true = np.zeros(len(y_scores))
+        y_true[:len(malware_scores)] = 1
+
+        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+        roc_auc = auc(fpr, tpr)
+
+        auc_values.append((fpr, tpr, roc_auc))
+
+    gd = global_detector.LifecycleDetector(
+        cwd / "data/models/syscall_clf.joblib",
+        cwd / "data/models/network_clf.joblib",
+        cwd / "data/models/hpc_clf.joblib",
+        lifecycle_awareness=True,
+        stage_filter=False,
+        density=False,
+        propagation=False,
+        memory=False,
+    )
+
+    b_stage_len_list = []
+    for _ in range(n_samples):
+        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+        b_stage_len_list.append(stage_lens)
+
+    m_stage_len_list = []
+    for _ in range(n_samples):
+        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+        m_stage_len_list.append(stage_lens)
+
+    for i in range(7):
+
+        benign_scores = []
+        for j in range(n_samples):
+            stage_lens = b_stage_len_list[j]
+
+            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
+            cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+            signal_select = combos[i]
+            for k, selection in enumerate(reversed(signal_select)):
+                if selection == 0:
+                    cross_layer_X[k][:] = -1
+
+            proba = gd.score_cross_layer(cross_layer_X)
+            benign_scores.append(proba)
+
+        malware_scores = []
+        for j in range(n_samples):
+            stage_lens = m_stage_len_list[j]
+
+            attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
+            cross_layer_X = cld.cross_layer_concatenate(attack_X)
+
+            signal_select = combos[i]
+            for k, selection in enumerate(reversed(signal_select)):
+                if selection == 0:
+                    cross_layer_X[k][:] = -1
+
+            proba = gd.score_cross_layer(cross_layer_X)
+            malware_scores.append(proba)
+
+        y_scores = malware_scores + benign_scores
+        y_true = np.zeros(len(y_scores))
+        y_true[:len(malware_scores)] = 1
+
+        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+        roc_auc = auc(fpr, tpr)
+
+        auc_values.append((fpr, tpr, roc_auc))
+
+    if plot:
+        plt.figure(figsize=(9, 6))
+        for i in range(len(combos)):
+            if i != len(combos) - 1:
+                continue
+
+            fpr, tpr, roc_auc = auc_values[i]
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle="--", label=f'LAPD {model_labels[i]}: {roc_auc:.3f}')
+
+        for i in range(len(combos)):
+            fpr, tpr, roc_auc = auc_values[i + len(combos)]
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle='-', label=f'LA   {model_labels[i]}: {roc_auc:.3f}')
+
+        plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
+        plt.xlim([-0.01, 1.01])
+        plt.ylim([-0.01, 1.01])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.legend(loc="lower right", prop={'family': 'monospace', 'size': 16})
+        plt.tight_layout()
+        plt.grid()
+        plt.show(block=True)
+
+    return auc_values
+
+
+def cherrypick_signal_sample_plot(
+        model_paths, attack_stages_dict: dict, feature_frames_dict: dict,
+        window_size_time, window_stride_time, time_choices: list, cwd: Path, plot=True):
+    combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(1, 8)]
+    auc_values = []
+
+    model_labels = [
+        "***_***_sys",
+        "***_net_***",
+        "***_net_sys",
+        "hpc_***_***",
+        "hpc_***_sys",
+        "hpc_net_***",
+        "hpc_net_sys",
+    ]
+
+    gd = global_detector.LifecycleDetector(
+        cwd / "data/models/syscall_clf.joblib",
+        cwd / "data/models/network_clf.joblib",
+        cwd / "data/models/hpc_clf.joblib",
+        lifecycle_awareness=True,
+        stage_filter=False,
+        density=True,
+        propagation=True,
+        memory=False,
+    )
+
+    n_samples = 50
+    benign_stages = detector_framework.config.GENERATION_BENIGN
+
+    b_stage_len_list = []
+    for _ in range(n_samples):
+        # techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        tech = benign_stages[1]
+        techniques = [tech for _ in range(len(attack_stages_dict))]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+        b_stage_len_list.append(stage_lens)
+
+    m_stage_len_list = []
+    for _ in range(n_samples):
+        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        techniques[1] = "compress_zstd_8t"
+        techniques[2] = "transfer_sftp_1t"
+        # techniques[3] = "symm_AES_256b"
         stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
         m_stage_len_list.append(stage_lens)
 
@@ -992,12 +1262,21 @@ def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict,
         idx = int(np.argmax(cond)) if cond.any() else -1
         m_trip_idx.append(idx)
 
+    ttd_list = []
     early_trips = 0
     for i, trip_idx in enumerate(m_trip_idx):
         if trip_idx == -1:
             continue
         stage_lens = m_stage_len_list[i]
         stage_times = [val[1] for val in stage_lens]
+
+        stage_idxs = [(stage_time - window_size_time) // window_stride_time + 1 for stage_time in stage_times]
+        stage_idxs = np.cumsum(stage_idxs)
+        stages_reached = np.searchsorted(stage_idxs, trip_idx, side='right')
+        ttd = stages_reached*window_size_time + (trip_idx-stages_reached) * window_stride_time
+        ttd_list.append(ttd)
+
+
         # The first 3 stages are 'recon', 'exfil_1', and 'exfil_2'.
         # The 4th stage is 'exec_2' (the final stage).
         exec_idx = np.sum([(stage_time - window_size_time) / window_stride_time for stage_time in stage_times[:3]])
@@ -1005,6 +1284,7 @@ def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict,
             early_trips += 1
 
     print(f"Early trips (before final stage): {early_trips}/{len(malware_scores)}")
+    print(f"Average TTD: {np.mean(ttd_list):.2f}s")
 
     b_scores = [np.max(scores) for scores in benign_scores]
     m_scores = [np.max(scores) for scores in malware_scores]
@@ -1087,22 +1367,28 @@ def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict,
             y_vals += t[i]
             plt.plot(x_vals, y_vals,  linewidth=4, color="black", linestyle='--', alpha=0.3)
 
-        props = dict(boxstyle='round', facecolor='white', alpha=0.7)
-        ax.text(0.97, 0.03,
-                f"Threshold 0.4 | ACC:{threshold_results['accuracy'][0]:5.2f}  TPR:{threshold_results['tpr'][0]:5.2f}  FPR:{threshold_results['fpr'][0]:5.2f}  F1:{threshold_results['f1'][0]:5.2f}\n"
-                f"Threshold 0.5 | ACC:{threshold_results['accuracy'][1]:5.2f}  TPR:{threshold_results['tpr'][1]:5.2f}  FPR:{threshold_results['fpr'][1]:5.2f}  F1:{threshold_results['f1'][1]:5.2f}\n"
-                f"Threshold 0.6 | ACC:{threshold_results['accuracy'][2]:5.2f}  TPR:{threshold_results['tpr'][2]:5.2f}  FPR:{threshold_results['fpr'][2]:5.2f}  F1:{threshold_results['f1'][2]:5.2f}\n"
-                f"Threshold 0.7 | ACC:{threshold_results['accuracy'][3]:5.2f}  TPR:{threshold_results['tpr'][3]:5.2f}  FPR:{threshold_results['fpr'][3]:5.2f}  F1:{threshold_results['f1'][3]:5.2f}\n"
-                f"Threshold 0.8 | ACC:{threshold_results['accuracy'][4]:5.2f}  TPR:{threshold_results['tpr'][4]:5.2f}  FPR:{threshold_results['fpr'][4]:5.2f}  F1:{threshold_results['f1'][4]:5.2f}",
-                transform=ax.transAxes,
-                va='bottom', ha='right', bbox=props, fontsize=14)
+        # props = dict(boxstyle='round', facecolor='white', alpha=0.7)
+        # ax.text(0.97, 0.03,
+        #         f"Threshold 0.4 | ACC:{threshold_results['accuracy'][0]:5.2f}  TPR:{threshold_results['tpr'][0]:5.2f}  FPR:{threshold_results['fpr'][0]:5.2f}  F1:{threshold_results['f1'][0]:5.2f}\n"
+        #         f"Threshold 0.5 | ACC:{threshold_results['accuracy'][1]:5.2f}  TPR:{threshold_results['tpr'][1]:5.2f}  FPR:{threshold_results['fpr'][1]:5.2f}  F1:{threshold_results['f1'][1]:5.2f}\n"
+        #         f"Threshold 0.6 | ACC:{threshold_results['accuracy'][2]:5.2f}  TPR:{threshold_results['tpr'][2]:5.2f}  FPR:{threshold_results['fpr'][2]:5.2f}  F1:{threshold_results['f1'][2]:5.2f}\n"
+        #         f"Threshold 0.7 | ACC:{threshold_results['accuracy'][3]:5.2f}  TPR:{threshold_results['tpr'][3]:5.2f}  FPR:{threshold_results['fpr'][3]:5.2f}  F1:{threshold_results['f1'][3]:5.2f}\n"
+        #         f"Threshold 0.8 | ACC:{threshold_results['accuracy'][4]:5.2f}  TPR:{threshold_results['tpr'][4]:5.2f}  FPR:{threshold_results['fpr'][4]:5.2f}  F1:{threshold_results['f1'][4]:5.2f}",
+        #         transform=ax.transAxes,
+        #         va='bottom', ha='right', bbox=props, fontsize=14)
+
+        print(f"Threshold 0.4 | ACC:{threshold_results['accuracy'][0]:5.2f}  TPR:{threshold_results['tpr'][0]:5.2f}  FPR:{threshold_results['fpr'][0]:5.2f}  F1:{threshold_results['f1'][0]:5.2f}\n")
+        print(f"Threshold 0.5 | ACC:{threshold_results['accuracy'][1]:5.2f}  TPR:{threshold_results['tpr'][1]:5.2f}  FPR:{threshold_results['fpr'][1]:5.2f}  F1:{threshold_results['f1'][1]:5.2f}\n")
+        print(f"Threshold 0.6 | ACC:{threshold_results['accuracy'][2]:5.2f}  TPR:{threshold_results['tpr'][2]:5.2f}  FPR:{threshold_results['fpr'][2]:5.2f}  F1:{threshold_results['f1'][2]:5.2f}\n")
+        print(f"Threshold 0.7 | ACC:{threshold_results['accuracy'][3]:5.2f}  TPR:{threshold_results['tpr'][3]:5.2f}  FPR:{threshold_results['fpr'][3]:5.2f}  F1:{threshold_results['f1'][3]:5.2f}\n")
+        print(f"Threshold 0.8 | ACC:{threshold_results['accuracy'][4]:5.2f}  TPR:{threshold_results['tpr'][4]:5.2f}  FPR:{threshold_results['fpr'][4]:5.2f}  F1:{threshold_results['f1'][4]:5.2f}")
 
         handles = [
             Line2D([0], [0], color="blue", lw=3, alpha=0.6, label="Benign"),
             Line2D([0], [0], color="red", lw=3, alpha=0.6, label="Ransomware"),
             Line2D([0], [0], color="black", lw=4, linestyle="--", alpha=0.3, label="Alarm Threshold"),
         ]
-        ax.legend(handles=handles, loc="center right", prop={'size': 14})
+        ax.legend(handles=handles, loc="lower right", prop={'size': 14})
 
 
         plt.xlabel("Time (s)")
@@ -1123,13 +1409,16 @@ if __name__ == "__main__":
 
     cwd = Path.cwd()
 
-    TRACE_LENS = False
-    MODEL_CURVES = False
-    EVADE_DENSITY = False
+    TRACE_LENS = True
+    MODEL_CURVES = True
+    EVADE_DENSITY = True
     SIGNAL_SAMPLES = True
-    FLOW_VARIATIONS = False
+    FLOW_VARIATIONS = True
+    SCORE_OVER_TIME = True
+    ADFA_GEN = True
+    CHERRYPICK = True
+
     BENIGN_APP_SCORES = False
-    SCORE_OVER_TIME = False
 
     window_size_time = config.WINDOW_SIZE_TIME
     window_stride_time = config.WINDOW_STRIDE_TIME
@@ -1193,6 +1482,11 @@ if __name__ == "__main__":
             attack_stages, feature_frames, window_size_time, window_stride_time, time_choice_list, cwd
         )
 
+    if ADFA_GEN:
+        adfa_comparison_plot(**plot_inputs)
+
+    if CHERRYPICK:
+        auc_values = cherrypick_signal_sample_plot(**plot_inputs, cwd=cwd)
 
     raise Exception
 

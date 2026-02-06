@@ -14,17 +14,19 @@ if __name__ == "__main__":
     LABEL_MAP = {
         "adfa_data_curve": "ADFA-LD Data",
         "individual_behavior_curve": "OR Behaviors",
-        "exclude_encryption_compression_curve": "Lifecycles Exclude Enc/Comp",
-        "partial_encryption_compression_curve": "Lifecycles Include Enc/Comp",
-        "full_compression_curve": "Lifecycles Only Compression",
+        "exclude_encryption_curve": "Lifecycles Exclude Enc",
+        "partial_encryption_curve": "Lifecycles Include Enc",
+        "full_encryption_curve": "Lifecycles Only Enc",
+        "lapd_exclude_encryption_curve": "LAPD Lifecycles Only Enc",
     }
 
     curve_plotting_params = {
         "adfa_data_curve": {"color": "darkorange", "linestyle": "--"},
         "individual_behavior_curve": {"color": "darkred", "linestyle": "--"},
-        "exclude_encryption_compression_curve": {"color": "darkgreen", "linestyle": "-"},
-        "partial_encryption_compression_curve": {"color": "darkblue", "linestyle": "-"},
-        "full_compression_curve": {"color": "purple", "linestyle": "-"},
+        "exclude_encryption_curve": {"color": "darkgreen", "linestyle": "-"},
+        "partial_encryption_curve": {"color": "darkblue", "linestyle": "-"},
+        "full_encryption_curve": {"color": "purple", "linestyle": "-"},
+        "lapd_exclude_encryption_curve": {"color": "purple", "linestyle": "-"},
     }
 
     # Sort curve_files to match the order in LABEL_MAP
@@ -40,7 +42,7 @@ if __name__ == "__main__":
             label = LABEL_MAP.get(curve_file.stem, curve_file.stem.replace("_", " ").replace(" curve", ""))
             # color = curve_plotting_params[curve_file.stem]["color"]
             linestyle = curve_plotting_params[curve_file.stem]["linestyle"]
-            plt.plot(fpr, tpr, lw=4, label=f"{label} (AUC = {auc:.3f})", alpha=0.7, linestyle=linestyle)
+            plt.plot(fpr, tpr, lw=4, label=f"{label}: {auc:.3f}", alpha=0.7, linestyle=linestyle)
         except Exception as e:
             print(f"Error loading {curve_file}: {e}")
 

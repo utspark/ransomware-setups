@@ -29,14 +29,17 @@ def calculate_accuracies(feature_dict, clf, benign_malware_dict, benign_keys, at
         for ttp in ttps:
             if ttp not in feature_dict or (ttp + "_") not in prefix_lookup:
                 accuracies.append(0)
+                print(f" *** ttp {ttp} not found")
                 continue
 
             X = feature_dict[ttp]
             class_labels = clf.predict(X)
+            print(f"{np.unique(class_labels, return_counts=True)}")
             y_true = np.full(len(class_labels), prefix_lookup[ttp + "_"])
             acc = np.sum(y_true == class_labels) / len(class_labels)
             accuracies.append(acc)
 
+    print("")
     return accuracies
 
 

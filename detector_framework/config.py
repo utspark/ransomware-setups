@@ -237,7 +237,7 @@ HPC_BENIGN_MALWARE_DICT : Final = {
     ],
     5: [
         "symm_AES_128b_",
-        "symm_AES_256_",
+        "symm_AES_256b_",
         "symm_Salsa20_128b_",
         "symm_Salsa20_256b_",
     ],
@@ -299,7 +299,7 @@ HPC_MALWARE_DICT : Final = {
     ],
     5: [
         "symm_AES_128b_",
-        "symm_AES_256_",
+        "symm_AES_256b_",
         "symm_Salsa20_128b_",
         "symm_Salsa20_256b_",
     ],

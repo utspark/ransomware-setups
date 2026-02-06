@@ -225,7 +225,7 @@ if __name__ == "__main__":
     benign_stages = config.GENERATION_BENIGN
     attack_stages = config.GENERATION_ATTACK_STAGES
 
-    n_traces = 30
+    n_traces = 50
     start = 2  # 0.5
     stop = 10
     step = 1
@@ -247,12 +247,12 @@ if __name__ == "__main__":
     # benign_norm should be label 1 (Benign), malware_norm should be label 0 (Attack)
     y_trace_test = np.concatenate([np.ones(len(benign_norm)), np.zeros(len(malware_norm))], axis=0)
     fpr, tpr, auc = evaluate(clf, "MLP Combined Traces", "mlp_combined", X_trace_test, y_trace_test)
-    filename = f"detector_framework/adfa_replicate/results/exclude_encryption_compression_curve.joblib"
+    filename = f"detector_framework/adfa_replicate/results/exclude_encryption_curve.joblib"
     joblib.dump((fpr, tpr, auc), filename)
 
     # baseline
     print(f"Generating {n_traces} benign traces...")
-    new_benign = benign_stages + attack_stages["exfil_1"] + attack_stages["exec_2"]
+    new_benign = benign_stages + attack_stages["exec_2"]
     get_benign_techniques = lambda: [random.choice(new_benign) for _ in range(len(attack_stages))]
     benign_trace_list = create_sampled_traces(n_traces, w_test_dict, time_choices, get_benign_techniques)
     benign_features = get_features(benign_trace_list, all_phrases, WORD_LENGTH, n_workers, "benign traces")
@@ -267,12 +267,12 @@ if __name__ == "__main__":
     # benign_norm should be label 1 (Benign), malware_norm should be label 0 (Attack)
     y_trace_test = np.concatenate([np.ones(len(benign_norm)), np.zeros(len(malware_norm))], axis=0)
     fpr, tpr, auc = evaluate(clf, "MLP Combined Traces", "mlp_combined", X_trace_test, y_trace_test)
-    filename = f"detector_framework/adfa_replicate/results/partial_encryption_compression_curve.joblib"
+    filename = f"detector_framework/adfa_replicate/results/partial_encryption_curve.joblib"
     joblib.dump((fpr, tpr, auc), filename)
 
     # compression only
     print(f"Generating {n_traces} benign traces...")
-    get_benign_techniques = lambda: [random.choice(attack_stages["exfil_1"]) for _ in range(len(attack_stages))]
+    get_benign_techniques = lambda: [random.choice(attack_stages["exec_2"]) for _ in range(len(attack_stages))]
     benign_trace_list = create_sampled_traces(n_traces, w_test_dict, time_choices, get_benign_techniques)
     benign_features = get_features(benign_trace_list, all_phrases, WORD_LENGTH, n_workers, "benign traces")
     benign_norm = scaler.transform(benign_features)
@@ -285,7 +285,7 @@ if __name__ == "__main__":
     X_trace_test = np.concatenate([benign_norm, malware_norm], axis=0)
     # benign_norm should be label 1 (Benign), malware_norm should be label 0 (Attack)
     fpr, tpr, auc = evaluate(clf, "MLP Combined Traces", "mlp_combined", X_trace_test, y_trace_test)
-    filename = f"detector_framework/adfa_replicate/results/full_compression_curve.joblib"
+    filename = f"detector_framework/adfa_replicate/results/full_encryption_curve.joblib"
     joblib.dump((fpr, tpr, auc), filename)
 
 
