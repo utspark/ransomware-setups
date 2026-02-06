@@ -5,6 +5,8 @@ import os
 SUBSAMPLE_NETWORK_DATA : Final = 10
 TRAIN_TEST_SPLIT : Final = 0.70
 RANDOM_SEED : Final = 42
+WINDOW_SIZE_TIME: Final = 0.7
+WINDOW_STRIDE_TIME: Final = 0.1
 
 def set_seed(seed: Optional[int] = RANDOM_SEED):
     """
@@ -1222,6 +1224,36 @@ GENERATION_BENIGN: Final = [
     "spec_gcc",
     "spec_leela",
     "spec_deepsjeng",
+]
+
+GENERATION_BENIGN_ENCRYPTION: Final = [
+    "browser_compute",
+    "browser_download",
+    "browser_generic",
+    "browser_mix",
+    "browser_streaming",
+    "filebench_fileserver",
+    "filebench_oltp",
+    "filebench_randomrw",
+    "filebench_varmail",
+    "filebench_videoserver",
+    "mediaserver_browse",
+    "mediaserver_index",
+    "spec_gcc",
+    "spec_leela",
+    "spec_deepsjeng",
+    "symm_AES_128b",
+    "symm_AES_256b",
+    "symm_Salsa20_128b",
+    "symm_Salsa20_256b",
+]
+
+
+GENERATION_BENIGN_ENCRYPTION_ONLY: Final = [
+    "symm_AES_128b",
+    "symm_AES_256b",
+    "symm_Salsa20_128b",
+    "symm_Salsa20_256b",
 ]
 
 # HMM_ATTACK_STAGES: Final = {

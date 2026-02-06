@@ -34,7 +34,7 @@ def trace_len_plot(attack_stages_dict: dict, feature_frames_dict: dict,
 
     length_check = 10
     length_samples = 15
-    benign_stages = detector_framework.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION
     benign_scores = []
     benign_times = []
     for i in range(1, length_check):
@@ -91,6 +91,7 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
         "LA-*D",
         "LA-P*",
         "LA-PD",
+        "LA-PD worst-case"
         # "LA-M**",
         # "LA-M*D",
         # "LA-MP*",
@@ -98,7 +99,7 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
     ]
 
     n_samples = 100
-    benign_stages = detector_framework.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION
     benign_cross_layer_X = []
     for _ in range(n_samples):
         techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
@@ -107,6 +108,16 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
         attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
         cross_layer_X = cld.cross_layer_concatenate(attack_X)
         benign_cross_layer_X.append(cross_layer_X)
+
+    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION_ONLY
+    worst_case_benign_cross_layer_X = []
+    for _ in range(n_samples):
+        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
+        cross_layer_X = cld.cross_layer_concatenate(attack_X)
+        worst_case_benign_cross_layer_X.append(cross_layer_X)
 
     malware_cross_layer_X = []
     for _ in range(n_samples):
@@ -152,15 +163,33 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
 
         auc_values.append((fpr, tpr, roc_auc))
 
+    # worst-case
+    benign_scores = []
+    for j in range(n_samples):
+        proba = gd.score_cross_layer(worst_case_benign_cross_layer_X[j])
+        benign_scores.append(proba)
+
+    y_scores = malware_scores + benign_scores
+    y_true = np.zeros(len(y_scores))
+    y_true[:len(malware_scores)] = 1
+
+    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+    roc_auc = auc(fpr, tpr)
+
+    auc_values.append((fpr, tpr, roc_auc))
+
+
+
+
     if plot:
         plt.figure(figsize=(8, 5))
-        for i in range(len(combos)):
+        for i in range(4):
             fpr, tpr, roc_auc = auc_values[i]
             plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
 
         plt.plot([0, 1], [0, 1], lw=4, color="black", alpha=0.5, linestyle='--', label='Random Guess')
         plt.xlim([-0.01, 1.0])
-        plt.ylim([0.0, 1.05])
+        plt.ylim([0.0, 1.01])
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
         plt.legend(loc="lower right", prop={'family': 'monospace'})
@@ -395,7 +424,7 @@ def evade_density_plot(model_paths, attack_stages_dict: dict, feature_frames_dic
     la_components.append(density_descriptor)
 
     n_samples = 150
-    benign_stages = detector_framework.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION
 
     b_cross_layer_X = []
     for _ in range(n_samples):
@@ -459,7 +488,7 @@ def evade_density_plot(model_paths, attack_stages_dict: dict, feature_frames_dic
 
         plt.plot([0, 1], [0, 1], lw=3, color="black", alpha=0.5, linestyle='--', label='Random Guess')
         plt.xlim([-0.01, 1.0])
-        plt.ylim([0.0, 1.05])
+        plt.ylim([0.0, 1.01])
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
         plt.legend(loc="lower right", prop={'family': 'monospace'})
@@ -498,7 +527,7 @@ def signal_sample_plot(
     )
 
     n_samples = 150
-    benign_stages = detector_framework.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION
 
     b_stage_len_list = []
     for _ in range(n_samples):
@@ -659,10 +688,11 @@ def flow_variations(
         "**_**_F2_EX",
         "RE_**_**_EX",
         "**_**_**_EX",
+        "ENC vs ENC ",
     ]
 
     n_samples = 150
-    benign_stages = detector_framework.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION
 
     b_flows = []
     m_flows = []
@@ -698,7 +728,31 @@ def flow_variations(
             m_stage_len_list.append(stage_lens)
         m_flows.append(m_stage_len_list)
 
+    # --- worst case ---
+    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION_ONLY
+    b_stage_len_list = []
+    for _ in range(n_samples):
+        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+        b_stage_len_list.append(stage_lens)
+    b_flows.append(b_stage_len_list)
 
+    preserve_stage_list = ["exec_2"]
+    m_stage_len_list = []
+    for _ in range(n_samples):
+        # techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+        techniques = []
+        for stage, ttp_choices in attack_stages_dict.items():
+            if stage not in preserve_stage_list:
+                techniques.append(random.choice(benign_stages))
+            else:
+                techniques.append(random.choice(ttp_choices))
+
+        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+        m_stage_len_list.append(stage_lens)
+    m_flows.append(m_stage_len_list)
+
+    # --- continue plotting ---
     gd = global_detector.LifecycleDetector(
         cwd / "data/models/syscall_clf.joblib",
         cwd / "data/models/network_clf.joblib",
@@ -711,7 +765,7 @@ def flow_variations(
     )
 
     auc_values = []
-    for i in range(len(preserve_stages)):
+    for i in range(len(preserve_stages) + 1):
         benign_scores = []
         for stage_lens in b_flows[i]:
             attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
@@ -738,14 +792,14 @@ def flow_variations(
 
     if plot:
         plt.figure(figsize=(8, 5))
-        for i in range(len(preserve_stages)):
+        for i in range(len(preserve_stages) + 1):
             fpr, tpr, roc_auc = auc_values[i]
 
             plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{flow_labels[i]}: {roc_auc:.3f}')
 
         plt.plot([0, 1], [0, 1], lw=3, alpha=0.5, color="black", linestyle='--', label='Random guess')
         plt.xlim([-0.01, 1.0])
-        plt.ylim([0.0, 1.05])
+        plt.ylim([0.0, 1.01])
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
         plt.legend(loc="lower right", prop={'family': 'monospace'})
@@ -821,7 +875,7 @@ def benign_app_scores(attack_stages_dict: dict, feature_frames_dict: dict,
         for i, gd in enumerate(gds):
             malware_model_scores[i].append(gd.score_cross_layer(cross_layer_X))
 
-    benign_stages = detector_framework.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION
     benign_app_scores = []
 
     for i in range(len(benign_stages)):
@@ -894,7 +948,7 @@ def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict,
     )
 
     n_samples = 50
-    benign_stages = detector_framework.config.GENERATION_BENIGN
+    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION
 
     benign_scores = []
     for _ in tqdm(range(n_samples)):
@@ -1043,16 +1097,16 @@ if __name__ == "__main__":
 
     cwd = Path.cwd()
 
-    TRACE_LENS = True
-    MODEL_CURVES = True
-    EVADE_DENSITY = True
-    SIGNAL_SAMPLES = True
-    FLOW_VARIATIONS = True
-    BENIGN_APP_SCORES = True
-    SCORE_OVER_TIME = True
+    TRACE_LENS = False
+    MODEL_CURVES = False
+    EVADE_DENSITY = False
+    SIGNAL_SAMPLES = False
+    FLOW_VARIATIONS = False
+    BENIGN_APP_SCORES = False
+    SCORE_OVER_TIME = False
 
-    window_size_time = 0.5
-    window_stride_time = 0.2
+    window_size_time = config.WINDOW_SIZE_TIME
+    window_stride_time = config.WINDOW_STRIDE_TIME
 
     start = 1.5  # 0.5
     stop = 10
@@ -1112,11 +1166,10 @@ if __name__ == "__main__":
         threshold_results = score_over_time(
             attack_stages, feature_frames, window_size_time, window_stride_time, time_choice_list, cwd
         )
-        raise Exception
 
 
 
-    raise Exception
+
     gd = global_detector.LifecycleDetector(
         **model_paths,
         lifecycle_awareness=True,
@@ -1137,8 +1190,7 @@ if __name__ == "__main__":
         stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
         b_stage_len_list.append(stage_lens)
 
-        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time,
-                                           rng)
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
         cross_layer_X = cld.cross_layer_concatenate(attack_X)
         progressive_scores = []
         for i in range(1, len(cross_layer_X[0])):
@@ -1155,8 +1207,7 @@ if __name__ == "__main__":
         stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
         m_stage_len_list.append(stage_lens)
 
-        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time,
-                                           rng)
+        attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
         cross_layer_X = cld.cross_layer_concatenate(attack_X)
         progressive_scores = []
         for i in range(1, len(cross_layer_X[0])):

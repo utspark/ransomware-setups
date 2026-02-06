@@ -16,8 +16,8 @@ def test_plotting_run():
 
     cwd = Path.cwd()
 
-    window_size_time = 0.5
-    window_stride_time = 0.2
+    window_size_time = config.WINDOW_SIZE_TIME
+    window_stride_time = config.WINDOW_STRIDE_TIME
 
     start = 1.5  # 0.5
     stop = 10

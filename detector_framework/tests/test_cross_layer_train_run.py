@@ -15,8 +15,8 @@ def test_cross_layer_train_run():
     HPC = True
 
     tts = detector_framework.config.TRAIN_TEST_SPLIT
-    window_size_time = 0.5
-    window_stride_time = 0.2
+    window_size_time = detector_framework.config.WINDOW_SIZE_TIME
+    window_stride_time = detector_framework.config.WINDOW_STRIDE_TIME
 
     cwd = Path.cwd()
 
