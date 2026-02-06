@@ -129,15 +129,15 @@ if __name__ == "__main__":
     data = np.array([all_accuracies[layer] for layer in signal_layers])
 
     # Plot heatmap
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(8, 5.5))
     sns.heatmap(data, annot=True, fmt=".2f", cmap="YlOrRd",
                 xticklabels=ttps, yticklabels=signal_layers, ax=ax, cbar=False,
-                annot_kws={"size": 12}, linewidths=1, linecolor='black')
+                annot_kws={"size": 14}, linewidths=1, linecolor='black')
     
     # ax.set_title("Class Accuracies per TTP and Signal Layer", fontsize=16)
     # ax.set_xlabel("TTPs (Grouped by Stage)", fontsize=18)
     # ax.set_ylabel("Signal Layers", fontsize=14)
-    plt.xticks(rotation=90, fontsize=12, ha='right')
+    plt.xticks(rotation=90, fontsize=14, ha='right')
     plt.yticks(rotation=45, fontsize=14)
     
     # Add second level of labels for groups
@@ -154,7 +154,7 @@ if __name__ == "__main__":
             group_name = list(attack_stages.keys())[i]
             
         ax.text(center, 1.05, group_name, ha='center', va='bottom', transform=ax.get_xaxis_transform(),
-                fontsize=12, color='darkblue')
+                fontsize=14, color='darkblue')
         
     # Add vertical boundaries
     for boundary in group_boundaries:

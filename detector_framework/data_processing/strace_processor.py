@@ -61,7 +61,10 @@ def form_syscall_dict() -> dict:
         dest.write_bytes(resp.content)
         print(f"Downloaded {raw_url!r} → {dest}")
 
-    tbl_path = Path('../../data/syscall_64.tbl')
+    tbl_path = Path('data/syscall_64.tbl')
+    if not tbl_path.exists():
+        # Fallback if we are in detector_framework/data_processing
+        tbl_path = Path('../../data/syscall_64.tbl')
     rows_as_strings = read_tbl_into_strings(tbl_path)
 
     filtered = [s for s in rows_as_strings
@@ -141,7 +144,13 @@ def process_one_file(input_file_path: Path, syscall_dict: dict, file_line_subsam
 
         syscall_lines = read_tbl_into_strings(input_file_path, file_line_subsample)
 
-        idx = next((i for i, s in enumerate(syscall_lines) if s.startswith("cpus=")), -1) + 1
+        # Skip headers like "cpus=" or "CPU X is empty"
+        idx = 0
+        for i, line in enumerate(syscall_lines):
+            if "sys_enter" in line or "sys_exit" in line:
+                idx = i
+                break
+        
         syscall_lines = syscall_lines[idx:]
         write_out_syscalls(syscall_dict, syscall_lines, output_file_path)
 
@@ -182,7 +191,7 @@ def process_files_in_parallel(files, syscall_dict: dict, n_workers: int | None =
 if __name__ == "__main__":
     TRANSLATE_SYSCALL_FILES = True
     SPECIFY_FILES = False
-    DATA_DIR = Path.cwd() / "current_data/ransomware_data/ftrace_results/out_recon"
+    DATA_DIR = Path.cwd() / "data/current_data/idle/syscall_output"
     # FILE_LINE_CUTOFF = 50_000
 
     if TRANSLATE_SYSCALL_FILES:

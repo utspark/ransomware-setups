@@ -626,7 +626,7 @@ if __name__ == "__main__":
     SYSCALL = True
     NETWORK = True
     HPC = True
-    TRAIN = True
+    TRAIN = True  # train new local detectors or quickly go through optimization/evaluation loop
     REPROCESS_DATA = True
 
     cwd = Path.cwd()
@@ -683,8 +683,6 @@ if __name__ == "__main__":
         for behavior in behaviors:
             for signal_dir, signal in zip([syscall_dir, network_dir, hpc_dir], signal_modules.keys()):
                 behaviors[behavior][signal] = [signal_dir / file_path for file_path in behaviors[behavior][signal]]
-
-        # raise Exception
 
         signal_df_dict = form_signal_dict(behaviors, signal_modules)
         feature_dict = build_features(

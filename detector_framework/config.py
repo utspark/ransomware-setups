@@ -106,6 +106,9 @@ SYSCALL_BENIGN_MALWARE_DICT: Final = {
         "spec_leela_",
         "spec_deepsjeng_",
     ],
+    15: [
+        "idle_",
+    ],
 }
 
 SYSCALL_MALWARE_DICT: Final = {
@@ -177,6 +180,9 @@ NETWORK_BENIGN_MALWARE_DICT: Final = {
     6: [
         "mediaserver_browse_",
     ],
+    7: [
+        "idle_",
+    ],
 }
 
 NETWORK_MALWARE_DICT : Final = {
@@ -202,36 +208,6 @@ NETWORK_MALWARE_DICT : Final = {
     4: [
         "symm_AES_128b_",
         "symm_AES_256b_",
-        "symm_Salsa20_128b_",
-        "symm_Salsa20_256b_",
-    ],
-}
-
-HPC_MALWARE_DICT : Final = {
-    0: [
-        # "recon_system_",
-        "recon_net_",
-    ],
-    1: [
-        "recon_mount_",
-    ],
-    2: [
-        "compress_gzip_1t_",
-        "compress_gzip_8t_",
-    ],
-    3: [
-        "compress_zstd_1t_",
-        "compress_zstd_8t_",
-    ],
-    4: [
-        "transfer_aws_1t_",
-        "transfer_aws_8t_",
-        "transfer_sftp_1t_",
-        "transfer_sftp_8t_"
-    ],
-    5: [
-        "symm_AES_128b_",
-        "symm_AES_256_",
         "symm_Salsa20_128b_",
         "symm_Salsa20_256b_",
     ],
@@ -294,7 +270,41 @@ HPC_BENIGN_MALWARE_DICT : Final = {
     12: [
         "spec_leela_",
     ],
+    13: [
+        "idle_",
+    ],
 }
+
+HPC_MALWARE_DICT : Final = {
+    0: [
+        # "recon_system_",
+        "recon_net_",
+    ],
+    1: [
+        "recon_mount_",
+    ],
+    2: [
+        "compress_gzip_1t_",
+        "compress_gzip_8t_",
+    ],
+    3: [
+        "compress_zstd_1t_",
+        "compress_zstd_8t_",
+    ],
+    4: [
+        "transfer_aws_1t_",
+        "transfer_aws_8t_",
+        "transfer_sftp_1t_",
+        "transfer_sftp_8t_"
+    ],
+    5: [
+        "symm_AES_128b_",
+        "symm_AES_256_",
+        "symm_Salsa20_128b_",
+        "symm_Salsa20_256b_",
+    ],
+}
+
 
 SYSCALL_MALWARE_CLASS_TRANSLATION: Final = {
     -1: -1,
@@ -324,6 +334,7 @@ SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION: Final = {
     12: -1,
     13: -1,
     14: -1,
+    15: -1,
 }
 
 NETWORK_MALWARE_CLASS_TRANSLATION: Final = {
@@ -344,6 +355,7 @@ NETWORK_BENIGN_MALWARE_CLASS_TRANSLATION: Final = {
     4: 3,
     5: -1,
     6: -1,
+    7: -1,
 }
 
 HPC_MALWARE_CLASS_TRANSLATION: Final = {
@@ -371,6 +383,7 @@ HPC_BENIGN_MALWARE_CLASS_TRANSLATION: Final = {
     10: -1,
     11: -1,
     12: -1,
+    13: -1,
 }
 
 BEHAVIOR_FILES: Final = {
@@ -663,6 +676,29 @@ BEHAVIOR_FILES: Final = {
             "spec_deepsjeng_3",
         ],
     },
+    "idle": {
+            "syscall": [
+                "idle_syscall_1_ints.txt",
+                "idle_syscall_2_ints.txt",
+                "idle_syscall_3_ints.txt",
+                "idle_syscall_4_ints.txt",
+                "idle_syscall_5_ints.txt",
+            ],
+            "network": [
+                "idle_netcall_1",
+                "idle_netcall_2",
+                "idle_netcall_3",
+                "idle_netcall_4",
+                "idle_netcall_5",
+            ],
+            "hpc": [
+                "idle_hardware_1",
+                "idle_hardware_2",
+                "idle_hardware_3",
+                "idle_hardware_4",
+                "idle_hardware_5",
+            ],
+        },
 
     "recon_mount": {
         "syscall": [
@@ -1224,6 +1260,7 @@ GENERATION_BENIGN: Final = [
     "spec_gcc",
     "spec_leela",
     "spec_deepsjeng",
+    "idle",
 ]
 
 GENERATION_BENIGN_ENCRYPTION: Final = [
@@ -1242,6 +1279,7 @@ GENERATION_BENIGN_ENCRYPTION: Final = [
     "spec_gcc",
     "spec_leela",
     "spec_deepsjeng",
+    "idle",
     "symm_AES_128b",
     "symm_AES_256b",
     "symm_Salsa20_128b",

@@ -187,7 +187,7 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
             fpr, tpr, roc_auc = auc_values[i]
             plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
 
-        plt.plot([0, 1], [0, 1], lw=4, color="black", alpha=0.5, linestyle='--', label='Random Guess')
+        plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
         plt.xlim([-0.01, 1.0])
         plt.ylim([0.0, 1.01])
         plt.xlabel('False Positive Rate')
@@ -280,7 +280,7 @@ def compression_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict,
         fpr, tpr, roc_auc = auc_values[i]
         plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
 
-    plt.plot([0, 1], [0, 1], lw=4, color="black", alpha=0.5, linestyle='--', label='Random Guess')
+    plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
     plt.xlim([-0.01, 1.0])
     plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate')
@@ -373,7 +373,7 @@ def encryption_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, 
         fpr, tpr, roc_auc = auc_values[i]
         plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
 
-    plt.plot([0, 1], [0, 1], lw=4, color="black", alpha=0.5, linestyle='--', label='Random Guess')
+    plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
     plt.xlim([-0.01, 1.0])
     plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate')
@@ -486,7 +486,7 @@ def evade_density_plot(model_paths, attack_stages_dict: dict, feature_frames_dic
             fpr, tpr, roc_auc = auc_values[i]
             plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
 
-        plt.plot([0, 1], [0, 1], lw=3, color="black", alpha=0.5, linestyle='--', label='Random Guess')
+        plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
         plt.xlim([-0.01, 1.0])
         plt.ylim([0.0, 1.01])
         plt.xlabel('False Positive Rate')
@@ -649,19 +649,22 @@ def signal_sample_plot(
     if plot:
         plt.figure(figsize=(9, 6))
         for i in range(len(combos)):
+            if i != len(combos) - 1:
+                continue
+
             fpr, tpr, roc_auc = auc_values[i]
-            plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'LAPD {model_labels[i]}: {roc_auc:.3f}')
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle="--", label=f'LAPD {model_labels[i]}: {roc_auc:.3f}')
 
         for i in range(len(combos)):
             fpr, tpr, roc_auc = auc_values[i + len(combos)]
-            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle='--', label=f'LA   {model_labels[i]}: {roc_auc:.3f}')
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle='-', label=f'LA   {model_labels[i]}: {roc_auc:.3f}')
 
-        plt.plot([0, 1], [0, 1], lw=3, alpha=0.5,  color="black", linestyle=':', label='Random Guess')
+        plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
         plt.xlim([-0.01, 1.01])
         plt.ylim([-0.01, 1.01])
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
-        plt.legend(loc="lower right", prop={'family': 'monospace', 'size': 14})
+        plt.legend(loc="lower right", prop={'family': 'monospace', 'size': 16})
         plt.tight_layout()
         plt.grid()
         plt.show(block=True)
@@ -797,7 +800,7 @@ def flow_variations(
 
             plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{flow_labels[i]}: {roc_auc:.3f}')
 
-        plt.plot([0, 1], [0, 1], lw=3, alpha=0.5, color="black", linestyle='--', label='Random guess')
+        plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
         plt.xlim([-0.01, 1.0])
         plt.ylim([0.0, 1.01])
         plt.xlabel('False Positive Rate')
@@ -1123,10 +1126,10 @@ if __name__ == "__main__":
     TRACE_LENS = False
     MODEL_CURVES = False
     EVADE_DENSITY = False
-    SIGNAL_SAMPLES = False
+    SIGNAL_SAMPLES = True
     FLOW_VARIATIONS = False
     BENIGN_APP_SCORES = False
-    SCORE_OVER_TIME = True
+    SCORE_OVER_TIME = False
 
     window_size_time = config.WINDOW_SIZE_TIME
     window_stride_time = config.WINDOW_STRIDE_TIME
