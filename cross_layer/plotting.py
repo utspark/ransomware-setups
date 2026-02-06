@@ -966,9 +966,11 @@ def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict,
         benign_scores.append(progressive_scores)
 
     malware_scores = []
+    m_stage_len_list = []
     for _ in tqdm(range(n_samples)):
         techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
         stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+        m_stage_len_list.append(stage_lens)
 
         attack_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
         cross_layer_X = cld.cross_layer_concatenate(attack_X)
@@ -979,6 +981,27 @@ def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict,
             progressive_scores.append(proba)
 
         malware_scores.append(progressive_scores)
+
+    thresh = 0.7
+    m_trip_idx = []
+    for score in malware_scores:
+        cond = np.array(score) >= thresh
+        idx = int(np.argmax(cond)) if cond.any() else -1
+        m_trip_idx.append(idx)
+
+    early_trips = 0
+    for i, trip_idx in enumerate(m_trip_idx):
+        if trip_idx == -1:
+            continue
+        stage_lens = m_stage_len_list[i]
+        stage_times = [val[1] for val in stage_lens]
+        # The first 3 stages are 'recon', 'exfil_1', and 'exfil_2'.
+        # The 4th stage is 'exec_2' (the final stage).
+        exec_idx = np.sum([(stage_time - window_size_time) / window_stride_time for stage_time in stage_times[:3]])
+        if trip_idx < exec_idx:
+            early_trips += 1
+
+    print(f"Early trips (before final stage): {early_trips}/{len(malware_scores)}")
 
     b_scores = [np.max(scores) for scores in benign_scores]
     m_scores = [np.max(scores) for scores in malware_scores]
@@ -1103,7 +1126,7 @@ if __name__ == "__main__":
     SIGNAL_SAMPLES = False
     FLOW_VARIATIONS = False
     BENIGN_APP_SCORES = False
-    SCORE_OVER_TIME = False
+    SCORE_OVER_TIME = True
 
     window_size_time = config.WINDOW_SIZE_TIME
     window_stride_time = config.WINDOW_STRIDE_TIME
@@ -1168,7 +1191,7 @@ if __name__ == "__main__":
         )
 
 
-
+    raise Exception
 
     gd = global_detector.LifecycleDetector(
         **model_paths,
@@ -1179,8 +1202,8 @@ if __name__ == "__main__":
         memory=False,
     )
 
-    n_samples = 5
-    benign_stages = detector_framework.config.GENERATION_BENIGN
+    n_samples = 30
+    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION
 
     benign_scores = []
     b_stage_len_list = []
@@ -1219,11 +1242,11 @@ if __name__ == "__main__":
 
     thresh = 0.7
 
-    trip_idx = []
-    for score in benign_scores:
-        cond = np.array(score) >= thresh
-        idx = int(np.argmax(cond)) if cond.any() else -1
-        trip_idx.append(idx)
+    # trip_idx = []
+    # for score in benign_scores:
+    #     cond = np.array(score) >= thresh
+    #     idx = int(np.argmax(cond)) if cond.any() else -1
+    #     trip_idx.append(idx)
 
     m_trip_idx = []
     for score in malware_scores:
@@ -1231,21 +1254,30 @@ if __name__ == "__main__":
         idx = int(np.argmax(cond)) if cond.any() else -1
         m_trip_idx.append(idx)
 
-    mean_trip_time = window_size_time + (np.mean(m_trip_idx) - 1) * window_stride_time
+    valid_m_trip_idx = [idx for idx in m_trip_idx if idx != -1]
+    if valid_m_trip_idx:
+        mean_trip_time = window_size_time + np.mean(valid_m_trip_idx) * window_stride_time
+    else:
+        mean_trip_time = -1
 
     early_trips = 0
     for i, trip_idx in enumerate(m_trip_idx):
+        if trip_idx == -1:
+            continue
+            
         stage_lens = m_stage_len_list[i]
         stage_times = [val[1] for val in stage_lens]
-        exec_time = np.sum(stage_times[:3])
+        # The first 3 stages are 'recon', 'exfil_1', and 'exfil_2'.
+        # The 4th stage is 'exec_2' (the final stage).
+        exec_idx = np.sum([(stage_time - window_size_time) / window_stride_time for stage_time in stage_times[:3]])
 
-        trip_time = window_size_time + (trip_idx - 1) * window_stride_time
-
-        if trip_time < exec_time:
+        if trip_idx < exec_idx:
             early_trips += 1
 
+        # print(f"{trip_idx:5.2f}, {exec_idx:5.2f}")
 
-    raise Exception
+    print(f"Mean trip time: {mean_trip_time}")
+    print(f"Early trips (before final stage): {early_trips}/{len(malware_scores)}")
     b_scores = [np.max(scores) for scores in benign_scores]
     m_scores = [np.max(scores) for scores in malware_scores]
 
