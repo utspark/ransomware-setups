@@ -1,11 +1,20 @@
 from pathlib import Path
 
 import matplotlib
+import os
 
 from detector_framework import config
 config.set_seed()
 
-matplotlib.use("Qt5Agg")
+if os.environ.get('DISPLAY', '') == '':
+    print('No display found. Using non-interactive Agg backend.')
+    matplotlib.use('Agg')
+else:
+    try:
+        matplotlib.use('Qt5Agg')
+    except ImportError:
+        print('Qt5Agg not found. Falling back to Agg.')
+        matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.ion()
 
@@ -172,7 +181,7 @@ def run_local_detector(model_settings, benign_path, benign_dict, malware_path, m
 
 def get_default_config():
     cwd = Path.cwd()
-    data_path = cwd / "data"
+    data_path = cwd / "detector_framework"
 
     problem_formulation = "multiclass_supervised"
     preproc_approach = "windowed_features"
@@ -201,8 +210,8 @@ def get_default_config():
         plot=True,
     )
 
-    benign_path = data_path / "current_data/syscall_bucket"
-    malware_path = data_path / "current_data/syscall_bucket"
+    benign_path = data_path / "data/syscall_bucket"
+    malware_path = data_path / "data/syscall_bucket"
 
     malware_dict = config.SYSCALL_MALWARE_DICT
     benign_malware_dict = config.SYSCALL_BENIGN_MALWARE_DICT

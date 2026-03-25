@@ -1,6 +1,7 @@
 import matplotlib
 import numpy as np
 import tensorflow as tf
+import os
 # from PyQt5.QtSql import password
 from sklearn.covariance import EllipticEnvelope
 from sklearn.ensemble import IsolationForest
@@ -17,13 +18,19 @@ from tensorflow.keras.layers import Embedding
 from tensorflow.keras.layers import LSTM, Reshape, Input
 from tensorflow.keras.models import Sequential, load_model
 
-matplotlib.use("Qt5Agg")
+if os.environ.get('DISPLAY', '') == '':
+    print('No display found. Using non-interactive Agg backend.')
+    matplotlib.use('Agg')
+else:
+    try:
+        matplotlib.use('Qt5Agg')
+    except ImportError:
+        print('Qt5Agg not found. Falling back to Agg.')
+        matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.ion()
 
 from pathlib import Path
-
-import os
 import detector_framework.config as config
 config.set_seed()
 
