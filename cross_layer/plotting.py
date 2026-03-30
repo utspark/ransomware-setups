@@ -1415,8 +1415,8 @@ if __name__ == "__main__":
     SIGNAL_SAMPLES = True
     FLOW_VARIATIONS = True
     SCORE_OVER_TIME = True
-    ADFA_GEN = True
-    CHERRYPICK = True
+    ADFA_GEN = False
+    CHERRYPICK = False
 
     BENIGN_APP_SCORES = False
 

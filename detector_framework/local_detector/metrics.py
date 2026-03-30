@@ -392,7 +392,7 @@ def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
     sample_weights = class_weights[y_test.astype(int)]
 
     loss_ohe = log_loss(y_test_ohe, y_pred_ohe, sample_weight=sample_weights)
-    print(f"Log Loss Score: {loss_ohe:.3f}")
+    print(f"Log Loss Score: {loss_ohe:.5f}")
     y_pred = lb.inverse_transform(y_pred_ohe)
 
     report  = classification_report(y_test, y_pred, sample_weight=sample_weights)

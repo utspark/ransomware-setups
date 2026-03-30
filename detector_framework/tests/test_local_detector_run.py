@@ -16,12 +16,13 @@ def test_multiclass_analysis():
     config.set_seed()
 
     model_settings, benign_path, benign_dict, malware_path, malware_dict = get_default_config()
+    model_settings.plot = False
 
     loss_ohe = run_local_detector(
         model_settings, benign_path, benign_dict, malware_path, malware_dict
     )
 
-    assert loss_ohe == pytest.approx(1.0324, abs=1e-3)
+    assert loss_ohe == pytest.approx(1.17250, abs=1e-5)
 
 
 

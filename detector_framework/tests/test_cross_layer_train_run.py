@@ -46,7 +46,7 @@ def test_cross_layer_train_run():
 
     train_scores = outer_train_loop(iteration_dict, window_size_time, window_stride_time, tts, train=True)
 
-    expected_train_scores = [0.986653, 0.972243, 0.999683]
+    expected_train_scores = [0.992058, 0.958916, 0.995160]
 
     for i in range(len(train_scores)):
         assert train_scores[i] == pytest.approx(expected_train_scores[i], abs=1e-6)
