@@ -1,9 +1,17 @@
-import matplotlib
+# import matplotlib
+# import os
 
-matplotlib.use("Qt5Agg")
-import matplotlib.pyplot as plt
-plt.ion()
-
+# if os.environ.get('DISPLAY', '') == '':
+#     print('No display found. Using non-interactive Agg backend.')
+#     matplotlib.use('Agg')
+# else:
+#     try:
+#         matplotlib.use('Qt5Agg')
+#     except ImportError:
+#         print('Qt5Agg not found. Falling back to Agg.')
+#         matplotlib.use('Agg')
+# import matplotlib.pyplot as plt
+# plt.ion()
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder

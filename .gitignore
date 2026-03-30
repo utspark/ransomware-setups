@@ -5,3 +5,5 @@
 **/outputs*
 **/.nfs*
 **/.ipynb*
+data/results/
+detector_framework/data/

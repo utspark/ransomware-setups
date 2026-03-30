@@ -7,16 +7,24 @@ from zipimport import END_CENTRAL_DIR_SIZE
 
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed  # or ThreadPoolExecutor
-import os
+import sys
 
-import matplotlib
+# import matplotlib
 import numpy as np
 import requests
 from tqdm import tqdm
 
-matplotlib.use("Qt5Agg")
-import matplotlib.pyplot as plt
-plt.ion()
+# if os.environ.get('DISPLAY', '') == '':
+#     print('No display found. Using non-interactive Agg backend.')
+#     matplotlib.use('Agg')
+# else:
+#     try:
+#         matplotlib.use('Qt5Agg')
+#     except ImportError:
+#         print('Qt5Agg not found. Falling back to Agg.')
+#         matplotlib.use('Agg')
+# import matplotlib.pyplot as plt
+# plt.ion()
 
 
 
@@ -48,11 +56,11 @@ def read_tbl_into_strings(path: Path, file_line_subsample: int | None = None) ->
 
 
 def form_syscall_dict() -> dict:
-    file_path = Path("../../data/syscall_64.tbl")
+    file_path = Path(f"{ROOT_DIR}/data/syscall_64.tbl")
 
     if not file_path.exists() or not file_path.is_file():
         raw_url = "https://raw.githubusercontent.com/torvalds/linux/refs/heads/master/arch/x86/entry/syscalls/syscall_64.tbl"
-        dest = "./syscall_64.tbl"
+        dest = f"{ROOT_DIR}/data/syscall_64.tbl"
         dest = Path(dest)
 
         resp = requests.get(raw_url)
@@ -61,10 +69,10 @@ def form_syscall_dict() -> dict:
         dest.write_bytes(resp.content)
         print(f"Downloaded {raw_url!r} → {dest}")
 
-    tbl_path = Path('data/syscall_64.tbl')
+    tbl_path = Path(f"{ROOT_DIR}/data/syscall_64.tbl")
     if not tbl_path.exists():
         # Fallback if we are in detector_framework/data_processing
-        tbl_path = Path('../../data/syscall_64.tbl')
+        tbl_path = Path(f"{ROOT_DIR}/data/syscall_64.tbl")
     rows_as_strings = read_tbl_into_strings(tbl_path)
 
     filtered = [s for s in rows_as_strings
@@ -189,9 +197,12 @@ def process_files_in_parallel(files, syscall_dict: dict, n_workers: int | None =
 
 
 if __name__ == "__main__":
+    ROOT_DIR = os.getenv("ROOT_DIR", default=Path.cwd())
     TRANSLATE_SYSCALL_FILES = True
     SPECIFY_FILES = False
     DATA_DIR = Path.cwd() / "data/current_data/idle/syscall_output"
+    if len(sys.argv) > 1:  
+        DATA_DIR = Path.cwd() / sys.argv[1]
     # FILE_LINE_CUTOFF = 50_000
 
     if TRANSLATE_SYSCALL_FILES:
@@ -215,6 +226,7 @@ if __name__ == "__main__":
 
 
         # process_files_in_parallel(file_list, syscall_dict, n_workers=4)
+        print(f"Processing files in {DATA_DIR}...")
         paths = [Path(p) for p in file_list]
         for p in tqdm(paths):
             process_one_file(p, syscall_dict)
