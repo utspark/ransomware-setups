@@ -181,7 +181,7 @@ def run_local_detector(model_settings, benign_path, benign_dict, malware_path, m
 
 def get_default_config():
     cwd = Path.cwd()
-    data_path = cwd / "detector_framework"
+    data_path = cwd / "data"
 
     problem_formulation = "multiclass_supervised"
     preproc_approach = "windowed_features"
@@ -210,8 +210,8 @@ def get_default_config():
         plot=True,
     )
 
-    benign_path = data_path / "data/syscall_bucket"
-    malware_path = data_path / "data/syscall_bucket"
+    benign_path = data_path / "current_data/syscall_bucket"
+    malware_path = data_path / "current_data/syscall_bucket"
 
     malware_dict = config.SYSCALL_MALWARE_DICT
     benign_malware_dict = config.SYSCALL_BENIGN_MALWARE_DICT

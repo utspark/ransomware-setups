@@ -26,16 +26,24 @@ cd -
 
 ### 2.) Ensure data is placed in the correct directory
 
-    detector_framework/data/hpc_bucket/
-    detector_framework/data/network_bucket/
-    detector_framework/data/syscall_bucket/
+    data/current_data/hpc_bucket/
+    data/current_data/network_bucket/
+    data/current_data/syscall_bucket/
 
-### 3.) Analyze Local Detectors [Optional]
-1. Execute `local_detector_analysis.py` from the top level folder.
+### 3.) Analyze Local and Global Detectors [Optional]
+1. Execute `local_detector_run.py` and `global_detector_run.py` from the top level folder.
 
 ```Python
 pip install -r requirements.txt
 python -m detector_framework.local_detector.local_detector_run
+python -m detector_framework.global_detector.global_detector_run
+```
+
+### 4.) Run the Cross-Layer Detector
+
+```Python
+pip install -r requirements.txt
+python -m cross_layer.cross_layer_train_run
 ```
 
 project-name/

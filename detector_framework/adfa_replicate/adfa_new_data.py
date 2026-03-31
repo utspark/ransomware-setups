@@ -163,6 +163,9 @@ if __name__ == "__main__":
     data_dir = cwd / "data/current_data/syscall_bucket"
     malware_map = config.SYSCALL_BENIGN_MALWARE_DICT
 
+    results_dir = cwd / "data/joblibs"
+    results_dir.mkdir(parents=True, exist_ok=True)
+
     data_paths = [p for p in data_dir.iterdir() if p.is_file()]
     data_paths.sort()
 
@@ -219,7 +222,9 @@ if __name__ == "__main__":
     clf = MLPClassifier(hidden_layer_sizes=(100, 50), max_iter=1000, random_state=42)
     clf.fit(X_train_norm, y_train)
     fpr, tpr, auc = evaluate(clf, CLASSIFIER.replace("_", " ").title(), CLASSIFIER, X_test_norm, y_test)
-    filename = f"detector_framework/adfa_replicate/results/individual_behavior_curve.joblib"
+    filename = results_dir / "individual_behavior_curve.joblib"
+    filepath = Path(filename)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump((fpr, tpr, auc), filename)
 
     benign_stages = config.GENERATION_BENIGN
@@ -247,7 +252,7 @@ if __name__ == "__main__":
     # benign_norm should be label 1 (Benign), malware_norm should be label 0 (Attack)
     y_trace_test = np.concatenate([np.ones(len(benign_norm)), np.zeros(len(malware_norm))], axis=0)
     fpr, tpr, auc = evaluate(clf, "MLP Combined Traces", "mlp_combined", X_trace_test, y_trace_test)
-    filename = f"detector_framework/adfa_replicate/results/exclude_encryption_curve.joblib"
+    filename = results_dir / "exclude_encryption_curve.joblib"
     joblib.dump((fpr, tpr, auc), filename)
 
     # baseline
@@ -267,7 +272,7 @@ if __name__ == "__main__":
     # benign_norm should be label 1 (Benign), malware_norm should be label 0 (Attack)
     y_trace_test = np.concatenate([np.ones(len(benign_norm)), np.zeros(len(malware_norm))], axis=0)
     fpr, tpr, auc = evaluate(clf, "MLP Combined Traces", "mlp_combined", X_trace_test, y_trace_test)
-    filename = f"detector_framework/adfa_replicate/results/partial_encryption_curve.joblib"
+    filename = results_dir / "partial_encryption_curve.joblib"
     joblib.dump((fpr, tpr, auc), filename)
 
     # compression only
@@ -285,7 +290,7 @@ if __name__ == "__main__":
     X_trace_test = np.concatenate([benign_norm, malware_norm], axis=0)
     # benign_norm should be label 1 (Benign), malware_norm should be label 0 (Attack)
     fpr, tpr, auc = evaluate(clf, "MLP Combined Traces", "mlp_combined", X_trace_test, y_trace_test)
-    filename = f"detector_framework/adfa_replicate/results/full_encryption_curve.joblib"
+    filename = results_dir / "full_encryption_curve.joblib"
     joblib.dump((fpr, tpr, auc), filename)
 
 

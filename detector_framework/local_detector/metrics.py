@@ -7,7 +7,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.svm import OneClassSVM, SVC
 from sklearn.utils import compute_class_weight
 from xgboost import XGBClassifier
-
+from pathlib import Path
 import os
 
 if os.environ.get('DISPLAY', '') == '':
@@ -425,6 +425,10 @@ def multiclass_error(model_settings: ModelSettings, X: np.array, y: np.array):
         plt.tight_layout()
         plt.show(block=True)
 
+    modelpath = Path(model_settings.model_path)
+    modelpath.parent.mkdir(parents=True, exist_ok=True)
+    settingspath = Path(model_settings.settings_path)
+    settingspath.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(dtree_model, model_settings.model_path, compress=("zlib", 3))
     joblib.dump(model_settings, model_settings.settings_path, compress=("zlib", 3))
 
