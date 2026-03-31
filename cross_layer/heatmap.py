@@ -168,6 +168,8 @@ if __name__ == "__main__":
     plt.subplots_adjust(bottom=0.20, top=0.85)
 
     # Save heatmap
-    heatmap_path = cwd / "cross_layer/heatmap.png"
+    heatmap_path = cwd / "data/figures/heatmap.png"
+    filepath = Path(heatmap_path)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(heatmap_path)
     print(f"\nHeatmap saved to {heatmap_path}")

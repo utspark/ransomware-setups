@@ -683,7 +683,7 @@ if __name__ == "__main__":
 
     behaviors = deepcopy(detector_framework.config.BEHAVIOR_FILES)
 
-    feature_frames_path = cwd / "data/feature_frames.joblib"
+    feature_frames_path = cwd / "data/joblibs/feature_frames.joblib"
 
     if REPROCESS_DATA:
         syscall_dir = cwd / "data/current_data/syscall_bucket"
@@ -708,12 +708,15 @@ if __name__ == "__main__":
         # correct_feature_vector_times(feature_dict)
 
         feature_frames = form_feature_frames(feature_dict, train_test_split=tts, train=False)
+
+        filepath = Path(feature_frames_path)
+        filepath.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump(feature_frames, feature_frames_path)
 
     else:
         feature_frames = joblib.load(feature_frames_path)
 
-    # raise Exception
+    raise Exception
 
     syscall_dir = cwd / "data/current_data/syscall_bucket"
     network_dir = cwd / "data/current_data/network_bucket"
@@ -727,7 +730,7 @@ if __name__ == "__main__":
 
     behaviors = deepcopy(detector_framework.config.BEHAVIOR_FILES)
 
-    feature_frames_path = cwd / "data/feature_frames.joblib"
+    feature_frames_path = cwd / "data/joblibs/feature_frames.joblib"
 
     # key = "filebench_fileserver"
     # tmp_dict = {key: behaviors[key]}

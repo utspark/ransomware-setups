@@ -276,7 +276,9 @@ def adfa_comparison_plot(model_paths, attack_stages_dict: dict, feature_frames_d
 
     data = (fpr, tpr, roc_auc)
 
-    filename = f"detector_framework/adfa_replicate/results/lapd_exclude_encryption_curve.joblib"
+    filename = Path.cwd() / "data/joblibs" / "lapd_exclude_encryption_curve.joblib"
+    filepath = Path(filename)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(data, filename)
 
     return
