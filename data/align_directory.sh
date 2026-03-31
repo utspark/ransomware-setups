@@ -77,5 +77,15 @@ for path in $START_DIR/$PREFIX/*/*; do
     if [[ "$base" != "$PREFIX"* ]]; then
         newname="${path/perf/$PREFIX}"
         mv $path $newname
+        # echo "Renamed $path to $newname"
+    fi
+done
+
+# Manually handle some naming inconsistencies in the syscall bucket
+for file in "$START_DIR"/$PREFIX/*/* ; do
+    if [[ "$file" == *"_r_"* ]]; then
+        new_name="${file/"_r_"/"_"}"
+        mv -- "$file" "$new_name"
+        # echo "2nd Renamed '$file' to '$new_name'"
     fi
 done

@@ -14,7 +14,18 @@ from tqdm import tqdm
 
 from matplotlib.lines import Line2D
 import matplotlib
-matplotlib.use("Qt5Agg")
+import os
+
+if os.environ.get('DISPLAY', '') == '':
+    print('No display found. Using non-interactive Agg backend.')
+    matplotlib.use('Agg')
+else:
+    try:
+        matplotlib.use('Qt5Agg')
+    except ImportError:
+        print('Qt5Agg not found. Falling back to Agg.')
+        matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
 plt.ion()
 

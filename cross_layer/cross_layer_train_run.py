@@ -37,7 +37,15 @@ import matplotlib
 from detector_framework import global_detector
 
 
-matplotlib.use("Qt5Agg")
+if os.environ.get('DISPLAY', '') == '':
+    print('No display found. Using non-interactive Agg backend.')
+    matplotlib.use('Agg')
+else:
+    try:
+        matplotlib.use('Qt5Agg')
+    except ImportError:
+        print('Qt5Agg not found. Falling back to Agg.')
+        matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.ion()
 
@@ -353,6 +361,8 @@ def train_and_save_model(X: np.ndarray, y: np.ndarray, save_path: Path) -> float
 
     dtree_model, lb, train_score = train_model(X, y, sample_weights)
 
+    filepath = Path(save_path)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump((dtree_model, lb), save_path)
 
     return train_score
@@ -703,7 +713,7 @@ if __name__ == "__main__":
     else:
         feature_frames = joblib.load(feature_frames_path)
 
-    raise Exception
+    # raise Exception
 
     syscall_dir = cwd / "data/current_data/syscall_bucket"
     network_dir = cwd / "data/current_data/network_bucket"

@@ -6,4 +6,5 @@
 **/.nfs*
 **/.ipynb*
 data/results/
-detector_framework/data/
+data/current_data/
+data/models/
