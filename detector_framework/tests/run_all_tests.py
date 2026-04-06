@@ -21,6 +21,8 @@ def run_all():
     # -v: verbose
     # Specify test files in exact order
     test_files = [
+        os.path.join(test_dir, "test_local_detector_run.py"),
+        os.path.join(test_dir, "test_global_detector_run.py"),
         os.path.join(test_dir, "test_cross_layer_train_run.py"),
         os.path.join(test_dir, "test_plotting.py"),
         os.path.join(test_dir, "test_heatmap.py"),

@@ -187,7 +187,7 @@ def get_default_config():
     preproc_approach = "windowed_features"
     window_len = 40
     future_len = 1
-    max_trace_length = 250_000
+    max_trace_length = 50_000 # 250_000
     model_type = "decision_tree"
 
     model_filename = ("models/local_detector_analysis/" +
