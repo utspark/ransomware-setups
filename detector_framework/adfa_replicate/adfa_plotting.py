@@ -56,7 +56,7 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.grid()
     
-    plot_path = results_dir / "roc_auc_curves.png"
+    plot_path = Path.cwd() / "data/figures/adfa_replicate.pdf"
     plt.savefig(plot_path)
     print(f"Plot saved to {plot_path}")
 

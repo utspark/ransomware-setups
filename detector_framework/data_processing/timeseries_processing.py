@@ -153,7 +153,8 @@ def trace_list_to_windows(model_settings: ModelSettings, trace_list: list):
 
     wdw_list = []
     future_list = []
-    print(trace_list)
+    # print(trace_list)
+
     for trace in trace_list:
         wdws, futures = form_windows(
             trace,

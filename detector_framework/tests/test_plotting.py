@@ -30,7 +30,7 @@ def test_plotting_run():
         "hpc_clf_path": cwd / "data/models/hpc_clf.joblib",
     }
 
-    feature_frames_path = cwd / "data/feature_frames.joblib"
+    feature_frames_path = cwd / "data/joblib/feature_frames.joblib"
     feature_frames = joblib.load(feature_frames_path)
     attack_stages = detector_framework.config.GENERATION_ATTACK_STAGES
 
@@ -53,42 +53,42 @@ def test_plotting_run():
     assert benign_scores[0] == pytest.approx(0.598425, abs=1e-6)
     assert benign_scores[1] == pytest.approx(0.423750, abs=1e-6)
     assert benign_scores[2] == pytest.approx(0.0, abs=1e-6)
-    assert malware_scores[0] == pytest.approx(0.796488, abs=1e-6)
+    assert malware_scores[0] == pytest.approx(0.823838, abs=1e-6)
     assert malware_scores[1] == pytest.approx(0.765352, abs=1e-6)
-    assert malware_scores[2] == pytest.approx(0.781828, abs=1e-6)
+    assert malware_scores[2] == pytest.approx(0.782104, abs=1e-6)
 
     auc_values = model_curves_plot(**plot_inputs, plot=False)
-    assert auc_values[0][2] == pytest.approx(0.83475, abs=1e-5)
-    assert auc_values[1][2] == pytest.approx(0.9419, abs=1e-4)
-    assert auc_values[2][2] == pytest.approx(0.9898, abs=1e-4)
-    assert auc_values[3][2] == pytest.approx(0.99820, abs=1e-5)
+    assert auc_values[0][2] == pytest.approx(0.85735, abs=1e-5)
+    assert auc_values[1][2] == pytest.approx(0.9617, abs=1e-4)
+    assert auc_values[2][2] == pytest.approx(0.99205, abs=1e-4)
+    assert auc_values[3][2] == pytest.approx(0.9988, abs=1e-5)
     assert auc_values[4][2] == pytest.approx(1.0, abs=1e-5)
 
     auc_values = evade_density_plot(**plot_inputs, plot=False)
-    assert auc_values[0][2] == pytest.approx(0.7483, abs=1e-4)
-    assert auc_values[1][2] == pytest.approx(0.7866, abs=1e-4)
-    assert auc_values[2][2] == pytest.approx(0.9945, abs=1e-4)
-    assert auc_values[3][2] == pytest.approx(0.9915, abs=1e-4)
-    assert auc_values[4][2] == pytest.approx(0.6844, abs=1e-4)
+    assert auc_values[0][2] == pytest.approx(0.74565, abs=1e-4)
+    assert auc_values[1][2] == pytest.approx(0.8042, abs=1e-4)
+    assert auc_values[2][2] == pytest.approx(0.9896, abs=1e-4)
+    assert auc_values[3][2] == pytest.approx(0.9872, abs=1e-4)
+    assert auc_values[4][2] == pytest.approx(0.69295, abs=1e-5)
 
     auc_values = signal_sample_plot(**plot_inputs, cwd=cwd, plot=False)
-    assert auc_values[7][2] == pytest.approx(0.841777, abs=1e-6)
-    assert auc_values[8][2] == pytest.approx(0.873777, abs=1e-6)
-    assert auc_values[9][2] == pytest.approx(0.841866, abs=1e-6)
-    assert auc_values[10][2] == pytest.approx(0.885777, abs=1e-6)
-    assert auc_values[11][2] == pytest.approx(0.817622, abs=1e-6)
-    assert auc_values[12][2] == pytest.approx(0.816577, abs=1e-6)
-    assert auc_values[13][2] == pytest.approx(0.792555, abs=1e-6)
+    assert auc_values[7][2] == pytest.approx(0.842355, abs=1e-6)
+    assert auc_values[8][2] == pytest.approx(0.884955, abs=1e-6)
+    assert auc_values[9][2] == pytest.approx(0.8434, abs=1e-6)
+    assert auc_values[10][2] == pytest.approx(0.8848, abs=1e-6)
+    assert auc_values[11][2] == pytest.approx(0.816733, abs=1e-6)
+    assert auc_values[12][2] == pytest.approx(0.822555, abs=1e-6)
+    assert auc_values[13][2] == pytest.approx(0.839622, abs=1e-6)
 
     auc_values = flow_variations(
         attack_stages, feature_frames, window_size_time, window_stride_time, time_choice_list, cwd=cwd,  plot=False
     )
-    assert auc_values[0][2] == pytest.approx(0.998533, abs=1e-6)
-    assert auc_values[1][2] == pytest.approx(0.984488, abs=1e-6)
-    assert auc_values[2][2] == pytest.approx(0.951377, abs=1e-6)
-    assert auc_values[3][2] == pytest.approx(0.769777, abs=1e-6)
-    assert auc_values[4][2] == pytest.approx(0.917822, abs=1e-6)
-    assert auc_values[5][2] == pytest.approx(0.628400, abs=1e-6)
+    assert auc_values[0][2] == pytest.approx(0.998622, abs=1e-6)
+    assert auc_values[1][2] == pytest.approx(0.976133, abs=1e-6)
+    assert auc_values[2][2] == pytest.approx(0.941333, abs=1e-6)
+    assert auc_values[3][2] == pytest.approx(0.765022, abs=1e-6)
+    assert auc_values[4][2] == pytest.approx(0.921822, abs=1e-6)
+    assert auc_values[5][2] == pytest.approx(0.599066, abs=1e-6)
 
     # bars = benign_app_scores(
     #     attack_stages, feature_frames, window_size_time, window_stride_time, time_choice_list, cwd=cwd, plot=False
@@ -103,10 +103,10 @@ def test_plotting_run():
     threshold_results = score_over_time(
         attack_stages, feature_frames, window_size_time, window_stride_time, time_choice_list, cwd=cwd, plot=False
     )
-    assert threshold_results["accuracy"] == [0.59, 0.71, 0.84, 0.97, 0.8]
-    assert threshold_results["f1"][0] == pytest.approx(0.709219, abs=1e-6)
-    assert threshold_results["f1"][1] == pytest.approx(0.775193, abs=1e-6)
-    assert threshold_results["f1"][2] == pytest.approx(0.862068, abs=1e-6)
-    assert threshold_results["f1"][3] == pytest.approx(0.970873, abs=1e-6)
-    assert threshold_results["f1"][4] == pytest.approx(0.75, abs=1e-6)
+    assert threshold_results["accuracy"] == [0.56, 0.7, 0.85, 0.93, 0.81]
+    assert threshold_results["f1"][0] == pytest.approx(0.694444, abs=1e-6)
+    assert threshold_results["f1"][1] == pytest.approx(0.769230, abs=1e-6)
+    assert threshold_results["f1"][2] == pytest.approx(0.869565, abs=1e-6)
+    assert threshold_results["f1"][3] == pytest.approx(0.934579, abs=1e-6)
+    assert threshold_results["f1"][4] == pytest.approx(0.771084, abs=1e-6)
 

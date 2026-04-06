@@ -88,6 +88,7 @@ def trace_len_plot(attack_stages_dict: dict, feature_frames_dict: dict,
         ax.grid(True, alpha=0.5)
         fig.tight_layout()
         plt.show(block=True)
+        plt.savefig(Path.cwd() / "data/figures" / "trace_lens.pdf")
 
     return (benign_scores, malware_scores)
 
@@ -189,9 +190,6 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
 
     auc_values.append((fpr, tpr, roc_auc))
 
-
-
-
     if plot:
         plt.figure(figsize=(8, 5))
         for i in range(4):
@@ -207,6 +205,7 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
         plt.tight_layout()
         plt.grid()
         plt.show(block=True)
+        plt.savefig(Path.cwd() / "data/figures" / "model_curves.pdf")
 
     return auc_values
 
@@ -276,7 +275,7 @@ def adfa_comparison_plot(model_paths, attack_stages_dict: dict, feature_frames_d
 
     data = (fpr, tpr, roc_auc)
 
-    filename = Path.cwd() / "data/joblibs" / "lapd_exclude_encryption_curve.joblib"
+    filename = Path.cwd() / "data/joblib" / "lapd_exclude_encryption_curve.joblib"
     filepath = Path(filename)
     filepath.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(data, filename)
@@ -373,6 +372,7 @@ def compression_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict,
     plt.tight_layout()
     plt.grid()
     plt.show(block=True)
+    plt.savefig(Path.cwd() / "data/figures"  / "compression_curves.pdf")
 
     return auc_values
 
@@ -466,6 +466,7 @@ def encryption_curves_plot(attack_stages_dict: dict, feature_frames_dict: dict, 
     plt.tight_layout()
     plt.grid()
     plt.show(block=True)
+    plt.savefig(Path.cwd() / "data/figures"  / "encryption_curves.pdf")
 
     return auc_values
 
@@ -600,6 +601,7 @@ def evade_density_plot(model_paths, attack_stages_dict: dict, feature_frames_dic
         plt.tight_layout()
         plt.grid()
         plt.show(block=True)
+        plt.savefig(Path.cwd() / "data/figures"  / "evade_density.pdf")
 
     return auc_values
 
@@ -773,6 +775,7 @@ def signal_sample_plot(
         plt.tight_layout()
         plt.grid()
         plt.show(block=True)
+        plt.savefig(Path.cwd() / "data/figures"  / "signal_samples.pdf")
 
     return auc_values
 
@@ -1092,6 +1095,7 @@ def flow_variations(
         plt.tight_layout()
         plt.grid()
         plt.show(block=True)
+        plt.savefig(Path.cwd() / "data/figures"  / "flow_variations.pdf")
 
     return auc_values
 
@@ -1410,6 +1414,7 @@ def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict,
         # plt.legend(loc="center right", prop={'size': 14})
         plt.tight_layout()
         plt.show(block=True)
+        plt.savefig(Path.cwd() / "figures" / "score_over_time.pdf")
 
     return threshold_results
 
@@ -1447,7 +1452,7 @@ if __name__ == "__main__":
         "hpc_clf_path": cwd / "data/models/hpc_clf.joblib",
     }
 
-    feature_frames_path = cwd / "data/feature_frames.joblib"
+    feature_frames_path = cwd / "data/joblib/feature_frames.joblib"
     feature_frames = joblib.load(feature_frames_path)
     attack_stages = detector_framework.config.GENERATION_ATTACK_STAGES
 

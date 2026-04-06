@@ -43,40 +43,7 @@ def calculate_accuracies(feature_dict, clf, benign_malware_dict, benign_keys, at
     return accuracies
 
 
-if __name__ == "__main__":
-    OMIT_BENIGN = True
-
-    plt.rcParams['font.size'] = 18
-
-    cwd = Path.cwd()
-    feature_frames_path = cwd / "data/feature_frames.joblib"
-
-    if not feature_frames_path.exists():
-        print(f"Error: {feature_frames_path} does not exist.")
-
-    print(f"Loading {feature_frames_path}...")
-    feature_frames = joblib.load(feature_frames_path)
-    print("Successfully loaded feature_frames.")
-
-    # Optional: print some info about the loaded data
-    if isinstance(feature_frames, dict):
-        print(f"Keys in feature_frames: {list(feature_frames.keys())}")
-    else:
-        print(f"Loaded data type: {type(feature_frames)}")
-
-    # Load classifiers
-    models_dir = cwd / "data/models"
-    classifiers = {}
-    for clf_name in ["syscall", "network", "hpc"]:
-        clf_path = models_dir / f"{clf_name}_clf.joblib"
-        if clf_path.exists():
-            print(f"Loading {clf_path}...")
-            classifiers[clf_name] = joblib.load(clf_path)
-            print(f"Successfully loaded {clf_name} classifier.")
-        else:
-            print(f"Warning: {clf_path} does not exist.")
-
-    # Calculate accuracies for each classifier
+def accuracy_outer_loop(classifiers, feature_frames, OMIT_BENIGN: bool = True):
     benign_keys = [] if OMIT_BENIGN else config.GENERATION_BENIGN
     attack_stages = config.GENERATION_ATTACK_STAGES
 
@@ -102,6 +69,55 @@ if __name__ == "__main__":
         accs = calculate_accuracies(feature_dict, clf, bm_dict, benign_keys, attack_stages)
         all_accuracies[clf_name] = accs
         print(f"Finished {clf_name} accuracies.")
+
+    return all_accuracies
+
+
+def load_classifiers(cwd: Path = Path.cwd()):
+    models_dir = cwd / "data/models"
+    classifiers = {}
+    for clf_name in ["syscall", "network", "hpc"]:
+        clf_path = models_dir / f"{clf_name}_clf.joblib"
+        if clf_path.exists():
+            print(f"Loading {clf_path}...")
+            classifiers[clf_name] = joblib.load(clf_path)
+            print(f"Successfully loaded {clf_name} classifier.")
+        else:
+            print(f"Warning: {clf_path} does not exist.")
+
+    return classifiers
+
+
+def load_feature_frames(cwd: Path = Path.cwd()):
+    feature_frames_path = cwd / "data/joblib/feature_frames.joblib"
+
+    if not feature_frames_path.exists():
+        print(f"Error: {feature_frames_path} does not exist.")
+
+    print(f"Loading {feature_frames_path}...")
+    feature_frames = joblib.load(feature_frames_path)
+    print("Successfully loaded feature_frames.")
+
+    # Optional: print some info about the loaded data
+    if isinstance(feature_frames, dict):
+        print(f"Keys in feature_frames: {list(feature_frames.keys())}")
+    else:
+        print(f"Loaded data type: {type(feature_frames)}")
+
+    return feature_frames
+
+
+if __name__ == "__main__":
+    OMIT_BENIGN = True
+    plt.rcParams['font.size'] = 18
+    cwd = Path.cwd()
+
+    # Load classifiers and feature frames
+    classifiers = load_classifiers(cwd)
+    feature_frames = load_feature_frames(cwd)
+
+    # Calculate accuracies for each classifier
+    all_accuracies = accuracy_outer_loop(classifiers, feature_frames)
 
     # Print summary
     for clf_name, accs in all_accuracies.items():
@@ -165,10 +181,10 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     # Adjust layout to make room for second level labels
-    plt.subplots_adjust(bottom=0.20, top=0.85)
+    plt.subplots_adjust(bottom=0.40, top=0.85)
 
     # Save heatmap
-    heatmap_path = cwd / "data/figures/heatmap.png"
+    heatmap_path = cwd / "data/figures/heatmap.pdf"
     filepath = Path(heatmap_path)
     filepath.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(heatmap_path)

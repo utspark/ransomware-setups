@@ -1,9 +1,11 @@
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
 import detector_framework
 # from detector_framework import config
-from cross_layer.cross_layer_train_run import files_and_labels_to_X_y, train_and_save_model, outer_train_loop
+from cross_layer.cross_layer_train_run import files_and_labels_to_X_y, train_and_save_model, outer_train_loop, \
+    form_feature_frame_joblib
 from cross_layer import network_signals, syscall_signals, hpc_signals
 
 
@@ -46,7 +48,31 @@ def test_cross_layer_train_run():
 
     train_scores = outer_train_loop(iteration_dict, window_size_time, window_stride_time, tts, train=True)
 
-    expected_train_scores = [0.992058, 0.958916, 0.995160]
+    expected_train_scores = [0.992058, 0.958916, 1.0]
 
     for i in range(len(train_scores)):
         assert train_scores[i] == pytest.approx(expected_train_scores[i], abs=1e-6)
+
+    feature_frames_path = cwd / "data/joblib/feature_frames.joblib"
+    behaviors = deepcopy(detector_framework.config.BEHAVIOR_FILES)
+    signal_modules = {
+        "syscall": syscall_signals,
+        "network": network_signals,
+        "hpc": hpc_signals,
+    }
+
+    feature_frames = form_feature_frame_joblib(
+        cwd, feature_frames_path, window_size_time, window_stride_time, tts, behaviors, signal_modules
+    )
+
+    assert feature_frames["network"]["compress_gzip_1t"].iloc[600, 9] == pytest.approx(0.952380, abs=1e-6)
+    assert feature_frames["network"]["symm_AES_256b"].iloc[250, 3] == pytest.approx(62.0, abs=1e-6)
+    assert feature_frames["network"]["transfer_aws_8t"].iloc[400, 7] == pytest.approx(0.000382, abs=1e-6)
+
+    assert feature_frames["syscall"]["browser_mix"].iloc[0, 0] == pytest.approx(1709.0, abs=1e-6)
+    assert feature_frames["syscall"]["browser_mix"].iloc[1200, 4] == pytest.approx(71.660877, abs=1e-6)
+    assert feature_frames["syscall"]["spec_gcc"].iloc[1500, 2] == pytest.approx(23.687804, abs=1e-6)
+
+    assert feature_frames["hpc"]["filebench_varmail"].iloc[100, 8] == pytest.approx(115065.571428, abs=1e-6)
+    assert feature_frames["hpc"]["recon_mount"].iloc[300, 14] == pytest.approx(11791146.142857, abs=1e-6)
+    assert feature_frames["hpc"]["filebench_fileserver"].iloc[50, 12]== pytest.approx(79630.833333, abs=1e-6)

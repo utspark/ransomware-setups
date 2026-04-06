@@ -629,6 +629,36 @@ def outer_train_loop(parameter_dict: dict, window_size_time, window_stride_time,
 
     return train_scores
 
+def form_feature_frame_joblib(cwd: Path, feature_frames_path: Path, window_size_time, window_stride_time, tts, behaviors, signal_modules: dict):
+    syscall_dir = cwd / "data/current_data/syscall_bucket"
+    network_dir = cwd / "data/current_data/network_bucket"
+    hpc_dir = cwd / "data/current_data/hpc_bucket"
+
+    for behavior in behaviors:
+        for signal_dir, signal in zip([syscall_dir, network_dir, hpc_dir], signal_modules.keys()):
+            behaviors[behavior][signal] = [signal_dir / file_path for file_path in behaviors[behavior][signal]]
+
+    signal_df_dict = form_signal_dict(behaviors, signal_modules)
+    feature_dict = build_features(
+        signal_df_dict, signal_modules, window_size_time, window_stride_time, preserve_time=True
+    )
+
+    #  TODO there should be time alignment of various signals
+    #   - because there is not, no use in below functions
+    #   - ask Prateek for time alignment; a trace of some action
+    #   - should take the same length across all signals
+    #   e.g. AES_128 takes 15 seconds in syscalls and hpc
+    # correct_feature_vector_times_2(feature_dict)
+    # correct_feature_vector_times(feature_dict)
+
+    feature_frames = form_feature_frames(feature_dict, train_test_split=tts, train=False)
+
+    filepath = Path(feature_frames_path)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(feature_frames, feature_frames_path)
+
+    return feature_frames
+
 
 if __name__ == "__main__":
     config.set_seed()
@@ -683,35 +713,12 @@ if __name__ == "__main__":
 
     behaviors = deepcopy(detector_framework.config.BEHAVIOR_FILES)
 
-    feature_frames_path = cwd / "data/joblibs/feature_frames.joblib"
+    feature_frames_path = cwd / "data/joblib/feature_frames.joblib"
 
     if REPROCESS_DATA:
-        syscall_dir = cwd / "data/current_data/syscall_bucket"
-        network_dir = cwd / "data/current_data/network_bucket"
-        hpc_dir = cwd / "data/current_data/hpc_bucket"
-
-        for behavior in behaviors:
-            for signal_dir, signal in zip([syscall_dir, network_dir, hpc_dir], signal_modules.keys()):
-                behaviors[behavior][signal] = [signal_dir / file_path for file_path in behaviors[behavior][signal]]
-
-        signal_df_dict = form_signal_dict(behaviors, signal_modules)
-        feature_dict = build_features(
-            signal_df_dict, signal_modules, window_size_time, window_stride_time, preserve_time=True
+        feature_frames = form_feature_frame_joblib(
+            cwd, feature_frames_path, window_size_time, window_stride_time, tts, behaviors, signal_modules
         )
-
-        #  TODO there should be time alignment of various signals
-        #   - because there is not, no use in below functions
-        #   - ask Prateek for time alignment; a trace of some action
-        #   - should take the same length across all signals
-        #   e.g. AES_128 takes 15 seconds in syscalls and hpc
-        # correct_feature_vector_times_2(feature_dict)
-        # correct_feature_vector_times(feature_dict)
-
-        feature_frames = form_feature_frames(feature_dict, train_test_split=tts, train=False)
-
-        filepath = Path(feature_frames_path)
-        filepath.parent.mkdir(parents=True, exist_ok=True)
-        joblib.dump(feature_frames, feature_frames_path)
 
     else:
         feature_frames = joblib.load(feature_frames_path)

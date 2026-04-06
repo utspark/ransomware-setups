@@ -21,6 +21,7 @@ Welcome to the **Detector Framework documentation**.
 cd data/
 ./setup_data.sh
 ./process_results.sh
+./align_directory.sh
 cd -
 ```
 
