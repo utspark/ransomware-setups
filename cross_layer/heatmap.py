@@ -184,8 +184,9 @@ if __name__ == "__main__":
     plt.subplots_adjust(bottom=0.40, top=0.85)
 
     # Save heatmap
-    heatmap_path = cwd / "data/figures/heatmap.pdf"
-    filepath = Path(heatmap_path)
-    filepath.parent.mkdir(parents=True, exist_ok=True)
+    # Ensure heatmap is saved relative to the project root
+    project_root = Path(__file__).resolve().parent.parent
+    heatmap_path = project_root / "data/figures/heatmap.pdf"
+    heatmap_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(heatmap_path)
     print(f"\nHeatmap saved to {heatmap_path}")

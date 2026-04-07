@@ -326,6 +326,15 @@ def prediction_analysis(
         ax.set_xlabel('Predicted')
         ax.set_title(title)
         plt.tight_layout()
+
+        # Save heatmap
+        project_root = Path(__file__).resolve().parent.parent
+        heatmap_dir = project_root / "data" / "figures"
+        heatmap_dir.mkdir(parents=True, exist_ok=True)
+        heatmap_path = heatmap_dir / f"{title.replace(' ', '_').lower()}.pdf"
+        plt.savefig(heatmap_path)
+        print(f"Heatmap saved to {heatmap_path}")
+
         plt.show(block=True)
 
     return {"log_loss": float(loss), "classification_report": report, "confusion_matrix": cm}

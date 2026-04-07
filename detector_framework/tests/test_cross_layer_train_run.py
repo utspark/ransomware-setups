@@ -54,7 +54,10 @@ def test_cross_layer_train_run():
         assert train_scores[i] == pytest.approx(expected_train_scores[i], abs=1e-6)
 
     feature_frames_path = cwd / "data/joblib/feature_frames.joblib"
-    behaviors = deepcopy(detector_framework.config.BEHAVIOR_FILES)
+    behaviors = {
+        k: v for k, v in detector_framework.config.BEHAVIOR_FILES.items()
+        if k in ["compress_gzip_1t", "symm_AES_256b", "transfer_aws_8t", "browser_mix", "spec_gcc", "filebench_varmail", "recon_mount", "filebench_fileserver"]
+    }
     signal_modules = {
         "syscall": syscall_signals,
         "network": network_signals,

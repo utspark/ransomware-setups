@@ -91,22 +91,9 @@ def _features_one(pair: Tuple[int, int]) -> Optional[List[float]]:
         np.mean(_G["port_7"][i:j]),
     ]
 
-def _chunked(it: Iterable, n: int):
-    """Yield lists of up to n items from iterable it."""
-    it = iter(it)
-    while True:
-        chunk = list(islice(it, n))
-        if not chunk:
-            return
-        yield chunk
-
 def _features_batch(pairs: List[Tuple[int, int]]) -> List[List[float]]:
-    out = []
-    for p in pairs:
-        row = _features_one(p)
-        if row is not None and row[0] != 0:
-            out.append(row)
-    return out
+    return feature_extraction.features_batch(pairs, _features_one)
+
 
 # ---------- parallelized main function ----------
 def file_df_feature_extraction_parallel(
@@ -153,7 +140,7 @@ def file_df_feature_extraction_parallel(
         ),
     ) as ex:
         # Map in batches to reduce per-task overhead
-        results = ex.map(_features_batch, _chunked(pairs, chunksize))
+        results = ex.map(_features_batch, feature_extraction.chunked(pairs, chunksize))
         rows = [row for batch in results for row in batch]
 
     cols = [

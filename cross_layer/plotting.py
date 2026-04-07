@@ -90,7 +90,7 @@ def trace_len_plot(attack_stages_dict: dict, feature_frames_dict: dict,
         ax.grid(True, alpha=0.5)
         fig.tight_layout()
         plt.show(block=True)
-        plt.savefig(Path.cwd() / "data/figures" / "trace_lens.pdf")
+        plt.savefig(Path(__file__).resolve().parent.parent / "data" / "figures" / "trace_lens.pdf")
 
     return (benign_scores, malware_scores)
 
@@ -206,7 +206,7 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
         plt.tight_layout()
         plt.grid()
         plt.show(block=True)
-        plt.savefig(Path.cwd() / "data/figures" / "model_curves.pdf")
+        plt.savefig(Path(__file__).resolve().parent.parent / "data" / "figures" / "model_curves.pdf")
 
     return auc_values
 
@@ -414,7 +414,7 @@ def evade_density_plot(model_paths, attack_stages_dict: dict, feature_frames_dic
         plt.tight_layout()
         plt.grid()
         plt.show(block=True)
-        plt.savefig(Path.cwd() / "data/figures" / "evade_density.pdf")
+        plt.savefig(Path(__file__).resolve().parent.parent / "data" / "figures" / "evade_density.pdf")
 
     return auc_values
 
@@ -588,7 +588,7 @@ def signal_sample_plot(
         plt.tight_layout()
         plt.grid()
         plt.show(block=True)
-        plt.savefig(Path.cwd() / "data/figures" / "signal_samples.pdf")
+        plt.savefig(Path(__file__).resolve().parent.parent / "data" / "figures" / "signal_samples.pdf")
 
     return auc_values
 
@@ -908,7 +908,7 @@ def flow_variations(
         plt.tight_layout()
         plt.grid()
         plt.show(block=True)
-        plt.savefig(Path.cwd() / "data/figures" / "flow_variations.pdf")
+        plt.savefig(Path(__file__).resolve().parent.parent / "data" / "figures" / "flow_variations.pdf")
 
     return auc_values
 
@@ -1226,7 +1226,7 @@ def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict,
         # plt.legend(loc="center right", prop={'size': 14})
         plt.tight_layout()
         plt.show(block=True)
-        plt.savefig(Path.cwd() / "figures" / "score_over_time.pdf")
+        plt.savefig(Path(__file__).resolve().parent.parent / "data" / "figures" / "score_over_time.pdf")
 
     return threshold_results
 
