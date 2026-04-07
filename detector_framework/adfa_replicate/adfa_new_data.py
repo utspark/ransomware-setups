@@ -4,19 +4,33 @@ import random
 from functools import partial
 from pathlib import Path
 from types import ModuleType
-from typing import Iterable, Mapping, Any
+from typing import Iterable, Mapping, Any, Callable
 
 import joblib
 import numpy as np
-from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
 from cross_layer import syscall_signals
 from detector_framework import config
-from detector_framework.adfa_replicate.adfa import build_ngram_vocabulary, generate_multigram_phrases, get_features, \
-    evaluate, sliding_window_sampling
+from detector_framework.adfa_replicate.adfa_utils import (
+    build_ngram_vocabulary,
+    generate_multigram_phrases,
+    get_features,
+    evaluate,
+    sliding_window_sampling,
+)
+
+# Constants
+WORD_LENGTH = 7
+CLASSIFIER_TYPE = "mlp"
+WINDOW_SIZE = 100
+WINDOW_STRIDE = 75
+MAX_WINDOWS = 50
+RESULTS_DIR = Path("detector_framework/adfa_replicate/results")
+DATA_DIR = Path("data/current_data/syscall_bucket")
+N_TRACES = 50
 
 
 def load_single_file(
@@ -25,6 +39,9 @@ def load_single_file(
         signal_module: ModuleType | str,
         strict: bool = True
 ) -> tuple[np.ndarray, int, str] | None:
+    """
+    Loads a single syscall sequence file and matches it to a malware label.
+    """
     if not path.is_file():
         return None
 
@@ -45,8 +62,12 @@ def load_single_file(
         import importlib
         signal_module = importlib.import_module(signal_module)
 
-    df = signal_module.get_file_df(path)
-    return np.array(df), label, matched_prefix
+    try:
+        df = signal_module.get_file_df(path)
+        return np.array(df), label, matched_prefix
+    except Exception as e:
+        print(f"Error loading {path}: {e}")
+        return None
 
 
 def load_files(
@@ -56,6 +77,9 @@ def load_files(
         strict: bool = True,
         n_workers: int = 1
 ) -> dict[str, list[np.ndarray]]:
+    """
+    Loads multiple syscall sequence files in parallel and groups them by malware prefix.
+    """
     prefix_to_sequences = {}
 
     # Create a fast lookup map for malware labels
@@ -69,9 +93,7 @@ def load_files(
             result = load_single_file(p, malware_lookup, signal_module, strict)
             if result:
                 seq, label, prefix = result
-                if prefix not in prefix_to_sequences:
-                    prefix_to_sequences[prefix] = []
-                prefix_to_sequences[prefix].append(seq)
+                prefix_to_sequences.setdefault(prefix, []).append(seq)
     else:
         # Pass the module name if it's a module object to avoid pickling issues
         module_to_pass = signal_module
@@ -85,30 +107,46 @@ def load_files(
         for res in results:
             if res:
                 seq, label, prefix = res
-                if prefix not in prefix_to_sequences:
-                    prefix_to_sequences[prefix] = []
-                prefix_to_sequences[prefix].append(seq)
+                prefix_to_sequences.setdefault(prefix, []).append(seq)
 
     return prefix_to_sequences
 
 
-def prefix_sliding_window(prefix_to_sequences: dict, window_size=100, window_stride=50, max_windows=1000) -> dict:
+def prefix_sliding_window(
+        prefix_to_sequences: dict[str, list[np.ndarray]],
+        window_size: int = 100,
+        window_stride: int = 50,
+        max_windows: int = 1000
+) -> dict[str, np.ndarray]:
+    """
+    Applies sliding window sampling to sequences grouped by prefix.
+    """
     prefix_to_windows = {}
 
     for prefix, sequences in prefix_to_sequences.items():
         prefix_windows = []
         for seq in sequences:
-            seq = seq[:, 1]
+            # Assumes seq is 2D and we want the second column (syscall ID)
+            if seq.ndim > 1:
+                seq = seq[:, 1]
             windows = sliding_window_sampling(seq, window_size, window_stride)
-            prefix_windows.append(windows)
+            if windows.size > 0:
+                prefix_windows.append(windows)
 
-        prefix_windows = np.concatenate(prefix_windows, axis=0)
-        prefix_to_windows[prefix] = prefix_windows[:max_windows]
+        if prefix_windows:
+            prefix_windows_concat = np.concatenate(prefix_windows, axis=0)
+            prefix_to_windows[prefix] = prefix_windows_concat[:max_windows]
 
     return prefix_to_windows
 
 
-def prefix_train_test_split(prefix_to_windows: dict, tts: float = 0.7) -> tuple[dict[Any, Any], dict[Any, Any]]:
+def prefix_train_test_split(
+        prefix_to_windows: dict[str, np.ndarray],
+        tts: float = 0.7
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
+    """
+    Splits windows into training and testing sets while maintaining prefix grouping.
+    """
     X_train_dict = {}
     X_test_dict = {}
 
@@ -127,8 +165,11 @@ def create_sampled_traces(
         n_traces: int,
         w_test_dict: dict[str, np.ndarray],
         time_choices: list[int],
-        get_techniques_fn: callable
+        get_techniques_fn: Callable[[], list[str]]
 ) -> list[np.ndarray]:
+    """
+    Creates synthetic traces by sampling windows from different techniques.
+    """
     trace_list = []
     for _ in range(n_traces):
         techniques = get_techniques_fn()
@@ -137,161 +178,181 @@ def create_sampled_traces(
         sampled = []
         for technique, length in stage_lens:
             prefix = technique + "_"
+            if prefix not in w_test_dict:
+                # Handle cases where the technique might not have a trailing underscore in the dict
+                if technique in w_test_dict:
+                    prefix = technique
+                else:
+                    print(f"Warning: Technique {technique} not found in test dictionary.")
+                    continue
+            
             w = w_test_dict[prefix]
-
-            start = np.random.choice(range(0, w.shape[0] - length + 1))
-            sampled_w = w[start:start + length]
+            if w.shape[0] < length:
+                sampled_w = w
+            else:
+                start = np.random.choice(range(0, w.shape[0] - length + 1))
+                sampled_w = w[start:start + length]
             sampled.append(sampled_w)
 
-        sampled = np.concatenate(sampled, axis=0)
-        trace_list.append(sampled.reshape(-1))
+        if sampled:
+            sampled_concat = np.concatenate(sampled, axis=0)
+            trace_list.append(sampled_concat.reshape(-1))
 
     return trace_list
 
 
+def generate_and_evaluate_combined(
+    clf: MLPClassifier,
+    scaler: StandardScaler,
+    w_test_dict: dict[str, np.ndarray],
+    all_phrases: list[np.ndarray],
+    time_choices: list[int],
+    n_workers: int,
+    benign_techniques_fn: Callable[[], list[str]],
+    malware_techniques_fn: Callable[[], list[str]],
+    results_path: Path,
+    description: str,
+    plot: bool = True
+):
+    """
+    Generates synthetic benign and malware traces, combines them, and evaluates the classifier.
+    """
+    print(f"\n--- Generating and Evaluating: {description} ---")
+    
+    print(f"Generating {N_TRACES} benign traces...")
+    benign_trace_list = create_sampled_traces(N_TRACES, w_test_dict, time_choices, benign_techniques_fn)
+    benign_features = get_features(benign_trace_list, all_phrases, WORD_LENGTH, n_workers, "benign traces")
+    benign_norm = scaler.transform(benign_features)
+    
+    print(f"Generating {N_TRACES} malware traces...")
+    malware_trace_list = create_sampled_traces(N_TRACES, w_test_dict, time_choices, malware_techniques_fn)
+    malware_features = get_features(malware_trace_list, all_phrases, WORD_LENGTH, n_workers, "malware traces")
+    malware_norm = scaler.transform(malware_features)
+    
+    print("Evaluating combined traces...")
+    X_trace_test = np.concatenate([benign_norm, malware_norm], axis=0)
+    # benign_norm label 1 (Benign), malware_norm label 0 (Attack)
+    y_trace_test = np.concatenate([np.ones(len(benign_norm)), np.zeros(len(malware_norm))], axis=0)
+    
+    fpr, tpr, auc = evaluate(clf, "MLP Combined Traces", "mlp_combined", X_trace_test, y_trace_test, plot=plot)
+    
+    results_path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump((fpr, tpr, auc), results_path)
+    print(f"Saved results to {results_path}")
 
 
-
-if __name__ == "__main__":
+def main(plot: bool = True):
     config.set_seed()
 
-    n_workers = os.cpu_count() - 4
-    WORD_LENGTH = 7
-    CLASSIFIER = "mlp"
-
-    cwd = Path.cwd()
-    data_dir = cwd / "data/current_data/syscall_bucket"
+    n_workers = max(1, (os.cpu_count() or 1) - 4)
+    
     malware_map = config.SYSCALL_BENIGN_MALWARE_DICT
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    results_dir = cwd / "detector_framework/adfa_replicate/results"
-    results_dir.mkdir(parents=True, exist_ok=True)
+    if not DATA_DIR.exists():
+        print(f"Data directory {DATA_DIR} does not exist.")
+        return
 
-    data_paths = [p for p in data_dir.iterdir() if p.is_file()]
-    data_paths.sort()
+    data_paths = sorted([p for p in DATA_DIR.iterdir() if p.is_file()])
+    
+    # Filter data paths based on malware_map
+    malware_keys = set(item for sublist in malware_map.values() for item in sublist)
+    data_paths = [p for p in data_paths if any(key in p.name for key in malware_keys)]
 
-    malware_keys = [item for sublist in malware_map.values() for item in sublist]
-    malware_keys = set(malware_keys)
+    print(f"Loading {len(data_paths)} files from {DATA_DIR}...")
+    prefix_to_sequences = load_files(data_paths, malware_map, syscall_signals, strict=False, n_workers=n_workers)
+    
+    print("Applying sliding window sampling...")
+    prefix_to_windows = prefix_sliding_window(
+        prefix_to_sequences, 
+        window_size=WINDOW_SIZE, 
+        window_stride=WINDOW_STRIDE, 
+        max_windows=MAX_WINDOWS
+    )
+    
+    w_train_dict, w_test_dict = prefix_train_test_split(prefix_to_windows)
 
+    # Flatten dictionaries for training/testing
+    w_train = np.concatenate(list(w_train_dict.values()), axis=0)
+    w_test = np.concatenate(list(w_test_dict.values()), axis=0)
+    
+    # Create a lookup for label based on prefix
     malware_lookup = {}
     for key, malware_list in malware_map.items():
         for malware in malware_list:
             malware_lookup[malware] = key
 
-    filtered = [
-        path for path in data_paths
-        if any(key in path.name for key in malware_keys)
-    ]
-    data_paths = filtered
+    y_train_raw = np.concatenate([np.full(w.shape[0], malware_lookup[prefix]) for prefix, w in w_train_dict.items()], axis=0)
+    y_test_raw = np.concatenate([np.full(w.shape[0], malware_lookup[prefix]) for prefix, w in w_test_dict.items()], axis=0)
 
-    if not data_dir.exists():
-        print(f"Data directory {data_dir} does not exist.")
-        exit(1)
+    # Convert to binary labels: Benign is 1 (labels > 6), Attack is 0 (labels <= 6)
+    y_train = (y_train_raw > 6).astype(int)
+    y_test = (y_test_raw > 6).astype(int)
 
-    print(f"Loading files from {data_dir}...")
-    prefix_to_sequences = load_files(data_paths, malware_map, syscall_signals, strict=False, n_workers=n_workers)
-    prefix_to_windows = prefix_sliding_window(prefix_to_sequences, window_size=100, window_stride=75, max_windows=50)
-    w_train_dict, w_test_dict = prefix_train_test_split(prefix_to_windows)
-
-    w_train = np.concatenate(list(w_train_dict.values()), axis=0)
-    y_train = np.concatenate([np.full(w.shape[0], malware_lookup[prefix]) for prefix, w in w_train_dict.items()], axis=0)
-
-    w_test = np.concatenate(list(w_test_dict.values()), axis=0)
-    y_test = np.concatenate([np.full(w.shape[0], malware_lookup[prefix]) for prefix, w in w_test_dict.items()], axis=0)
-
-    array_n, counts = build_ngram_vocabulary(list(w_train), WORD_LENGTH)
+    # Feature extraction
+    array_n, _ = build_ngram_vocabulary(list(w_train), WORD_LENGTH)
     all_phrases = generate_multigram_phrases(list(w_train), array_n, WORD_LENGTH, n_workers, max_length=4)
 
     X_train = get_features(w_train, all_phrases, WORD_LENGTH, n_workers, "training data")
     X_test = get_features(w_test, all_phrases, WORD_LENGTH, n_workers, "test data")
-
-    # del w_train, w_test
 
     print("Normalizing features...")
     scaler = StandardScaler()
     X_train_norm = scaler.fit_transform(X_train)
     X_test_norm = scaler.transform(X_test)
 
-    del X_train, X_test
-
-    y_train = (y_train > 6).astype(int)
-    y_test = (y_test > 6).astype(int)
-
-    # In our label mapping: Benign is 1 (labels > 6), Attack is 0 (labels <= 6)
-    target_names = ['Attack', 'Benign']
-
+    print(f"\nTraining {CLASSIFIER_TYPE} classifier...")
     clf = MLPClassifier(hidden_layer_sizes=(100, 50), max_iter=1000, random_state=42)
     clf.fit(X_train_norm, y_train)
-    fpr, tpr, auc = evaluate(clf, CLASSIFIER.replace("_", " ").title(), CLASSIFIER, X_test_norm, y_test)
-    filename = results_dir / "individual_behavior_curve.joblib"
-    filepath = Path(filename)
-    filepath.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump((fpr, tpr, auc), filename)
+    
+    # Evaluate individual behaviors
+    fpr, tpr, auc = evaluate(clf, CLASSIFIER_TYPE.replace("_", " ").title(), CLASSIFIER_TYPE, X_test_norm, y_test, plot=plot)
+    joblib.dump((fpr, tpr, auc), RESULTS_DIR / "individual_behavior_curve.joblib")
 
+    # Synthetic trace generation parameters
     benign_stages = config.GENERATION_BENIGN
     attack_stages = config.GENERATION_ATTACK_STAGES
-
-    n_traces = 50
-    start = 2  # 0.5
-    stop = 10
-    step = 1
+    
+    start, stop, step = 2, 10, 1
     time_choices = np.arange(start, stop + step / 2, step, dtype=int).tolist()
 
-    # baseline
-    print(f"Generating {n_traces} benign traces...")
-    get_benign_techniques = lambda: [random.choice(benign_stages) for _ in range(len(attack_stages))]
-    benign_trace_list = create_sampled_traces(n_traces, w_test_dict, time_choices, get_benign_techniques)
-    benign_features = get_features(benign_trace_list, all_phrases, WORD_LENGTH, n_workers, "benign traces")
-    benign_norm = scaler.transform(benign_features)
-    print(f"Generating {n_traces} malware traces...")
+    # Define malware technique selection function
     get_malware_techniques = lambda: [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
-    malware_trace_list = create_sampled_traces(n_traces, w_test_dict, time_choices, get_malware_techniques)
-    malware_features = get_features(malware_trace_list, all_phrases, WORD_LENGTH, n_workers, "malware traces")
-    malware_norm = scaler.transform(malware_features)
-    print("Evaluating combined traces...")
-    X_trace_test = np.concatenate([benign_norm, malware_norm], axis=0)
-    # benign_norm should be label 1 (Benign), malware_norm should be label 0 (Attack)
-    y_trace_test = np.concatenate([np.ones(len(benign_norm)), np.zeros(len(malware_norm))], axis=0)
-    fpr, tpr, auc = evaluate(clf, "MLP Combined Traces", "mlp_combined", X_trace_test, y_trace_test)
-    filename = results_dir / "exclude_encryption_curve.joblib"
-    joblib.dump((fpr, tpr, auc), filename)
 
-    # baseline
-    print(f"Generating {n_traces} benign traces...")
+    # Case 1: Exclude encryption
+    get_benign_exclude_enc = lambda: [random.choice(benign_stages) for _ in range(len(attack_stages))]
+    generate_and_evaluate_combined(
+        clf, scaler, w_test_dict, all_phrases, time_choices, n_workers,
+        get_benign_exclude_enc, get_malware_techniques,
+        RESULTS_DIR / "exclude_encryption_curve.joblib",
+        "Baseline (Exclude Encryption)",
+        plot=plot
+    )
+
+    # Case 2: Partial encryption
     new_benign = benign_stages + attack_stages["exec_2"]
-    get_benign_techniques = lambda: [random.choice(new_benign) for _ in range(len(attack_stages))]
-    benign_trace_list = create_sampled_traces(n_traces, w_test_dict, time_choices, get_benign_techniques)
-    benign_features = get_features(benign_trace_list, all_phrases, WORD_LENGTH, n_workers, "benign traces")
-    benign_norm = scaler.transform(benign_features)
-    print(f"Generating {n_traces} malware traces...")
-    get_malware_techniques = lambda: [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
-    malware_trace_list = create_sampled_traces(n_traces, w_test_dict, time_choices, get_malware_techniques)
-    malware_features = get_features(malware_trace_list, all_phrases, WORD_LENGTH, n_workers, "malware traces")
-    malware_norm = scaler.transform(malware_features)
-    print("Evaluating combined traces...")
-    X_trace_test = np.concatenate([benign_norm, malware_norm], axis=0)
-    # benign_norm should be label 1 (Benign), malware_norm should be label 0 (Attack)
-    y_trace_test = np.concatenate([np.ones(len(benign_norm)), np.zeros(len(malware_norm))], axis=0)
-    fpr, tpr, auc = evaluate(clf, "MLP Combined Traces", "mlp_combined", X_trace_test, y_trace_test)
-    filename = results_dir / "partial_encryption_curve.joblib"
-    joblib.dump((fpr, tpr, auc), filename)
+    get_benign_partial_enc = lambda: [random.choice(new_benign) for _ in range(len(attack_stages))]
+    generate_and_evaluate_combined(
+        clf, scaler, w_test_dict, all_phrases, time_choices, n_workers,
+        get_benign_partial_enc, get_malware_techniques,
+        RESULTS_DIR / "partial_encryption_curve.joblib",
+        "Partial Encryption",
+        plot=plot
+    )
 
-    # compression only
-    print(f"Generating {n_traces} benign traces...")
-    get_benign_techniques = lambda: [random.choice(attack_stages["exec_2"]) for _ in range(len(attack_stages))]
-    benign_trace_list = create_sampled_traces(n_traces, w_test_dict, time_choices, get_benign_techniques)
-    benign_features = get_features(benign_trace_list, all_phrases, WORD_LENGTH, n_workers, "benign traces")
-    benign_norm = scaler.transform(benign_features)
-    print(f"Generating {n_traces} malware traces...")
-    get_malware_techniques = lambda: [random.choice(ttp_choices) for _, ttp_choices in attack_stages.items()]
-    malware_trace_list = create_sampled_traces(n_traces, w_test_dict, time_choices, get_malware_techniques)
-    malware_features = get_features(malware_trace_list, all_phrases, WORD_LENGTH, n_workers, "malware traces")
-    malware_norm = scaler.transform(malware_features)
-    print("Evaluating combined traces...")
-    X_trace_test = np.concatenate([benign_norm, malware_norm], axis=0)
-    # benign_norm should be label 1 (Benign), malware_norm should be label 0 (Attack)
-    fpr, tpr, auc = evaluate(clf, "MLP Combined Traces", "mlp_combined", X_trace_test, y_trace_test)
-    filename = results_dir / "full_encryption_curve.joblib"
-    joblib.dump((fpr, tpr, auc), filename)
+    # Case 3: Encryption Only
+    get_benign_full_enc = lambda: [random.choice(attack_stages["exec_2"]) for _ in range(len(attack_stages))]
+    generate_and_evaluate_combined(
+        clf, scaler, w_test_dict, all_phrases, time_choices, n_workers,
+        get_benign_full_enc, get_malware_techniques,
+        RESULTS_DIR / "full_encryption_curve.joblib",
+        "Encryption Only",
+        plot=plot
+    )
+
+
+if __name__ == "__main__":
+    main()
 
 
 
