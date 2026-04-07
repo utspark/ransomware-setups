@@ -1,14 +1,11 @@
 from pathlib import Path
 
 import joblib
-import numpy as np
 
-from detector_framework.global_detector import global_detector
-from detector_framework import config, local_detector
+from detector_framework import config, local_detector, global_detector
 
 
 def get_default_config():
-    PRESCORE = False
     USE_PRESCORE = False
 
     cwd = Path.cwd()
@@ -68,7 +65,7 @@ def run_global_detector(
 
     results = []
     for i in range(num_sequences):
-        stage_keys, stage_windows = global_detector.form_lifecycle_sequence(
+        stage_keys, stage_windows = global_detector.LifecycleDetector.form_lifecycle_sequence(
             generation_attack_stages, benign=False
         )
 
@@ -83,11 +80,7 @@ def run_global_detector(
             )
 
         translation = config.SYSCALL_BENIGN_MALWARE_CLASS_TRANSLATION
-        vectorized_translate = np.vectorize(translation.get)
-        clf_predictions = vectorized_translate(trace_classes)
-        predictions = clf_predictions[trace_values > 0.90]
-
-        proba = gd.score_stage_sequence(predictions, clf_predictions)
+        proba = gd.score_single_layer(trace_classes, trace_values, translation)
         print(f"{proba: 6.5f}")
         results.append(proba)
 

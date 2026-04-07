@@ -6,7 +6,7 @@ from sklearn.metrics import roc_curve, auc, accuracy_score
 
 import detector_framework
 from detector_framework import config
-from detector_framework.global_detector import global_detector
+from detector_framework import global_detector
 from cross_layer import cross_layer_train_run as cld
 import random
 

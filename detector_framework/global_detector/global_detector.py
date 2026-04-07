@@ -1,97 +1,93 @@
-from itertools import groupby, combinations
+from itertools import groupby
+from typing import List, Tuple, Dict, Optional, Final
 
 import joblib
 import numpy as np
 from hmmlearn import hmm
+from bisect import bisect_left
 
 from detector_framework import config
-from bisect import bisect_left
-from typing import List, Tuple
-
-
-var_uniform_subseq_len = 3  # 2  # 3
-var_density_scaler = 0.08 # 0.1
-var_propagation_scaler = 0.12
-
-
-def form_lifecycle_sequence(attack_stages: dict, benign=False):
-    # TODO benign sequences
-    # TODO consider benign states
-    #  - (states: list)
-    #  - pb-lifecycle/src/classifier.py
-
-    if benign:
-        techniques = ["_b_" for _ in attack_stages]
-
-    else:
-        techniques = []
-
-        for stage, ttp_choices in attack_stages.items():
-            # TODO performance increase when setting replace=True
-            ttp = np.random.choice(ttp_choices, size=1)[0]
-            techniques.append(ttp)
-
-    # states = np.random.choice(states, size=len(techniques))
-    stage_keys = []
-    stage_windows = []
-
-    # for state, technique in zip(states, techniques):
-    #     stage_keys.append("s" + str(state) + technique)
-    #     stage_windows.append(np.random.choice(np.arange(10, 100, 10)))
-
-    for technique in techniques:
-        stage_keys.append(technique)
-        stage_windows.append(np.random.choice(np.arange(10, 100, 10)))
-
-    return stage_keys, stage_windows
 
 
 class LifecycleDetector:
+    DEFAULT_UNIFORM_SUBSEQ_LEN: Final[int] = 3
+    DEFAULT_DENSITY_SCALER: Final[float] = 0.08
+    DEFAULT_PROPAGATION_SCALER: Final[float] = 0.12
+    DEFAULT_PROBA_THRESHOLD: Final[float] = 0.95
+
+    @staticmethod
+    def form_lifecycle_sequence(attack_stages: Dict[str, List[str]], benign: bool = False) -> Tuple[List[str], List[int]]:
+        # TODO benign sequences
+        # TODO consider benign states
+        #  - (states: list)
+        #  - pb-lifecycle/src/classifier.py
+
+        if benign:
+            techniques = ["_b_" for _ in attack_stages]
+        else:
+            techniques = []
+            for stage, ttp_choices in attack_stages.items():
+                # TODO performance increase when setting replace=True
+                ttp = np.random.choice(ttp_choices, size=1)[0]
+                techniques.append(ttp)
+
+        stage_keys = []
+        stage_windows = []
+
+        for technique in techniques:
+            stage_keys.append(technique)
+            # Random window sizes for each stage
+            stage_windows.append(np.random.choice(np.arange(10, 100, 10)))
+
+        return stage_keys, stage_windows
+
     def __init__(self,
-                 syscall_clf_path=None,
-                 network_clf_path=None,
-                 hpc_clf_path=None,
-                 lifecycle_awareness=True,
-                 stage_filter=False,
-                 density=False,
-                 propagation=False,
-                 memory=False
+                 syscall_clf_path: Optional[str] = None,
+                 network_clf_path: Optional[str] = None,
+                 hpc_clf_path: Optional[str] = None,
+                 lifecycle_awareness: bool = True,
+                 stage_filter: bool = False,
+                 density: bool = False,
+                 propagation: bool = False,
+                 memory: bool = False,
+                 proba_threshold: float = DEFAULT_PROBA_THRESHOLD
                  ):
         if not any([syscall_clf_path, network_clf_path, hpc_clf_path]):
-            raise ValueError("At least one classifier path must be provided (syscall_clf_path, network_clf_path, or hpc_clf_path).")
+            raise ValueError("At least one classifier path must be provided.")
 
-        def _load_clf(path):
-            if path is None:
-                return None
-            clf = joblib.load(path)
-            return clf[0] if isinstance(clf, tuple) else clf
+        self.syscall_clf = self._load_clf(syscall_clf_path)
+        self.network_clf = self._load_clf(network_clf_path)
+        self.hpc_clf = self._load_clf(hpc_clf_path)
 
-        self.syscall_clf = _load_clf(syscall_clf_path)
-        self.network_clf = _load_clf(network_clf_path)
-        self.hpc_clf = _load_clf(hpc_clf_path)
         self.hmm = self._get_markov()
         self.lifecycle_awareness = lifecycle_awareness
         self.stage_filter = stage_filter
         self.density = density
         self.propagation = propagation
         self.memory = memory
+        self.proba_threshold = proba_threshold
+
+    @staticmethod
+    def _load_clf(path: Optional[str]):
+        if path is None:
+            return None
+        try:
+            clf = joblib.load(path)
+            return clf[0] if isinstance(clf, tuple) else clf
+        except Exception as e:
+            # TODO: Add proper logging
+            print(f"Error loading classifier from {path}: {e}")
+            return None
 
     @staticmethod
     def _get_markov() -> hmm.CategoricalHMM:
-        # s_c = 0.6  # start confidence, confidence that sequence will start at first stage
-        # alternate_start_weights = [i * 1.2 for i in range(1, 4)][::-1]
-        # alternate_start_weights = np.array(alternate_start_weights) / np.sum(alternate_start_weights) * (1 - s_c)
-        # alternate_start_weights = alternate_start_weights.tolist()
-        # alternate_start_weights.insert(0, s_c)
-
-        # alternate_start_weights = [np.pow(i, 1/2) for i in range(1, 5)][::-1]
+        # Probabilities for starting at each stage
+        # Favoring starting at earlier stages
         alternate_start_weights = [i for i in range(1, 5)][::-1]
-        alternate_start_weights = np.array(alternate_start_weights) / np.sum(alternate_start_weights)
-        alternate_start_weights = alternate_start_weights.tolist()
+        start_matrix = np.array(alternate_start_weights) / np.sum(alternate_start_weights)
 
-        start_matrix = alternate_start_weights
-
-        f_b_ratio = 2  # ratio of confidence of forward transition over backward transition
+        # Transition probabilities
+        f_b_ratio = 2  # ratio of forward over backward transition confidence
         t_f0 = 1 / (4 * f_b_ratio + 0) * f_b_ratio
         t_f1 = 1 / (3 * f_b_ratio + 1) * f_b_ratio
         t_f2 = 1 / (2 * f_b_ratio + 2) * f_b_ratio
@@ -108,26 +104,17 @@ class LifecycleDetector:
             [t_b3, t_b3, t_b3, t_f3],
         ]
 
-        e0 = 1  # 0.7  # confidence in detection at this stage 1
-        e1 = 1  # 0.7
-        e2 = 1  # 0.7
-        e3 = 1  # 0.7
-
-        emission_matrix = [
-            [e0, 0, 0, 0],
-            [0, e1, 0, 0],
-            [0, 0, e2, 0],
-            [0, 0, 0, e3],
-        ]
+        # Emission matrix (identity matrix since observations match stages)
+        emission_matrix = np.eye(4)
 
         model = hmm.CategoricalHMM(n_components=4, n_features=4)
-        model.startprob_ = np.array(start_matrix)
+        model.startprob_ = start_matrix
         model.transmat_ = np.array(transition_matrix)
-        model.emissionprob_ = np.array(emission_matrix)
+        model.emissionprob_ = emission_matrix
 
         return model
 
-    def cross_layer_class_preds(self, cross_layer_X: tuple):
+    def cross_layer_class_preds(self, cross_layer_X: Tuple[np.ndarray, np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
         cross_layer_classes = []
         cross_layer_probas = []
 
@@ -146,107 +133,64 @@ class LifecycleDetector:
                 preds = clf.predict_proba(layer_data)
                 probas = np.max(preds, axis=1)
                 classes = np.argmax(preds, axis=1)
-                classes[probas < 0.95] = -1
+                classes[probas < self.proba_threshold] = -1
 
             # Vectorized translation
-            vectorized_translate = np.vectorize(translation.get)
-            classes = vectorized_translate(classes)
+            vector_translate = np.vectorize(lambda x: translation.get(x, x))
+            classes = vector_translate(classes)
             cross_layer_classes.append(classes)
             cross_layer_probas.append(probas)
 
-        cross_layer_classes = np.stack(cross_layer_classes).T
-        cross_layer_probas = np.stack(cross_layer_probas).T
+        combined_classes = np.stack(cross_layer_classes).T
+        combined_probas = np.stack(cross_layer_probas).T
 
-        return cross_layer_classes, cross_layer_probas
+        return combined_classes, combined_probas
 
-    def filter(self, class_sequence) -> tuple[np.ndarray, np.ndarray]:
-        # multiclass -> sequence_processor
-        global var_uniform_subseq_len
-
+    def filter(self, class_sequence: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Filters the sequence based on minimum subsequence length."""
         new_sequence = []
         for key, group in groupby(class_sequence):
-            emission_len = len([_ for _ in group])
+            emission_len = len(list(group))
             new_sequence.append((key, emission_len))
 
-        prune_list = []
-
-        for i, technique in enumerate(new_sequence):
-            if technique[1] < var_uniform_subseq_len:
-                prune_list.append(i)
+        if not new_sequence:
+            return np.array([]), np.array([])
 
         new_sequence = np.array(new_sequence)
-
+        
         if self.stage_filter:
-            new_sequence = np.delete(new_sequence, prune_list, axis=0)
+            # Filter out entries where the length is less than the threshold
+            mask = new_sequence[:, 1].astype(int) >= self.DEFAULT_UNIFORM_SUBSEQ_LEN
+            new_sequence = new_sequence[mask]
 
         if len(new_sequence) < 1:
-            return new_sequence, np.array([])
+            return np.array([]), np.array([])
 
-        else:
-            values = new_sequence[:, 0]
-            counts = new_sequence[:, 1]
-            # out = np.repeat(values, counts)
+        values = new_sequence[:, 0]
+        counts = new_sequence[:, 1].astype(int)
 
-            return values, counts
+        return values, counts
 
     @staticmethod
     def _collate_preds(preds: np.ndarray, probas: np.ndarray) -> np.ndarray:
-        predictions = []
+        """Collates predictions from multiple layers by picking the one with highest probability."""
+        results = []
 
-        for i, row in enumerate(preds):
-            proba_row = probas[i]
-
-            idxs = row != -1
-            row = row[idxs]
-            proba_row = proba_row[idxs]
-
-            if len(row) == 0:
+        for row, proba_row in zip(preds, probas):
+            mask = row != -1
+            if not np.any(mask):
                 continue
 
-            predictions.append(row[np.argmax(proba_row)])
+            valid_preds = row[mask]
+            valid_probas = proba_row[mask]
+            results.append(valid_preds[np.argmax(valid_probas)])
 
-        return np.array(predictions)
+        return np.array(results)
 
-
-    @staticmethod
-    def _all_subseq(s: np.ndarray):
-        def is_in_alphabetical_order(word):
-            return word == ''.join(sorted(word))
-
-        s = [str(i) for i in s]
-
-        # Start with the empty subsequence
-        results = []
-        alphabetical_results = []
-
-        # Generate combinations of lengths 1 to n
-        for r in range(1, len(s) + 1):
-            # Add all combinations of length r to result
-            results.extend([', '.join(comb) for comb in combinations(s, r)])
-
-        results = set(results)
-        results = list(results)
-        results.sort()
-
-        results = [s.replace(", ", "") for s in results]
-        remove_list = []
-
-        for i in results:
-            if not is_in_alphabetical_order(i):
-                remove_list.append(i)
-
-        for subseq in remove_list:
-            results.remove(subseq)
-
-        for subseq in results:
-            subseq = [int(i) for i in subseq]
-            alphabetical_results.append(subseq)
-
-        return alphabetical_results
 
     @staticmethod
     def _longest_increasing_subsequence(nums: List[int]) -> Tuple[List[int], List[int]]:
-        # Returns (subsequence values, indices in original list)
+        """Returns the longest increasing subsequence and its indices."""
         n = len(nums)
         if n == 0:
             return [], []
@@ -256,7 +200,7 @@ class LifecycleDetector:
         prev = [-1] * n  # predecessor index for reconstruction
 
         for i, x in enumerate(nums):
-            j = bisect_left(tails, x)  # strict: first >= x
+            j = bisect_left(tails, x)
             if j == len(tails):
                 tails.append(x)
                 tails_idx.append(i)
@@ -266,99 +210,67 @@ class LifecycleDetector:
             if j > 0:
                 prev[i] = tails_idx[j - 1]
 
-        # Reconstruct LIS by backtracking predecessors from last tail index
+        # Reconstruct LIS
         k = tails_idx[-1]
         lis_idx = []
         while k != -1:
             lis_idx.append(k)
             k = prev[k]
+        
         lis_idx.reverse()
         return [nums[i] for i in lis_idx], lis_idx
 
     def score_stage_sequence(self, stage_sequence: np.ndarray, clf_predictions: np.ndarray) -> float:
-        global var_density_scaler
-        global var_propagation_scaler
-        proba = 0
+        score = 0.0
 
         if self.density:
-            density_penalty = len(stage_sequence) / len(clf_predictions) * var_density_scaler
-
-            # density = len(stage_sequence) / len(clf_predictions)
-            # density_penalty = 1 / (1 + np.exp(-1 * density * 3))
-
+            density_penalty = (len(stage_sequence) / len(clf_predictions)) * self.DEFAULT_DENSITY_SCALER
             if self.lifecycle_awareness:
-                density_penalty *= 1 / (1 + np.exp(-1 * len(clf_predictions) / 100))
-
-            proba += density_penalty
+                density_penalty *= 1 / (1 + np.exp(-len(clf_predictions) / 100))
+            score += density_penalty
 
         if len(stage_sequence) > 0 and self.lifecycle_awareness:
-
             if self.propagation:
-                # subseq, _ = self._longest_increasing_subsequence(list(stage_sequence))
-                # stage_propagation_penalty = (len(subseq) + 2) * var_propagation_scaler / 2
-                # proba += stage_propagation_penalty
-                #
-                # new_penalty = (np.max(subseq) + 2) * var_propagation_scaler / 2
-                # proba += new_penalty
-
                 subseq, _ = self._longest_increasing_subsequence(list(stage_sequence))
-                stage_propagation_penalty = len(subseq) * var_propagation_scaler
-                proba += stage_propagation_penalty
+                score += len(subseq) * self.DEFAULT_PROPAGATION_SCALER
 
-                # new_penalty = (np.max(subseq) + 2) * var_propagation_scaler / 2
-                # proba += new_penalty
-
-            old_stage_sequence = stage_sequence
-            stage_sequence, counts = self.filter(stage_sequence)
+            # Filter for HMM scoring
+            stage_seq_filtered, counts = self.filter(stage_sequence)
 
             # TODO explore this
-            # if len(counts) > 3:
-            #     stage_duration_penalty = np.mean([np.square(count) for count in counts[:3]])
-            #     proba += 1 / (1 + np.exp(-1 * .01 * stage_duration_penalty)) * 0.2
-            # counts = np.sort(counts)
+            #   if len(counts) > 3:
+            #       stage_duration_penalty = np.mean([np.square(count) for count in counts[:3]])
+            #       proba += 1 / (1 + np.exp(-1 * .01 * stage_duration_penalty)) * 0.2
+            #   counts = np.sort(counts)
+            #   stage_presence = {i: 0 for i in range(4)}
+            #   for i, stage in enumerate(stage_sequence):
+            #       if counts[i] > stage_presence[stage]:
+            #           stage_presence[stage] = counts[i]
+            #   stage_duration_penalty = np.sum([np.square(val) for val in stage_presence.values()])
+            #   stage_duration_penalty = 1 / (1 + np.exp(-1 * .0001 * stage_duration_penalty)) * 0.2
+            #   proba += stage_duration_penalty
 
-            # stage_presence = {i: 0 for i in range(4)}
-            # for i, stage in enumerate(stage_sequence):
-            #     if counts[i] > stage_presence[stage]:
-            #         stage_presence[stage] = counts[i]
-            #
-            # stage_duration_penalty = np.sum([np.square(val) for val in stage_presence.values()])
-            # stage_duration_penalty = 1 / (1 + np.exp(-1 * .0001 * stage_duration_penalty)) * 0.2
-            # proba += stage_duration_penalty
+            hmm_score = np.exp(self.hmm.score(np.array(stage_seq_filtered).reshape(-1, 1)))
+            # Normalization by length
+            hmm_score = np.power(hmm_score, 1 / len(stage_seq_filtered))
+            score += hmm_score
 
-            # if len(stage_sequence) > 5:
-            #     stage_sequence = stage_sequence[:-5]
+        return score
 
-            hmm_proba = np.exp(self.hmm.score(np.array(stage_sequence).reshape(-1, 1)))
-            hmm_proba = np.power(hmm_proba, 1 / len(stage_sequence))  # normalization
-            proba += hmm_proba
-
-            # proba -= len(clf_predictions) * 0.0001
-
-            # if self.memory:
-            #     subseq, idxs = self._longest_increasing_subsequence(list(stage_sequence))
-            #
-            #     # memory_proba = np.exp(self.hmm.score(np.array(subseq).reshape(-1, 1)))
-            #     # memory_proba = np.power(memory_proba, 1 / len(subseq))  # normalization
-            #     idx = idxs[-1]
-            #     # memory_proba = 1 - idx / len(stage_sequence)
-            #
-            #
-            #     subseq, _ = self._longest_increasing_subsequence(list(subseq))
-            #     stage_propagation_penalty = len(subseq) * var_propagation_scaler
-            #
-            #     proba += stage_propagation_penalty
-            #     # proba += memory_proba * 0.1
-
-        return proba
-
-    def score_cross_layer(self, cross_layer_X: tuple[np.ndarray, np.ndarray, np.ndarray]) -> float:
+    def score_cross_layer(self, cross_layer_X: Tuple[np.ndarray, np.ndarray, np.ndarray]) -> float:
+        """Calculates a global detection score across multiple data layers."""
         clf_predictions, clf_probas = self.cross_layer_class_preds(cross_layer_X)
-        predictions = self._collate_preds(clf_predictions, clf_probas)
+        collated_predictions = self._collate_preds(clf_predictions, clf_probas)
 
-        proba = self.score_stage_sequence(predictions, clf_predictions)
+        return self.score_stage_sequence(collated_predictions, clf_predictions)
 
-        return proba
+    def score_single_layer(self, trace_classes: np.ndarray, trace_values: np.ndarray, translation: Dict[int, int]) -> float:
+        """Calculates a global detection score for a single layer of data."""
+        vectorized_translate = np.vectorize(lambda x: translation.get(x, x))
+        clf_predictions = vectorized_translate(trace_classes)
+        predictions = clf_predictions[trace_values >= self.proba_threshold]
+
+        return self.score_stage_sequence(predictions, clf_predictions)
 
 
 
