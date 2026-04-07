@@ -163,7 +163,7 @@ if __name__ == "__main__":
     data_dir = cwd / "data/current_data/syscall_bucket"
     malware_map = config.SYSCALL_BENIGN_MALWARE_DICT
 
-    results_dir = cwd / "data/joblib"
+    results_dir = cwd / "detector_framework/adfa_replicate/results"
     results_dir.mkdir(parents=True, exist_ok=True)
 
     data_paths = [p for p in data_dir.iterdir() if p.is_file()]

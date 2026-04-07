@@ -72,17 +72,17 @@ def load_data(base_path: str, recursive: bool = False) -> list | dict:
         return sequences
 
 
-def load_attack_data(base_path: str = "data/ADFA-IDS_DATASETS/ADFA-LD/Attack_Data_Master") -> dict:
+def load_attack_data(base_path: str = "detector_framework/adfa_replicate/ADFA-IDS_DATASETS/ADFA-LD/Attack_Data_Master") -> dict:
     """Loads Attack_Data_Master (recursive)."""
     return load_data(base_path, recursive=True)
 
 
-def load_training_data(base_path: str = "data/ADFA-IDS_DATASETS/ADFA-LD/Training_Data_Master") -> list:
+def load_training_data(base_path: str = "detector_framework/adfa_replicate/ADFA-IDS_DATASETS/ADFA-LD/Training_Data_Master") -> list:
     """Loads Training_Data_Master (non-recursive)."""
     return load_data(base_path, recursive=False)
 
 
-def load_validation_data(base_path: str = "data/ADFA-IDS_DATASETS/ADFA-LD/Validation_Data_Master") -> list:
+def load_validation_data(base_path: str = "detector_framework/adfa_replicate/ADFA-IDS_DATASETS/ADFA-LD/Validation_Data_Master") -> list:
     """Loads Validation_Data_Master (non-recursive)."""
     return load_data(base_path, recursive=False)
 
