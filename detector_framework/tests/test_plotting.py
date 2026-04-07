@@ -6,7 +6,7 @@ import detector_framework
 
 import pytest
 
-from cross_layer.plotting import trace_len_plot, model_curves_plot, evade_density_plot, signal_sample_plot, \
+from detector_framework.cross_layer.plotting import trace_len_plot, model_curves_plot, evade_density_plot, signal_sample_plot, \
     flow_variations, benign_app_scores, score_over_time
 from detector_framework import config
 

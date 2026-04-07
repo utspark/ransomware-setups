@@ -4,7 +4,7 @@ import io
 
 import pandas as pd
 
-from cross_layer import feature_extraction
+from detector_framework.cross_layer import feature_extraction
 
 from concurrent.futures import ProcessPoolExecutor
 from typing import List, Tuple, Optional

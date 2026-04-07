@@ -42,7 +42,7 @@ python -m detector_framework.global_detector.global_detector_run
 ### 4.) Run the Cross-Layer Detector
 
 ```Bash
-python -m cross_layer.cross_layer_train_run
+python -m detector_framework.cross_layer.cross_layer_train_run
 ```
 
 

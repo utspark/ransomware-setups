@@ -4,9 +4,14 @@ import numpy as np
 import os
 import matplotlib
 import matplotlib.pyplot as plt
+from typing import Iterable, Mapping, Tuple, Optional, Literal, Any, Sequence, Dict
+from types import ModuleType
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelBinarizer
-from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, classification_report, log_loss
+from sklearn.metrics import (
+    roc_auc_score, confusion_matrix, roc_curve, classification_report, log_loss
+)
+from sklearn.utils.class_weight import compute_class_weight, compute_sample_weight
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.covariance import EllipticEnvelope
 from sklearn.ensemble import IsolationForest
@@ -17,6 +22,7 @@ from sklearn.utils import compute_class_weight
 from xgboost import XGBClassifier
 import pandas as pd
 import seaborn as sns
+from tqdm import tqdm
 
 # Optional TensorFlow imports
 try:
@@ -457,3 +463,333 @@ def get_live_predictions(stage_keys: list, stage_windows: list, classifier, mode
         trace_values.append(label_val)
 
     return np.concatenate(trace_classes), np.concatenate(trace_values)
+
+
+def files_and_labels_to_X_y(
+    paths: Iterable[Path],
+    signal_module: ModuleType,
+    malware_map: Mapping[int, list],
+    window_size_time: float,
+    window_stride_time: float,
+    train_test_split: float,
+    *,
+    strict: bool = True,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Build (X, y) from a collection of files.
+
+    - Each file is turned into a feature matrix X_i via `signal_module.file_df_feature_extraction`.
+    - Its label is taken from `malware_map[file_path.name]` and broadcast to the number of rows in X_i.
+    - All X_i are concatenated along axis 0; same for y_i.
+
+    Parameters
+    ----------
+    paths : iterable of Path
+        Files to process.
+    signal_module : module or object
+        Must provide `get_file_df(Path)` and `file_df_feature_extraction(df, window_size_time, window_stride_time)`.
+    malware_map : dict-like
+        Maps filename (str) → integer label.
+    window_size_time, window_stride_time : floats
+        Feature extraction parameters.
+    strict : bool
+        If True, raise on missing label/file issues; if False, skip problematic files.
+
+    Returns
+    -------
+    X_train, y_train, X_test, y_test
+    """
+    X_list: list[np.ndarray] = []
+    y_list: list[np.ndarray] = []
+
+    for p in paths:
+        label = None
+        for key, malware_list in malware_map.items():
+            if any(malware in p.name for malware in malware_list):
+                label = key
+                break
+
+        if label is None:
+            if strict:
+                raise KeyError(f"No label found in malware_map for file: {p.name}")
+            continue
+
+        df = signal_module.get_file_df(p)
+
+        extract = getattr(signal_module, "file_df_feature_extraction_parallel", None)
+        if extract is None:
+            extract = getattr(signal_module, "file_df_feature_extraction")
+
+        X_i = extract(df, window_size_time, window_stride_time)
+
+        # Skip files that produced zero windows (optional)
+        if X_i is None or X_i.size == 0:
+            if strict:
+                # If strict, consider zero-window an error
+                raise ValueError(f"Feature extraction produced no rows for: {p}")
+            else:
+                continue
+
+        y_i = np.full(X_i.shape[0], label, dtype=np.int32)
+
+        X_list.append(X_i)
+        y_list.append(y_i)
+
+    if not X_list:
+        # No data; return empty shapes
+        return np.empty((0, 0), dtype=float), np.empty((0,), dtype=np.int32), np.empty((0, 0), dtype=float), np.empty((0,), dtype=np.int32)
+
+    X = np.concatenate(X_list, axis=0)
+    y = np.concatenate(y_list, axis=0)
+
+    # Ensure y is integer-typed
+    if not np.issubdtype(y.dtype, np.integer):
+        y = y.astype(np.int32, copy=False)
+
+    labels = np.unique(y)
+
+    X_train_list = []
+    y_train_list = []
+    X_test_list = []
+    y_test_list = []
+
+    for label in labels:
+        tmp_X = X[y == label]
+        tmp_y = y[y == label]
+
+        n = tmp_X.shape[0]
+        idx = int(np.floor(train_test_split * n))
+        X_train, X_test = np.split(tmp_X, [idx], axis=0)
+        y_train, y_test = np.split(tmp_y, [idx], axis=0)
+
+        X_train_list.append(X_train)
+        y_train_list.append(y_train)
+        X_test_list.append(X_test)
+        y_test_list.append(y_test)
+
+    X_train = np.concatenate(X_train_list, axis=0)
+    y_train = np.concatenate(y_train_list, axis=0)
+    X_test = np.concatenate(X_test_list, axis=0)
+    y_test = np.concatenate(y_test_list, axis=0)
+
+    return X_train, y_train, X_test, y_test
+
+
+def compute_train_test_sample_weights(
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, Dict[int, float]]:
+    """
+    Compute class-balanced sample weights for train/test.
+
+    We derive class weights from the *training* distribution, then apply
+    those weights to both y_train and y_test to get per-sample weights.
+
+    Returns
+    -------
+    train_sample_weights : (n_train,) float array
+    test_sample_weights  : (n_test,) float array
+    class_weight_map     : dict[label -> weight]
+    """
+    y_train = np.asarray(y_train).ravel()
+    y_test  = np.asarray(y_test).ravel()
+
+    classes = np.unique(y_train)
+    class_weights = compute_class_weight(
+        class_weight="balanced",
+        classes=classes,
+        y=y_train,
+    )  # shape: (n_classes,)
+
+    class_weight_map: Dict[int, float] = {
+        int(label): float(w) for label, w in zip(classes, class_weights)
+    }
+
+    # Optional: sanity-check that test set doesn't contain unseen labels
+    unseen = np.setdiff1d(np.unique(y_test), classes)
+    if unseen.size > 0:
+        raise ValueError(
+            f"y_test contains labels not seen in y_train: {unseen.tolist()}"
+        )
+
+    train_sample_weights = compute_sample_weight(class_weight=class_weight_map, y=y_train)
+    test_sample_weights  = compute_sample_weight(class_weight=class_weight_map, y=y_test)
+
+    return train_sample_weights, test_sample_weights, class_weight_map
+
+
+def train_model(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    sample_weight: np.ndarray,
+    *,
+    max_depth: int = None,
+    random_state: Optional[int] = 42,
+) -> tuple[DecisionTreeClassifier, object, float]:
+    """
+    Train a DecisionTreeClassifier with required per-sample weights.
+
+    Returns
+    -------
+    (DecisionTreeClassifier, LabelBinarizer, score)
+    """
+    y_arr = np.asarray(y_train).ravel()
+    n_samples = np.shape(X_train)[0]
+
+    w = np.asarray(sample_weight, dtype=float).ravel()
+    if w.shape[0] != n_samples or y_arr.shape[0] != n_samples:
+        raise ValueError(
+            f"Inconsistent lengths: X={n_samples}, y={y_arr.shape[0]}, sample_weight={w.shape[0]}"
+        )
+    if np.any(w < 0):
+        raise ValueError("sample_weight must be non-negative.")
+    if not np.isfinite(w).all():
+        raise ValueError("sample_weight must be finite.")
+    if w.sum() == 0:
+        raise ValueError("sample_weight must not sum to zero.")
+
+    lb = LabelBinarizer().fit(y_arr)
+
+    clf = DecisionTreeClassifier(max_depth=max_depth, random_state=random_state)
+    clf.fit(X_train, y_arr, sample_weight=w)
+    score = clf.score(X_train, y_arr, sample_weight=w)
+
+    return clf, lb, score
+
+
+def prediction_analysis(
+    y_true: np.ndarray,                  # (n,) labels OR (n,k) one-hot
+    y_proba: np.ndarray,                 # (n,k) predicted probabilities
+    *,
+    lb: LabelBinarizer,                  # fitted on the same class set
+    sample_weight: Optional[np.ndarray] = None,
+    plot: bool = False,
+    normalize: Literal['true','pred','all', None] = 'true',
+    ax: Optional[plt.Axes] = None,
+    title: str = "Confusion Matrix",
+) -> Dict[str, Any]:
+    """
+    Compute log-loss, classification report, and (optionally) plot a confusion matrix.
+    Returns a dict with 'log_loss', 'classification_report', and 'confusion_matrix'.
+    """
+    if y_true.ndim == 2:
+        y_true_labels = lb.inverse_transform(y_true)
+    else:
+        y_true_labels = y_true
+
+    y_pred_labels = lb.inverse_transform(y_proba)
+
+    loss = log_loss(y_true, y_proba, sample_weight=sample_weight)
+    report = classification_report(y_true_labels, y_pred_labels, sample_weight=sample_weight)
+    cm = confusion_matrix(y_true_labels, y_pred_labels, sample_weight=sample_weight, normalize=normalize)
+
+    print(f"Log Loss: {loss:.4f}")
+    print("Classification Report:\n", report)
+
+    if plot:
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6, 5))
+
+        sns.heatmap(
+            cm,
+            annot=True,
+            fmt=".2f",
+            cmap="Blues",
+            xticklabels=lb.classes_,
+            yticklabels=lb.classes_,
+            ax=ax,
+        )
+        ax.set_title(title)
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("Actual")
+        if ax is None:
+            plt.show()
+
+    return {
+        "log_loss": loss,
+        "classification_report": report,
+        "confusion_matrix": cm,
+    }
+
+
+def train_and_test_report(X: np.ndarray, y: np.ndarray) -> None:
+    X_train, y_train, X_test, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
+    sw_train, sw_test, _ = compute_train_test_sample_weights(y_train, y_test)
+    clf, lb, _ = train_model(X_train, y_train, sw_train)
+    y_proba = clf.predict_proba(X_test)
+    prediction_analysis(y_test, y_proba, lb=lb, sample_weight=sw_test, plot=True)
+
+
+def train_and_save_model(X: np.ndarray, y: np.ndarray, save_path: Path) -> float:
+    sample_weights, _, _ = compute_train_test_sample_weights(y, y)
+    clf, lb, score = train_model(X, y, sample_weights)
+
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(clf, save_path)
+    return score
+
+
+def build_features(signal_df_dict, signal_modules, window_size_time, window_stride_time, feature_dict=None, *,
+                   preserve_time=True):
+    if feature_dict is None:
+        feature_dict = {}
+
+    for signal, actions in tqdm(signal_df_dict.items()):
+        mod = signal_modules[signal]
+        # Prefer a parallel extractor if the module provides one; else fall back
+        extract = getattr(mod, "file_df_feature_extraction_parallel", None)
+        if extract is None:
+            extract = getattr(mod, "file_df_feature_extraction")
+        for action, df_list in actions.items():
+            rows = [extract(df, window_size_time, window_stride_time, preserve_time=preserve_time)
+                    for df in df_list]
+
+            feature_dict.setdefault(signal, {})
+            feature_dict[signal].setdefault(action, [])
+            out = feature_dict[signal][action]
+            out.extend(rows)
+
+    return feature_dict
+
+
+def outer_train_loop(parameter_dict: dict, window_size_time: float, window_stride_time: float, tts: float, train: bool) -> list:
+    train_scores = []
+
+    for params in parameter_dict.values():
+        if not params["signal_selection"]:
+            continue
+
+        data_dir = params["data_dir"]
+        malware_dict = params["malware_dictionary"]
+        signal_fe = params["feature_extraction_module"]
+        save_path = params["save_path"]
+
+        data_paths = [p for p in data_dir.iterdir() if p.is_file()]
+        data_paths.sort()
+
+        malware_keys = [item for sublist in malware_dict.values() for item in sublist]
+        malware_keys = set(malware_keys)
+
+        filtered = [
+            path for path in data_paths
+            if any(key in path.name for key in malware_keys)
+        ]
+        data_paths = filtered
+
+        X, y, xt, yt = files_and_labels_to_X_y(
+            data_paths,
+            signal_fe,
+            malware_dict,
+            window_size_time,
+            window_stride_time,
+            train_test_split=tts
+        )
+
+        if train:
+            train_score = train_and_save_model(X, y, save_path)
+            train_scores.append(train_score)
+            print(f"Train Score: {train_score}")
+        else:
+            train_and_test_report(X, y)
+
+    return train_scores

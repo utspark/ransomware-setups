@@ -36,6 +36,7 @@ def run_all():
     args = ["-v"] + test_files
     
     # Run pytest and exit with its return code
+    os.environ["RUN_ALL_TESTS"] = "true"
     return_code = pytest.main(args)
     sys.exit(return_code)
 

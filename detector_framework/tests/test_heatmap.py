@@ -2,14 +2,16 @@ from pathlib import Path
 
 import pytest
 
-from cross_layer.heatmap import load_classifiers, load_feature_frames, accuracy_outer_loop
+from detector_framework.cross_layer.heatmap import load_classifiers, load_feature_frames, accuracy_outer_loop
 
 
 def test_heatmap_run():
+    # Define the project root relative to this script
+    project_root = Path(__file__).resolve().parent.parent.parent
 
     # Load classifiers and feature frames
-    classifiers = load_classifiers()
-    feature_frames = load_feature_frames()
+    classifiers = load_classifiers(project_root)
+    feature_frames = load_feature_frames(project_root)
 
     # Calculate accuracies for each classifier
     all_accuracies = accuracy_outer_loop(classifiers, feature_frames)

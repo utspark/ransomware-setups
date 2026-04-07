@@ -55,7 +55,10 @@ def accuracy_outer_loop(classifiers, feature_frames, OMIT_BENIGN: bool = True):
 
         print(f"Calculating accuracies for {clf_name}...")
         feature_dict = feature_frames[clf_name]
-        clf = classifiers[clf_name][0]
+        clf = classifiers[clf_name]
+
+        if isinstance(clf, list):
+            clf = clf[0]
 
         if clf_name == "syscall":
             bm_dict = config.SYSCALL_BENIGN_MALWARE_DICT
@@ -73,8 +76,8 @@ def accuracy_outer_loop(classifiers, feature_frames, OMIT_BENIGN: bool = True):
     return all_accuracies
 
 
-def load_classifiers(cwd: Path = Path.cwd()):
-    models_dir = cwd / "data/models"
+def load_classifiers(project_root: Path):
+    models_dir = project_root / "data/models"
     classifiers = {}
     for clf_name in ["syscall", "network", "hpc"]:
         clf_path = models_dir / f"{clf_name}_clf.joblib"
@@ -88,8 +91,8 @@ def load_classifiers(cwd: Path = Path.cwd()):
     return classifiers
 
 
-def load_feature_frames(cwd: Path = Path.cwd()):
-    feature_frames_path = cwd / "data/joblib/feature_frames.joblib"
+def load_feature_frames(project_root: Path):
+    feature_frames_path = project_root / "data/joblib/feature_frames.joblib"
 
     if not feature_frames_path.exists():
         print(f"Error: {feature_frames_path} does not exist.")
@@ -110,11 +113,13 @@ def load_feature_frames(cwd: Path = Path.cwd()):
 if __name__ == "__main__":
     OMIT_BENIGN = True
     plt.rcParams['font.size'] = 18
-    cwd = Path.cwd()
+
+    # Define the project root relative to this script
+    project_root = Path(__file__).resolve().parent.parent.parent
 
     # Load classifiers and feature frames
-    classifiers = load_classifiers(cwd)
-    feature_frames = load_feature_frames(cwd)
+    classifiers = load_classifiers(project_root)
+    feature_frames = load_feature_frames(project_root)
 
     # Calculate accuracies for each classifier
     all_accuracies = accuracy_outer_loop(classifiers, feature_frames)
@@ -185,7 +190,7 @@ if __name__ == "__main__":
 
     # Save heatmap
     # Ensure heatmap is saved relative to the project root
-    project_root = Path(__file__).resolve().parent.parent
+    project_root = Path(__file__).resolve().parent.parent.parent
     heatmap_path = project_root / "data/figures/heatmap.pdf"
     heatmap_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(heatmap_path)

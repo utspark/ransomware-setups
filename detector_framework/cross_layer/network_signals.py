@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from cross_layer import feature_extraction
+from detector_framework.cross_layer import feature_extraction
 
 import detector_framework
 

@@ -12,7 +12,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
-from cross_layer import syscall_signals
+from detector_framework.cross_layer import syscall_signals
 from detector_framework import config
 from detector_framework.adfa_replicate.adfa_utils import (
     build_ngram_vocabulary,
