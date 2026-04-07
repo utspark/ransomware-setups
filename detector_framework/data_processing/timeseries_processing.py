@@ -36,6 +36,14 @@ class ModelSettings:
     new_model: bool = False
     plot: bool = False
 
+    @property
+    def syscalls(self):
+        return self.system_calls
+
+    @syscalls.setter
+    def syscalls(self, value):
+        self.system_calls = value
+
 
 def first_int(s: str) -> tuple[int, int]:
     m = re.search(r'\d+', s)

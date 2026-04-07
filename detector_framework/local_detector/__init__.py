@@ -1,5 +1,6 @@
-from .predictions import get_prescored_predictions, get_live_predictions
-from .metrics import (
+from .local_detector import (
+    get_prescored_predictions,
+    get_live_predictions,
     roc_auc_plot,
     score_plot,
     regression_error,
