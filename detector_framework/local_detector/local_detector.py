@@ -28,9 +28,8 @@ try:
 except ImportError:
     TF_AVAILABLE = False
 
-from detector_framework.data_processing.processing import form_one_hot_encoder
-from detector_framework.data_processing.timeseries_processing import (
-    ModelSettings, RegressionData, get_windows_and_futures, preproc_transform
+from detector_framework.data_processing.processing import (
+    ModelSettings, RegressionData, get_windows_and_futures, preproc_transform, form_one_hot_encoder
 )
 
 # Configure Matplotlib

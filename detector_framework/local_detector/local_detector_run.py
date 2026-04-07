@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from detector_framework import config
-from detector_framework.data_processing.timeseries_processing import ModelSettings, get_system_call_map
+from detector_framework.data_processing.processing import ModelSettings, get_system_call_map
 from detector_framework.local_detector.local_detector import (
     regression_analysis, binary_supervised_analysis, unsupervised_analysis, multiclass_analysis
 )

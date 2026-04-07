@@ -6,7 +6,7 @@ import joblib
 import os
 import sys
 
-from detector_framework.data_processing.timeseries_processing import ModelSettings
+from detector_framework.data_processing.processing import ModelSettings
 from detector_framework.local_detector.local_detector_run import run_local_detector, get_default_config
 
 from detector_framework import config
