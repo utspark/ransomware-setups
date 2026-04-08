@@ -21,6 +21,7 @@ def run_all():
     # -v: verbose
     # Specify test files in exact order
     test_files = [
+        os.path.join(test_dir, "test_adfa_replicate.py"),
         os.path.join(test_dir, "test_local_detector_run.py"),
         os.path.join(test_dir, "test_global_detector_run.py"),
         os.path.join(test_dir, "test_cross_layer_train_run.py"),
@@ -33,6 +34,9 @@ def run_all():
         if test not in test_files:
             test_files.append(test)
 
+    # Remove test_adfa_replicate.py if found
+    # test_files = [t for t in test_files if not t.endswith("test_adfa_replicate.py")]
+
     args = ["-v"] + test_files
     
     # Run pytest and exit with its return code
@@ -42,3 +46,4 @@ def run_all():
 
 if __name__ == "__main__":
     run_all()
+    print(f" *** Note run test_adfa_replicate.py individually ***")
