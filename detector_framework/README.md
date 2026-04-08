@@ -14,13 +14,12 @@ Welcome to the **Detector Framework documentation**.
 ### 1.) Process Dataset and Correct syscall data if necessary
 1. To download and setup the dataset execute `setup_data.sh` under `data/` directory.
 2. [Optional] Move to `detector_framework/data_processing/` and execute `python strace_processor.py <PATH>` with the path to the file holding raw ftrace files. Do this if you need to process individually collected new syscall traces.
-3. Execute `process_results.sh` to create appropriate `_bucket` folders under `detector_framework/data`.
+3. Execute `setup_data.sh` to create appropriate `_bucket` folders under `detector_framework/data`.
 
 ```Bash
 cd data/
 ./setup_data.sh
-./process_results.sh
-./align_directory.sh
+
 ```
 
 ### 2.) Ensure data is placed in the correct directory

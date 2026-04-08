@@ -29,4 +29,6 @@ done
 find . -type f -name ".*" -delete
 echo "All tar.gz files have been processed!"
 
-./align_directory.sh
+source bash/align_directory.sh
+source bash/process_results.sh
+
