@@ -2,6 +2,9 @@
 
 Welcome to the **Detector Framework documentation**.
 
+## Prerequisites
+- Python 3.11
+
 ## Key Features
 
 *   Data Processing

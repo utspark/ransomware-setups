@@ -1,5 +1,9 @@
 # Ransomware Setups
 
+## Prerequisites
+- Python 3.11
+- Docker and Docker Compose
+
 ## 1. NFS Server Setup
 The NFS setup requires a 2-node deployment: a server and a client machine. The scripts to setup both nodes are outlined in `nfs/setup-nfs-server.sh` and `nfs/setup-nfs-client.sh`. Our deployment assumes that the client and server have a hostname node-0.xyz and node-1.xyz respectively. Please update both scripts with appropriate hostnames.
 The server setup script creates a `shared` folder in the home directory and populates it with a Linux system basic file system, and populates some data in `shared/home` directory. Please edit the data-path in the server script to populate the shared directory with your data.
