@@ -1,6 +1,8 @@
+import time
 from pathlib import Path
 
 import joblib
+import numpy as np
 
 from detector_framework import config, local_detector, global_detector
 
@@ -83,6 +85,16 @@ def run_global_detector(
         proba = gd.score_single_layer(trace_classes, trace_values, translation)
         print(f"{proba: 6.5f}")
         results.append(proba)
+
+    cwd = Path.cwd()
+    save_path = cwd / "data/models/global_detector.joblib"
+    joblib.dump(gd, save_path)
+
+    t_global_start = time.time()
+    X = np.random.randint(low=0, high=4, size=10000).reshape(-1, 1)
+    proba = gd.hmm.score_samples(X)
+    t_global_inf = time.time() - t_global_start
+    print(f"Overhead {t_global_inf * 1000:.4f}ms")
 
     return results
 
