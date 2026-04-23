@@ -1,7 +1,4 @@
 import time
-import numpy as np
-import pandas as pd
-import joblib
 from pathlib import Path
 from detector_framework import config
 from detector_framework.cross_layer import syscall_signals, network_signals, hpc_signals
@@ -11,15 +8,15 @@ def benchmark_overhead():
     cwd = Path.cwd()
     
     # Paths to models
-    syscall_clf_path = cwd / "data/models/syscall_clf.joblib"
-    network_clf_path = cwd / "data/models/network_clf.joblib"
-    hpc_clf_path = cwd / "data/models/hpc_clf.joblib"
+    syscall_clf_path = cwd / "../data/models/syscall_clf.joblib"
+    network_clf_path = cwd / "../data/models/network_clf.joblib"
+    hpc_clf_path = cwd / "../data/models/hpc_clf.joblib"
     
     # Sample data paths
     sample_base = "browser_compute_1"
-    syscall_path = cwd / f"data/current_data/syscall_bucket/{sample_base}_ints.txt"
-    network_path = cwd / f"data/current_data/network_bucket/{sample_base}"
-    hpc_path = cwd / f"data/current_data/hpc_bucket/{sample_base}"
+    syscall_path = cwd / f"../data/current_data/syscall_bucket/{sample_base}_ints.txt"
+    network_path = cwd / f"../data/current_data/network_bucket/{sample_base}"
+    hpc_path = cwd / f"../data/current_data/hpc_bucket/{sample_base}"
 
     print(f"--- Benchmark for {sample_base} ---")
     start_init = time.time()
@@ -62,11 +59,12 @@ def benchmark_overhead():
     t_syscall_fe = time.time() - t_fe_start
     
     t_fe_start = time.time()
-    X_network = network_signals.file_df_feature_extraction_parallel(df_network, window_size_time, window_stride_time)
+    X_network = network_signals.file_df_feature_extraction_parallel(df_network, window_size_time, window_stride_time,
+                                                                    n_workers=1)
     t_network_fe = time.time() - t_fe_start
     
     t_fe_start = time.time()
-    X_hpc = hpc_signals.file_df_feature_extraction_parallel(df_hpc, window_size_time, window_stride_time)
+    X_hpc = hpc_signals.file_df_feature_extraction_parallel(df_hpc, window_size_time, window_stride_time, n_workers=1)
     t_hpc_fe = time.time() - t_fe_start
     
     print(f"Syscall FE: {t_syscall_fe:.4f}s for {len(X_syscall)} windows")
@@ -96,15 +94,21 @@ def benchmark_overhead():
     print("\n--- Global Analysis ---")
     
     t_global_start = time.time()
+
     # Lifecycle scoring components
-    # 1. Collate
-    collated_preds = detector._collate_preds(classes, probas)
-    
-    # 2. Filter
-    filtered_preds, counts = detector.filter(collated_preds)
-    
-    # 3. Score sequence (includes HMM/LIS depending on settings)
-    score = detector.score_stage_sequence(filtered_preds, collated_preds)
+    for i in range(min_len):
+        tmp_classes = classes[0:min_len]
+        tmp_probas = probas[0:min_len]
+
+        # 1. Collate
+        collated_preds = detector._collate_preds(tmp_classes, tmp_probas)
+
+        # 2. Filter
+        filtered_preds, counts = detector.filter(collated_preds)
+
+        # 3. Score sequence (includes HMM/LIS depending on settings)
+        score = detector.score_stage_sequence(filtered_preds, collated_preds)
+
     t_global_inf = time.time() - t_global_start
     
     print(f"Global analysis took: {t_global_inf:.4f}s")
