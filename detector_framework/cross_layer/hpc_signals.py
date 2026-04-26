@@ -72,7 +72,7 @@ def _features_one(pair: Tuple[int, int]) -> Optional[List[float]]:
     if j <= i:
         return None
 
-    return [
+    means = [
         np.mean(_G["instructions"][i:j]),
         np.mean(_G["LLC_load_misses"][i:j]),
         np.mean(_G["avx_insts_all"][i:j]),
@@ -90,6 +90,15 @@ def _features_one(pair: Tuple[int, int]) -> Optional[List[float]]:
         np.mean(_G["port_6"][i:j]),
         np.mean(_G["port_7"][i:j]),
     ]
+
+    # normalize by instruction count
+    instr_count = means[0]
+    if instr_count > 0:
+        normalized_means = [mean / instr_count for mean in means[1:]]
+    else:
+        normalized_means = [0.0] * (len(means) - 1)
+
+    return [instr_count] + normalized_means
 
 def _features_batch(pairs: List[Tuple[int, int]]) -> List[List[float]]:
     return feature_extraction.features_batch(pairs, _features_one)

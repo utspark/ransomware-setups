@@ -8,6 +8,8 @@ import detector_framework
 from detector_framework import config
 from detector_framework import global_detector
 from detector_framework.cross_layer import cross_layer_train_run as cld
+from detector_framework.cross_layer import heatmap
+from detector_framework.adfa_replicate import adfa_plotting
 import random
 
 from tqdm import tqdm
@@ -27,7 +29,7 @@ else:
         matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-plt.ion()
+# plt.ion()
 
 
 def trace_len_plot(attack_stages_dict: dict, feature_frames_dict: dict,
@@ -86,8 +88,9 @@ def trace_len_plot(attack_stages_dict: dict, feature_frames_dict: dict,
         ax.set_ylabel("Threat Score")
         ax.grid(True, alpha=0.5)
         fig.tight_layout()
-        plt.show(block=True)
         plt.savefig(Path(__file__).resolve().parent.parent.parent / "data" / "figures" / "trace_lens.pdf")
+        plt.show(block=True)
+        plt.close(fig)
 
     return (benign_scores, malware_scores)
 
@@ -181,7 +184,7 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
     auc_values.append((fpr, tpr, roc_auc))
 
     if plot:
-        plt.figure(figsize=(8, 5))
+        fig = plt.figure(figsize=(8, 5))
         for i in range(4):
             fpr, tpr, roc_auc = auc_values[i]
             plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
@@ -194,8 +197,9 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
         plt.legend(loc="lower right", prop={'family': 'monospace'})
         plt.tight_layout()
         plt.grid()
-        plt.show(block=True)
         plt.savefig(Path(__file__).resolve().parent.parent.parent / "data" / "figures" / "model_curves.pdf")
+        plt.show(block=True)
+        plt.close(fig)
 
     return auc_values
 
@@ -380,7 +384,7 @@ def evade_density_plot(model_paths, attack_stages_dict: dict, feature_frames_dic
         auc_values.append((fpr, tpr, roc_auc))
 
     if plot:
-        plt.figure(figsize=(8, 5))
+        fig = plt.figure(figsize=(8, 5))
         for i in range(len(la_components)):
             fpr, tpr, roc_auc = auc_values[i]
             plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
@@ -393,8 +397,9 @@ def evade_density_plot(model_paths, attack_stages_dict: dict, feature_frames_dic
         plt.legend(loc="lower right", prop={'family': 'monospace'})
         plt.tight_layout()
         plt.grid()
-        plt.show(block=True)
         plt.savefig(Path(__file__).resolve().parent.parent.parent / "data" / "figures" / "evade_density.pdf")
+        plt.show(block=True)
+        plt.close(fig)
 
     return auc_values
 
@@ -541,7 +546,7 @@ def signal_sample_plot(
         auc_values.append((fpr, tpr, roc_auc))
 
     if plot:
-        plt.figure(figsize=(9, 6))
+        fig = plt.figure(figsize=(9, 6))
         for i in range(len(combos)):
             if i != len(combos) - 1:
                 continue
@@ -561,8 +566,9 @@ def signal_sample_plot(
         plt.legend(loc="lower right", prop={'family': 'monospace', 'size': 16})
         plt.tight_layout()
         plt.grid()
-        plt.show(block=True)
         plt.savefig(Path(__file__).resolve().parent.parent.parent / "data" / "figures" / "signal_samples.pdf")
+        plt.show(block=True)
+        plt.close(fig)
 
     return auc_values
 
@@ -861,7 +867,7 @@ def flow_variations(
         auc_values.append((fpr, tpr, roc_auc))
 
     if plot:
-        plt.figure(figsize=(8, 5))
+        fig = plt.figure(figsize=(8, 5))
         for i in range(len(preserve_stages) + 1):
             fpr, tpr, roc_auc = auc_values[i]
 
@@ -875,8 +881,9 @@ def flow_variations(
         plt.legend(loc="lower right", prop={'family': 'monospace'})
         plt.tight_layout()
         plt.grid()
-        plt.show(block=True)
         plt.savefig(Path(__file__).resolve().parent.parent.parent / "data" / "figures" / "flow_variations.pdf")
+        plt.show(block=True)
+        plt.close(fig)
 
     return auc_values
 
@@ -998,7 +1005,9 @@ def benign_app_scores(attack_stages_dict: dict, feature_frames_dict: dict,
         # ax.set_xlabel("Benign Application")
         ax.legend(loc="lower right", prop={'size': 14})
         plt.tight_layout()
+        plt.savefig(Path(__file__).resolve().parent.parent.parent / "data" / "figures" / "benign_app_scores.pdf")
         plt.show(block=True)
+        plt.close(fig)
 
     return bars
 
@@ -1189,8 +1198,9 @@ def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict,
         plt.grid(True, alpha=0.3)
         # plt.legend(loc="center right", prop={'size': 14})
         plt.tight_layout()
-        plt.show(block=True)
         plt.savefig(Path(__file__).resolve().parent.parent.parent / "data" / "figures" / "score_over_time.pdf")
+        plt.show(block=True)
+        plt.close(fig)
 
     return threshold_results
 
@@ -1200,7 +1210,7 @@ if __name__ == "__main__":
 
     plt.rcParams['font.size'] = 18
 
-    cwd = Path.cwd()
+    cwd = Path(__file__).resolve().parent.parent.parent
 
     TRACE_LENS = True
     MODEL_CURVES = True
@@ -1208,6 +1218,8 @@ if __name__ == "__main__":
     SIGNAL_SAMPLES = True
     FLOW_VARIATIONS = True
     SCORE_OVER_TIME = True
+    HEATMAP = True
+    ADFA_REPLICATE = True
 
     ADFA_GEN = False
     CHERRYPICK = False
@@ -1272,6 +1284,17 @@ if __name__ == "__main__":
         threshold_results = score_over_time(
             attack_stages, feature_frames, window_size_time, window_stride_time, time_choice_list, cwd
         )
+
+    if HEATMAP:
+        # Load classifiers for heatmap calculation
+        classifiers = heatmap.load_classifiers(cwd)
+        # Calculate accuracies
+        all_accuracies = heatmap.accuracy_outer_loop(classifiers, feature_frames, OMIT_BENIGN=True)
+        # Plot heatmap
+        heatmap.plot_heatmap(all_accuracies, cwd, show_plot=False, omit_benign=True)
+
+    if ADFA_REPLICATE:
+        adfa_plotting.plot_adfa_replicate(cwd, show_plot=False)
 
     if ADFA_GEN:
         adfa_lapd_encryption_only_curve(**plot_inputs)

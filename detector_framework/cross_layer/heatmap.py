@@ -110,39 +110,21 @@ def load_feature_frames(project_root: Path):
     return feature_frames
 
 
-if __name__ == "__main__":
-    OMIT_BENIGN = True
-    plt.rcParams['font.size'] = 18
-
-    # Define the project root relative to this script
-    project_root = Path(__file__).resolve().parent.parent.parent
-
-    # Load classifiers and feature frames
-    classifiers = load_classifiers(project_root)
-    feature_frames = load_feature_frames(project_root)
-
-    # Calculate accuracies for each classifier
-    all_accuracies = accuracy_outer_loop(classifiers, feature_frames)
-
-    # Print summary
-    for clf_name, accs in all_accuracies.items():
-        print(f"\n{clf_name.upper()} Accuracies:")
-        print(accs)
-
+def plot_heatmap(all_accuracies, project_root, show_plot=False, omit_benign=True):
     # Prepare data for heatmap
-    benign_keys = [] if OMIT_BENIGN else config.GENERATION_BENIGN
+    benign_keys = [] if omit_benign else config.GENERATION_BENIGN
     attack_stages = config.GENERATION_ATTACK_STAGES
-    
+
     ttps = []
     groups = []
     group_boundaries = [0]
-    
+
     # Add benign TTPs
-    if not OMIT_BENIGN:
+    if not omit_benign:
         ttps.extend(benign_keys)
         groups.extend(["Benign"] * len(benign_keys))
         group_boundaries.append(len(benign_keys))
-    
+
     # Add attack stage TTPs
     for stage, stage_ttps in attack_stages.items():
         ttps.extend(stage_ttps)
@@ -157,29 +139,29 @@ if __name__ == "__main__":
     sns.heatmap(data, annot=True, fmt=".2f", cmap="YlOrRd",
                 xticklabels=ttps, yticklabels=signal_layers, ax=ax, cbar=False,
                 annot_kws={"size": 14}, linewidths=1, linecolor='black')
-    
+
     # ax.set_title("Class Accuracies per TTP and Signal Layer", fontsize=16)
     # ax.set_xlabel("TTPs (Grouped by Stage)", fontsize=18)
     # ax.set_ylabel("Signal Layers", fontsize=14)
     plt.xticks(rotation=90, fontsize=14, ha='right')
     plt.yticks(rotation=45, fontsize=14)
-    
+
     # Add second level of labels for groups
     # We can add them at the top
     for i in range(len(group_boundaries) - 1):
         start = group_boundaries[i]
         end = group_boundaries[i+1]
         center = (start + end) / 2
-        
+
         # Position the group label above the heatmap
-        if not OMIT_BENIGN:
+        if not omit_benign:
             group_name = "Benign" if i == 0 else list(attack_stages.keys())[i-1]
         else:
             group_name = list(attack_stages.keys())[i]
-            
+
         ax.text(center, 1.05, group_name, ha='center', va='bottom', transform=ax.get_xaxis_transform(),
                 fontsize=14, color='darkblue')
-        
+
     # Add vertical boundaries
     for boundary in group_boundaries:
         ax.vlines(boundary, -0.1, 1.1, colors='darkblue', linestyles='--', lw=4, transform=ax.get_xaxis_transform(), clip_on=False)
@@ -190,8 +172,35 @@ if __name__ == "__main__":
 
     # Save heatmap
     # Ensure heatmap is saved relative to the project root
-    project_root = Path(__file__).resolve().parent.parent.parent
     heatmap_path = project_root / "data/figures/heatmap.pdf"
     heatmap_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(heatmap_path)
     print(f"\nHeatmap saved to {heatmap_path}")
+
+    if show_plot:
+        plt.show()
+
+    plt.close(fig)
+
+
+if __name__ == "__main__":
+    SHOW_PLOT = True
+    OMIT_BENIGN = True
+    plt.rcParams['font.size'] = 18
+
+    # Define the project root relative to this script
+    project_root = Path(__file__).resolve().parent.parent.parent
+
+    # Load classifiers and feature frames
+    classifiers = load_classifiers(project_root)
+    feature_frames = load_feature_frames(project_root)
+
+    # Calculate accuracies for each classifier
+    all_accuracies = accuracy_outer_loop(classifiers, feature_frames, OMIT_BENIGN)
+
+    # Print summary
+    for clf_name, accs in all_accuracies.items():
+        print(f"\n{clf_name.upper()} Accuracies:")
+        print(accs)
+
+    plot_heatmap(all_accuracies, project_root, SHOW_PLOT, OMIT_BENIGN)
