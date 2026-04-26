@@ -40,30 +40,14 @@ def get_file_df(filepath: Path) -> pd.DataFrame:
 
 _G = {}
 
-def _init_worker(
-    instructions, LLC_load_misses, avx_insts_all, block_rq_issue, br_inst_retired,
-    cache_references, mem_loads, mem_stores, port_0, port_1, port_2, port_3, port_4, port_5,
-    port_6, port_7
-):
+def _init_worker(instructions, LLC_load_misses, avx_insts_all, br_inst_retired):
     """Runs once per worker process; stash read-only arrays in module globals."""
     global _G
     _G = {
         "instructions": instructions,
         "LLC_load_misses": LLC_load_misses,
         "avx_insts_all": avx_insts_all,
-        "block_rq_issue": block_rq_issue,
         "br_inst_retired": br_inst_retired,
-        "cache_references": cache_references,
-        "mem_loads": mem_loads,
-        "mem_stores": mem_stores,
-        "port_0": port_0,
-        "port_1": port_1,
-        "port_2": port_2,
-        "port_3": port_3,
-        "port_4": port_4,
-        "port_5": port_5,
-        "port_6": port_6,
-        "port_7": port_7,
     }
 
 def _features_one(pair: Tuple[int, int]) -> Optional[List[float]]:
@@ -76,19 +60,7 @@ def _features_one(pair: Tuple[int, int]) -> Optional[List[float]]:
         np.mean(_G["instructions"][i:j]),
         np.mean(_G["LLC_load_misses"][i:j]),
         np.mean(_G["avx_insts_all"][i:j]),
-        np.mean(_G["block_rq_issue"][i:j]),
         np.mean(_G["br_inst_retired"][i:j]),
-        np.mean(_G["cache_references"][i:j]),
-        np.mean(_G["mem_loads"][i:j]),
-        np.mean(_G["mem_stores"][i:j]),
-        np.mean(_G["port_0"][i:j]),
-        np.mean(_G["port_1"][i:j]),
-        np.mean(_G["port_2"][i:j]),
-        np.mean(_G["port_3"][i:j]),
-        np.mean(_G["port_4"][i:j]),
-        np.mean(_G["port_5"][i:j]),
-        np.mean(_G["port_6"][i:j]),
-        np.mean(_G["port_7"][i:j]),
     ]
 
     # normalize by instruction count
@@ -124,29 +96,13 @@ def file_df_feature_extraction_parallel(
     instructions  = df["instructions"].to_numpy(dtype=float, copy=False)
     LLC_load_misses = df["LLC-load-misses"].to_numpy(dtype=float, copy=False)
     avx_insts_all = df["avx_insts.all"].to_numpy(dtype=float, copy=False)
-    block_rq_issue  = df["block:block_rq_issue"].to_numpy(dtype=float, copy=False)
     br_inst_retired = df["br_inst_retired.all_branches"].to_numpy(dtype=float, copy=False)
-    cache_references = df["cache-references"].to_numpy(dtype=float, copy=False)
-    mem_loads = df["mem-loads"].to_numpy(dtype=float, copy=False)
-    mem_stores = df["mem-stores"].to_numpy(dtype=float, copy=False)
-    port_0 = df["uops_executed_port.port_0"].to_numpy(dtype=float, copy=False)
-    port_1= df["uops_executed_port.port_1"].to_numpy(dtype=float, copy=False)
-    port_2 = df["uops_executed_port.port_2"].to_numpy(dtype=float, copy=False)
-    port_3 = df["uops_executed_port.port_3"].to_numpy(dtype=float, copy=False)
-    port_4 = df["uops_executed_port.port_4"].to_numpy(dtype=float, copy=False)
-    port_5 = df["uops_executed_port.port_5"].to_numpy(dtype=float, copy=False)
-    port_6 = df["uops_executed_port.port_6"].to_numpy(dtype=float, copy=False)
-    port_7 = df["uops_executed_port.port_7"].to_numpy(dtype=float, copy=False)
 
     # Spin up the pool; each worker gets arrays once via initializer
     with ProcessPoolExecutor(
         max_workers=n_workers,
         initializer=_init_worker,
-        initargs=(
-            instructions, LLC_load_misses, avx_insts_all, block_rq_issue, br_inst_retired,
-            cache_references, mem_loads, mem_stores, port_0, port_1, port_2, port_3, port_4, port_5,
-            port_6, port_7
-        ),
+        initargs=(instructions, LLC_load_misses, avx_insts_all, br_inst_retired)
     ) as ex:
         # Map in batches to reduce per-task overhead
         results = ex.map(_features_batch, feature_extraction.chunked(pairs, chunksize))
@@ -156,19 +112,7 @@ def file_df_feature_extraction_parallel(
         "instructions",
         "LLC_load_misses",
         "avx_insts_all",
-        "block_rq_issue",
         "br_inst_retired",
-        "cache_references",
-        "mem-loads",
-        "mem-stores",
-        "port_0",
-        "port_1",
-        "port_2",
-        "port_3",
-        "port_4",
-        "port_5",
-        "port_6",
-        "port_7",
     ]
 
     X = pd.DataFrame(rows, columns=cols)

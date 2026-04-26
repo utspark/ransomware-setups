@@ -1212,16 +1212,17 @@ if __name__ == "__main__":
 
     cwd = Path(__file__).resolve().parent.parent.parent
 
-    TRACE_LENS = True
-    MODEL_CURVES = True
-    EVADE_DENSITY = True
-    SIGNAL_SAMPLES = True
-    FLOW_VARIATIONS = True
-    SCORE_OVER_TIME = True
+    TRACE_LENS = False
+    MODEL_CURVES = False
+    EVADE_DENSITY = False
+    SIGNAL_SAMPLES = False
+    FLOW_VARIATIONS = False
+    SCORE_OVER_TIME = False
     HEATMAP = True
+
+    ADFA_GEN = True
     ADFA_REPLICATE = True
 
-    ADFA_GEN = False
     CHERRYPICK = False
     BENIGN_APP_SCORES = False
 
@@ -1293,11 +1294,11 @@ if __name__ == "__main__":
         # Plot heatmap
         heatmap.plot_heatmap(all_accuracies, cwd, show_plot=False, omit_benign=True)
 
-    if ADFA_REPLICATE:
-        adfa_plotting.plot_adfa_replicate(cwd, show_plot=False)
-
     if ADFA_GEN:
         adfa_lapd_encryption_only_curve(**plot_inputs)
+
+    if ADFA_REPLICATE:
+        adfa_plotting.plot_adfa_replicate(cwd, show_plot=False)
 
     if CHERRYPICK:
         auc_values = cherrypick_signal_sample_plot(**plot_inputs, cwd=cwd)

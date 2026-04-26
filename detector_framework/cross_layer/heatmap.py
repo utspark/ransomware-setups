@@ -20,6 +20,8 @@ def calculate_accuracies(feature_dict, clf, benign_malware_dict, benign_keys, at
             continue
 
         X = feature_dict[key]
+        if hasattr(X, "values"):
+            X = X.values
         class_labels = clf.predict(X)
         y_true = np.full(len(class_labels), prefix_lookup[key + "_"])
         acc = np.sum(y_true == class_labels) / len(class_labels)
@@ -33,6 +35,8 @@ def calculate_accuracies(feature_dict, clf, benign_malware_dict, benign_keys, at
                 continue
 
             X = feature_dict[ttp]
+            if hasattr(X, "values"):
+                X = X.values
             class_labels = clf.predict(X)
             print(f"{np.unique(class_labels, return_counts=True)}")
             y_true = np.full(len(class_labels), prefix_lookup[ttp + "_"])

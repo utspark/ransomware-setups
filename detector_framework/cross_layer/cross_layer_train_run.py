@@ -145,7 +145,7 @@ def build_cross_layer_X(
 
         # Sample aligned windows for each signal
         X_list = []
-        for df, n, width in zip(sig_frames, sig_lengths, [6, 11, 16]):
+        for df, n, width in zip(sig_frames, sig_lengths, [6, 11, 4]):
             start = np.random.choice(range(0, n - num_windows + 1))
             sampled_df = df.iloc[start:start + num_windows]
 
