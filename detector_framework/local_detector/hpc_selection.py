@@ -1,9 +1,12 @@
+import copy
+import numpy as np
 import joblib
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from pathlib import Path
 from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeClassifier
 
 from detector_framework import config
 from detector_framework.local_detector import local_detector
@@ -90,18 +93,19 @@ def get_hpc_correlation():
 
     # Use files_and_labels_to_X_y to get the feature matrix
     # We only need X, so we'll set strict=False to skip files not in the map
-    X_train, y_train, X_test, y_test = local_detector.files_and_labels_to_X_y(
+    X_train, y_train, _, _ = local_detector.files_and_labels_to_X_y(
         data_paths,
         hpc_signals,
         malware_dict,
         window_size_time,
         window_stride_time,
         train_test_split=tts,
-        strict=False
+        strict=False,
+        use_full_counters=True
     )
 
-    X = pd.DataFrame(pd.concat([pd.DataFrame(X_train), pd.DataFrame(X_test)]))
-    
+    X = pd.DataFrame(X_train)
+
     feature_names = [
         "instructions",
         "LLC_load_misses",
@@ -157,10 +161,88 @@ def get_hpc_correlation():
     return corr_matrix
 
 
-def main():
-    grab_details()
-    get_hpc_correlation()
+def hpc_stage_analysis():
+    script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent.parent
+    hpc_dir = project_root / "data/current_data/hpc_bucket"
 
+    benign_classes = config.GENERATION_BENIGN
+    attack_stages = config.GENERATION_ATTACK_STAGES
+    malware_dict = config.HPC_BENIGN_MALWARE_DICT
+
+    window_size_time = config.WINDOW_SIZE_TIME
+    window_stride_time = config.WINDOW_STRIDE_TIME
+    tts = config.TRAIN_TEST_SPLIT
+
+    data_paths = [p for p in hpc_dir.iterdir() if p.is_file()]
+    if not data_paths:
+        print(f"No files found in {hpc_dir}")
+        return
+
+    for stage in attack_stages:
+        print(f"\n--- Analyzing Attack Stage: {stage.upper()} ---")
+        classes = benign_classes + attack_stages[stage]
+
+        stage_paths = []
+        for path in data_paths:
+            # Match path.name with classes (accounting for trailing underscore in malware_dict keys)
+            if any(path.name.startswith(c + "_") for c in classes):
+                stage_paths.append(path)
+
+        if not stage_paths:
+            print(f"No files found for stage {stage}")
+            continue
+
+        X_train, y_train, X_test, y_test = local_detector.files_and_labels_to_X_y(
+            stage_paths,
+            hpc_signals,
+            malware_dict,
+            window_size_time,
+            window_stride_time,
+            train_test_split=tts,
+            strict=False,
+            use_full_counters=True
+        )
+
+        if X_train.size == 0:
+            print(f"No data extracted for stage {stage}")
+            continue
+
+        # Combine train and test for better feature importance estimation
+        X = np.concatenate([X_train, X_test], axis=0)
+        y = np.concatenate([y_train, y_test], axis=0)
+
+        # Train a DecisionTreeClassifier
+        clf = DecisionTreeClassifier(random_state=42)
+        clf.fit(X, y)
+
+        # Feature names (16 counters)
+        feature_names = [
+            "instructions", "LLC_load_misses", "avx_insts_all", "block_rq_issue",
+            "br_inst_retired", "cache_references", "mem_loads", "mem_stores",
+            "port_0", "port_1", "port_2", "port_3",
+            "port_4", "port_5", "port_6", "port_7",
+        ]
+
+        importances = clf.feature_importances_
+        indices = np.argsort(importances)[::-1]
+
+        print(f"Top features for {stage}:")
+        for i in range(min(10, len(feature_names))):
+            print(f"  {i+1}. {feature_names[indices[i]]}: {importances[indices[i]]:.4f}")
+
+    # repeat for each attack stage done by the loop
+
+
+
+
+
+
+
+def main():
+    # grab_details()
+    # get_hpc_correlation()
+    hpc_stage_analysis()
 
 if __name__ == "__main__":
     main()

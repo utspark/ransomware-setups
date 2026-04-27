@@ -11,23 +11,24 @@ from itertools import islice
 from typing import Iterable, List, Tuple, Optional
 
 
-def get_file_df(filepath: Path) -> pd.DataFrame:
-    sep = ","
+DEFAULT_COUNTERS = [
+    'instructions', 'LLC-load-misses', 'avx_insts.all', 'br_inst_retired.all_branches'
+]
 
-    df = pd.read_csv(
-        filepath,
-        sep=sep,
-        # engine="python",  # needed for callable on_bad_lines
-        # on_bad_lines=fix_bad_line  # normalize bad rows on the fly
-    )
+FULL_COUNTERS = [
+    'instructions', 'LLC-load-misses', 'avx_insts.all', 'block:block_rq_issue',
+    'br_inst_retired.all_branches', 'cache-references', 'mem-loads', 'mem-stores',
+    'uops_executed_port.port_0', 'uops_executed_port.port_1', 'uops_executed_port.port_2',
+    'uops_executed_port.port_3', 'uops_executed_port.port_4', 'uops_executed_port.port_5',
+    'uops_executed_port.port_6', 'uops_executed_port.port_7',
+]
 
-    cols = [
-        'time', 'instructions', 'LLC-load-misses', 'avx_insts.all', 'block:block_rq_issue',
-        'br_inst_retired.all_branches', 'cache-references', 'mem-loads', 'mem-stores', 'uops_executed_port.port_0',
-        'uops_executed_port.port_1', 'uops_executed_port.port_2', 'uops_executed_port.port_3',
-        'uops_executed_port.port_4', 'uops_executed_port.port_5', 'uops_executed_port.port_6',
-        'uops_executed_port.port_7',
-    ]
+
+def get_file_df(filepath: Path, use_full_counters: bool = False, **kwargs) -> pd.DataFrame:
+    df = pd.read_csv(filepath)
+
+    cols = FULL_COUNTERS if use_full_counters else DEFAULT_COUNTERS
+    cols = ['time'] + cols
 
     df = df[cols]
     df["time"] = df.time.astype(float)
@@ -40,15 +41,12 @@ def get_file_df(filepath: Path) -> pd.DataFrame:
 
 _G = {}
 
-def _init_worker(instructions, LLC_load_misses, avx_insts_all, br_inst_retired):
+
+def _init_worker(feature_arrays: dict):
     """Runs once per worker process; stash read-only arrays in module globals."""
     global _G
-    _G = {
-        "instructions": instructions,
-        "LLC_load_misses": LLC_load_misses,
-        "avx_insts_all": avx_insts_all,
-        "br_inst_retired": br_inst_retired,
-    }
+    _G = feature_arrays
+
 
 def _features_one(pair: Tuple[int, int]) -> Optional[List[float]]:
     """Compute features for a single [i:j) window using globals set by _init_worker."""
@@ -56,21 +54,26 @@ def _features_one(pair: Tuple[int, int]) -> Optional[List[float]]:
     if j <= i:
         return None
 
-    means = [
-        np.mean(_G["instructions"][i:j]),
-        np.mean(_G["LLC_load_misses"][i:j]),
-        np.mean(_G["avx_insts_all"][i:j]),
-        np.mean(_G["br_inst_retired"][i:j]),
-    ]
+    # 'instructions' must be first for normalization
+    instr_array = _G.get("instructions")
+    if instr_array is None:
+        return None
 
-    # normalize by instruction count
-    instr_count = means[0]
+    instr_count = np.mean(instr_array[i:j])
+
+    other_means = []
+    for name, arr in _G.items():
+        if name == "instructions":
+            continue
+        other_means.append(np.mean(arr[i:j]))
+
     if instr_count > 0:
-        normalized_means = [mean / instr_count for mean in means[1:]]
+        normalized_means = [mean / instr_count for mean in other_means]
     else:
-        normalized_means = [0.0] * (len(means) - 1)
+        normalized_means = [0.0] * len(other_means)
 
     return [instr_count] + normalized_means
+
 
 def _features_batch(pairs: List[Tuple[int, int]]) -> List[List[float]]:
     return feature_extraction.features_batch(pairs, _features_one)
@@ -85,6 +88,8 @@ def file_df_feature_extraction_parallel(
     n_workers: Optional[int] = None,
     chunksize: int = 512,   # number of windows per task to reduce overhead
     preserve_time: bool = False,
+    use_full_counters: bool = False,
+    **kwargs,
 ) -> pd.DataFrame:
     # Build windows on the main process
     left_idx, right_idx = feature_extraction.get_time_windows(
@@ -92,28 +97,33 @@ def file_df_feature_extraction_parallel(
     )
     pairs = list(zip(left_idx, right_idx))
 
-    # Extract needed columns as arrays (far cheaper to slice than DataFrame in workers)
-    instructions  = df["instructions"].to_numpy(dtype=float, copy=False)
-    LLC_load_misses = df["LLC-load-misses"].to_numpy(dtype=float, copy=False)
-    avx_insts_all = df["avx_insts.all"].to_numpy(dtype=float, copy=False)
-    br_inst_retired = df["br_inst_retired.all_branches"].to_numpy(dtype=float, copy=False)
+    counter_cols = FULL_COUNTERS if use_full_counters else DEFAULT_COUNTERS
+
+    # Map CSV names to internal feature names (replacing hyphens and dots with underscores)
+    # This maintains consistency with previous code's column naming in X
+    name_mapping = {
+        'instructions': 'instructions',
+        'LLC-load-misses': 'LLC_load_misses',
+        'avx_insts.all': 'avx_insts_all',
+        'br_inst_retired.all_branches': 'br_inst_retired',
+    }
+
+    feature_arrays = {}
+    cols = []
+    for col in counter_cols:
+        internal_name = name_mapping.get(col, col.replace('-', '_').replace('.', '_').replace(':', '_'))
+        feature_arrays[internal_name] = df[col].to_numpy(dtype=float, copy=False)
+        cols.append(internal_name)
 
     # Spin up the pool; each worker gets arrays once via initializer
     with ProcessPoolExecutor(
         max_workers=n_workers,
         initializer=_init_worker,
-        initargs=(instructions, LLC_load_misses, avx_insts_all, br_inst_retired)
+        initargs=(feature_arrays,)
     ) as ex:
         # Map in batches to reduce per-task overhead
         results = ex.map(_features_batch, feature_extraction.chunked(pairs, chunksize))
         rows = [row for batch in results for row in batch]
-
-    cols = [
-        "instructions",
-        "LLC_load_misses",
-        "avx_insts_all",
-        "br_inst_retired",
-    ]
 
     X = pd.DataFrame(rows, columns=cols)
 

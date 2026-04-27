@@ -474,6 +474,7 @@ def files_and_labels_to_X_y(
     train_test_split: float,
     *,
     strict: bool = True,
+    **kwargs: Any,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Build (X, y) from a collection of files.
@@ -494,6 +495,8 @@ def files_and_labels_to_X_y(
         Feature extraction parameters.
     strict : bool
         If True, raise on missing label/file issues; if False, skip problematic files.
+    **kwargs : Any
+        Additional keyword arguments passed to the signal module's feature extraction functions.
 
     Returns
     -------
@@ -514,13 +517,13 @@ def files_and_labels_to_X_y(
                 raise KeyError(f"No label found in malware_map for file: {p.name}")
             continue
 
-        df = signal_module.get_file_df(p)
+        df = signal_module.get_file_df(p, **kwargs)
 
         extract = getattr(signal_module, "file_df_feature_extraction_parallel", None)
         if extract is None:
             extract = getattr(signal_module, "file_df_feature_extraction")
 
-        X_i = extract(df, window_size_time, window_stride_time)
+        X_i = extract(df, window_size_time, window_stride_time, **kwargs)
 
         # Skip files that produced zero windows (optional)
         if X_i is None or X_i.size == 0:
