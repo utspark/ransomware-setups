@@ -1203,7 +1203,6 @@ BEHAVIOR_FILES: Final = {
     },
 }
 
-
 GENERATION_ATTACK_STAGES: Final = {
     "recon": [
         "recon_mount",
@@ -1233,6 +1232,56 @@ GENERATION_ATTACK_STAGES: Final = {
         "symm_AES_256b",
         "symm_Salsa20_128b",
         "symm_Salsa20_256b",
+    ],
+}
+
+GENERATION_ATTACK_STAGES_REVIL: Final = {
+    "recon": [
+        "recon_mount",
+        "recon_net",
+        # "recon_system",
+    ],
+    "exfil_2": [
+        "transfer_sftp_1t",
+        "transfer_sftp_8t",
+    ],
+    "exec_2": [
+        "symm_AES_256b",
+        "symm_Salsa20_256b",
+    ],
+}
+
+GENERATION_ATTACK_STAGES_RANSOMHUB: Final = {
+    "recon": [
+        "recon_mount",
+        "recon_net",
+        # "recon_system",
+    ],
+    "exfil_2": [
+        "transfer_aws_1t",
+        "transfer_aws_8t",
+    ],
+    "exec_2": [
+        "symm_AES_256b",
+    ],
+}
+
+GENERATION_ATTACK_STAGES_LOCKBIT: Final = {
+    "recon": [
+        "recon_mount",
+        "recon_net",
+        # "recon_system",
+    ],
+    "exfil_1": [
+        "compress_gzip_1t",
+        "compress_gzip_8t",
+    ],
+    "exfil_2": [
+        "transfer_aws_1t",
+        "transfer_aws_8t",
+    ],
+    "exec_2": [
+        "symm_AES_256b",
     ],
 }
 

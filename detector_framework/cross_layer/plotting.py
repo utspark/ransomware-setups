@@ -1,3 +1,4 @@
+import copy
 from pathlib import Path
 
 import numpy as np
@@ -96,7 +97,7 @@ def trace_len_plot(attack_stages_dict: dict, feature_frames_dict: dict,
 
 
 def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict: dict,
-                      window_size_time, window_stride_time, time_choices: list, plot=True):
+                      window_size_time, window_stride_time, time_choices: list, plot=True, worst_case=False):
     combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(4)]
     auc_values = []
 
@@ -105,7 +106,6 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
         "LA-*D",
         "LA-P*",
         "LA-PD",
-        "LA-PD worst-case"
     ]
 
     n_samples = 100
@@ -118,10 +118,10 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
         cross_layer_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
         benign_cross_layer_X.append(cross_layer_X)
 
-    benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION_ONLY
+    benign_stages_wc = detector_framework.config.GENERATION_BENIGN_ENCRYPTION_ONLY
     worst_case_benign_cross_layer_X = []
     for _ in range(n_samples):
-        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+        techniques = [random.choice(benign_stages_wc) for _ in range(len(attack_stages_dict))]
         stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
 
         cross_layer_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
@@ -168,26 +168,32 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
 
         auc_values.append((fpr, tpr, roc_auc))
 
-    # worst-case
-    benign_scores = []
-    for j in range(n_samples):
-        proba = gd.score_cross_layer(worst_case_benign_cross_layer_X[j])
-        benign_scores.append(proba)
+    # Calculate worst-case (Benign Encryption Only) for the last model (LA-PD)
+    if worst_case:
+        worst_case_benign_scores = []
+        for j in range(n_samples):
+            proba = gd.score_cross_layer(worst_case_benign_cross_layer_X[j])
+            worst_case_benign_scores.append(proba)
 
-    y_scores = malware_scores + benign_scores
-    y_true = np.zeros(len(y_scores))
-    y_true[:len(malware_scores)] = 1
+        y_scores_wc = malware_scores + worst_case_benign_scores
+        y_true_wc = np.zeros(len(y_scores_wc))
+        y_true_wc[:len(malware_scores)] = 1
 
-    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
-    roc_auc = auc(fpr, tpr)
+        fpr_wc, tpr_wc, thresholds_wc = roc_curve(y_true_wc, y_scores_wc)
+        roc_auc_wc = auc(fpr_wc, tpr_wc)
 
-    auc_values.append((fpr, tpr, roc_auc))
+        auc_values.append((fpr_wc, tpr_wc, roc_auc_wc))
 
     if plot:
         fig = plt.figure(figsize=(8, 5))
         for i in range(4):
             fpr, tpr, roc_auc = auc_values[i]
             plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
+
+        # Plot worst-case for LA-PD
+        if worst_case:
+            fpr_wc, tpr_wc, roc_auc_wc = auc_values[-1]
+            plt.plot(fpr_wc, tpr_wc, lw=4, alpha=0.7, linestyle=':', label=f'LA-PD (Worst-case): {roc_auc_wc:.3f}')
 
         plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
         plt.xlim([-0.01, 1.0])
@@ -198,6 +204,94 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
         plt.tight_layout()
         plt.grid()
         plt.savefig(Path(__file__).resolve().parent.parent.parent / "data" / "figures" / "model_curves.pdf")
+        plt.show(block=True)
+        plt.close(fig)
+
+    return auc_values
+
+
+def real_ransomware_instances_plot(model_paths, ransomware_instance_stages: list[dict], feature_frames_dict: dict,
+                                   window_size_time, window_stride_time, time_choices: list, plot=True):
+    auc_values = []
+
+    model_labels = [
+        "Revil",
+        "RansomHub",
+        "Lockbit3.0",
+    ]
+
+    n_samples = 200
+
+
+    for i in range(len(ransomware_instance_stages)):
+        attack_stages_dict = ransomware_instance_stages[i]
+
+        la_components = {
+            "density": True,
+            "propagation": True,
+        }
+
+        gd = global_detector.LifecycleDetector(
+            **model_paths,
+            lifecycle_awareness=True,
+            stage_filter=False,
+            **la_components
+        )
+
+        benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION
+        benign_cross_layer_X = []
+        for _ in range(n_samples):
+            techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
+            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+            cross_layer_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time,
+                                                    window_stride_time)
+            benign_cross_layer_X.append(cross_layer_X)
+
+        malware_cross_layer_X = []
+        for _ in range(n_samples):
+            techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+            stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+
+            cross_layer_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time,
+                                                    window_stride_time)
+            malware_cross_layer_X.append(cross_layer_X)
+
+        benign_scores = []
+        for j in range(n_samples):
+            proba = gd.score_cross_layer(benign_cross_layer_X[j])
+            benign_scores.append(proba)
+
+        malware_scores = []
+        for j in range(n_samples):
+            proba = gd.score_cross_layer(malware_cross_layer_X[j])
+            malware_scores.append(proba)
+
+        y_scores = malware_scores + benign_scores
+        y_true = np.zeros(len(y_scores))
+        y_true[:len(malware_scores)] = 1
+
+        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+        roc_auc = auc(fpr, tpr)
+
+        auc_values.append((fpr, tpr, roc_auc))
+
+
+    if plot:
+        fig = plt.figure(figsize=(8, 5))
+        for i in range(len(ransomware_instance_stages)):
+            fpr, tpr, roc_auc = auc_values[i]
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
+
+        # plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
+        plt.xlim([-0.01, 0.2])
+        plt.ylim([0.0, 1.01])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.legend(loc="lower right", prop={'family': 'monospace'})
+        plt.tight_layout()
+        plt.grid()
+        plt.savefig(Path(__file__).resolve().parent.parent.parent / "data" / "figures" / "ransomware_instances.pdf")
         plt.show(block=True)
         plt.close(fig)
 
@@ -1205,7 +1299,7 @@ def score_over_time(attack_stages_dict: dict, feature_frames_dict: dict,
     return threshold_results
 
 
-if __name__ == "__main__":
+def main():
     config.set_seed()
 
     plt.rcParams['font.size'] = 18
@@ -1214,14 +1308,15 @@ if __name__ == "__main__":
 
     TRACE_LENS = False
     MODEL_CURVES = False
+    REAL_INSTANCES = True
     EVADE_DENSITY = False
     SIGNAL_SAMPLES = False
     FLOW_VARIATIONS = False
     SCORE_OVER_TIME = False
-    HEATMAP = True
+    HEATMAP = False
 
-    ADFA_GEN = True
-    ADFA_REPLICATE = True
+    ADFA_GEN = False
+    ADFA_REPLICATE = False
 
     CHERRYPICK = False
     BENIGN_APP_SCORES = False
@@ -1244,8 +1339,6 @@ if __name__ == "__main__":
     feature_frames = joblib.load(feature_frames_path)
     attack_stages = detector_framework.config.GENERATION_ATTACK_STAGES
 
-    attack_stages_dict = attack_stages
-    feature_frames_dict = feature_frames
     time_choices = time_choice_list
 
     plot_inputs = {
@@ -1264,6 +1357,16 @@ if __name__ == "__main__":
 
     if MODEL_CURVES:
         auc_values = model_curves_plot(**plot_inputs)
+
+    if REAL_INSTANCES:
+        tmp_plot_inputs = copy.deepcopy(plot_inputs)
+        del tmp_plot_inputs["attack_stages_dict"]
+        tmp_plot_inputs["ransomware_instance_stages"] = [
+            config.GENERATION_ATTACK_STAGES_REVIL,
+            config.GENERATION_ATTACK_STAGES_RANSOMHUB,
+            config.GENERATION_ATTACK_STAGES_LOCKBIT,
+        ]
+        auc_values = real_ransomware_instances_plot(**tmp_plot_inputs)
 
     if EVADE_DENSITY:
         auc_values = evade_density_plot(**plot_inputs)
@@ -1302,3 +1405,8 @@ if __name__ == "__main__":
 
     if CHERRYPICK:
         auc_values = cherrypick_signal_sample_plot(**plot_inputs, cwd=cwd)
+
+
+if __name__ == "__main__":
+    main()
+
