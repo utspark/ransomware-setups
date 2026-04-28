@@ -186,14 +186,15 @@ def model_curves_plot(model_paths, attack_stages_dict: dict, feature_frames_dict
 
     if plot:
         fig = plt.figure(figsize=(8, 5))
+        max_label_len = max(len(label) for label in model_labels)
         for i in range(4):
             fpr, tpr, roc_auc = auc_values[i]
-            plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]:<{max_label_len}}: {roc_auc:.3f}')
 
         # Plot worst-case for LA-PD
-        if worst_case:
-            fpr_wc, tpr_wc, roc_auc_wc = auc_values[-1]
-            plt.plot(fpr_wc, tpr_wc, lw=4, alpha=0.7, linestyle=':', label=f'LA-PD (Worst-case): {roc_auc_wc:.3f}')
+        # if worst_case:
+        #     fpr_wc, tpr_wc, roc_auc_wc = auc_values[-1]
+        #     plt.plot(fpr_wc, tpr_wc, lw=4, alpha=0.7, linestyle=':', label=f'{"LA-PD (Worst-case)":<19}: {roc_auc_wc:.3f}')
 
         plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
         plt.xlim([-0.01, 1.0])
@@ -217,10 +218,10 @@ def real_ransomware_instances_plot(model_paths, ransomware_instance_stages: list
     model_labels = [
         "Revil",
         "RansomHub",
-        "Lockbit3.0",
+        "Lockbit 3.0",
     ]
 
-    n_samples = 200
+    n_samples = 350
 
 
     for i in range(len(ransomware_instance_stages)):
@@ -279,12 +280,13 @@ def real_ransomware_instances_plot(model_paths, ransomware_instance_stages: list
 
     if plot:
         fig = plt.figure(figsize=(8, 5))
+        max_label_len = max(len(label) for label in model_labels)
         for i in range(len(ransomware_instance_stages)):
             fpr, tpr, roc_auc = auc_values[i]
-            plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]:<{max_label_len}}: {roc_auc:.3f}')
 
         # plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
-        plt.xlim([-0.01, 0.2])
+        plt.xlim([-0.01, 0.15])
         plt.ylim([0.0, 1.01])
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
@@ -479,9 +481,10 @@ def evade_density_plot(model_paths, attack_stages_dict: dict, feature_frames_dic
 
     if plot:
         fig = plt.figure(figsize=(8, 5))
+        max_label_len = max(len(label) for label in model_labels)
         for i in range(len(la_components)):
             fpr, tpr, roc_auc = auc_values[i]
-            plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]}: {roc_auc:.3f}')
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]:<{max_label_len}}: {roc_auc:.3f}')
 
         plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
         plt.xlim([-0.01, 1.0])
@@ -500,7 +503,7 @@ def evade_density_plot(model_paths, attack_stages_dict: dict, feature_frames_dic
 
 def signal_sample_plot(
         model_paths, attack_stages_dict: dict, feature_frames_dict: dict,
-        window_size_time, window_stride_time, time_choices: list, cwd: Path, plot=True):
+        window_size_time, window_stride_time, time_choices: list, plot=True):
     combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(1, 8)]
     auc_values = []
 
@@ -525,6 +528,7 @@ def signal_sample_plot(
 
     n_samples = 150
     benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION
+    # benign_stages = detector_framework.config.GENERATION_BENIGN
 
     b_stage_len_list = []
     for _ in range(n_samples):
@@ -578,27 +582,13 @@ def signal_sample_plot(
         auc_values.append((fpr, tpr, roc_auc))
 
     gd = global_detector.LifecycleDetector(
-        cwd / "data/models/syscall_clf.joblib",
-        cwd / "data/models/network_clf.joblib",
-        cwd / "data/models/hpc_clf.joblib",
+        **model_paths,
         lifecycle_awareness=True,
         stage_filter=False,
         density=False,
         propagation=False,
         memory=False,
     )
-
-    b_stage_len_list = []
-    for _ in range(n_samples):
-        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
-        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-        b_stage_len_list.append(stage_lens)
-
-    m_stage_len_list = []
-    for _ in range(n_samples):
-        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
-        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-        m_stage_len_list.append(stage_lens)
 
     for i in range(7):
 
@@ -641,16 +631,17 @@ def signal_sample_plot(
 
     if plot:
         fig = plt.figure(figsize=(9, 6))
+        max_label_len = max(len(label) for label in model_labels)
         for i in range(len(combos)):
             if i != len(combos) - 1:
                 continue
 
             fpr, tpr, roc_auc = auc_values[i]
-            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle="--", label=f'LAPD {model_labels[i]}: {roc_auc:.3f}')
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle="--", label=f'{"LAPD " + model_labels[i]:<{max_label_len + 5}}: {roc_auc:.3f}')
 
         for i in range(len(combos)):
             fpr, tpr, roc_auc = auc_values[i + len(combos)]
-            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle='-', label=f'LA   {model_labels[i]}: {roc_auc:.3f}')
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle='-', label=f'{"LA   " + model_labels[i]:<{max_label_len + 5}}: {roc_auc:.3f}')
 
         plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
         plt.xlim([-0.01, 1.01])
@@ -669,7 +660,7 @@ def signal_sample_plot(
 
 def cherrypick_signal_sample_plot(
         model_paths, attack_stages_dict: dict, feature_frames_dict: dict,
-        window_size_time, window_stride_time, time_choices: list, cwd: Path, plot=True):
+        window_size_time, window_stride_time, time_choices: list, plot=True):
     combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(1, 8)]
     auc_values = []
 
@@ -684,9 +675,7 @@ def cherrypick_signal_sample_plot(
     ]
 
     gd = global_detector.LifecycleDetector(
-        cwd / "data/models/syscall_clf.joblib",
-        cwd / "data/models/network_clf.joblib",
-        cwd / "data/models/hpc_clf.joblib",
+        **model_paths,
         lifecycle_awareness=True,
         stage_filter=False,
         density=True,
@@ -694,25 +683,31 @@ def cherrypick_signal_sample_plot(
         memory=False,
     )
 
-    n_samples = 50
+    n_samples = 100
     benign_stages = detector_framework.config.GENERATION_BENIGN
+    # benign_stages = detector_framework.config.GENERATION_BENIGN_ENCRYPTION
 
     b_stage_len_list = []
     for _ in range(n_samples):
-        # techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
-        tech = benign_stages[1]
-        techniques = [tech for _ in range(len(attack_stages_dict))]
+        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
         stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
         b_stage_len_list.append(stage_lens)
 
     m_stage_len_list = []
     for _ in range(n_samples):
         techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
-        techniques[1] = "compress_zstd_8t"
-        techniques[2] = "transfer_sftp_1t"
-        # techniques[3] = "symm_AES_256b"
         stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
         m_stage_len_list.append(stage_lens)
+
+    # m_stage_len_list = []
+    # for _ in range(n_samples):
+    #     techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
+    #     techniques[0] = "recon_net"
+    #     techniques[1] = "compress_zstd_1t"
+    #     techniques[2] = "transfer_sftp_8t"
+    #     # techniques[3] = "symm_AES_256b"
+    #     stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
+    #     m_stage_len_list.append(stage_lens)
 
     for i in range(7):
 
@@ -754,27 +749,13 @@ def cherrypick_signal_sample_plot(
         auc_values.append((fpr, tpr, roc_auc))
 
     gd = global_detector.LifecycleDetector(
-        cwd / "data/models/syscall_clf.joblib",
-        cwd / "data/models/network_clf.joblib",
-        cwd / "data/models/hpc_clf.joblib",
+        **model_paths,
         lifecycle_awareness=True,
         stage_filter=False,
         density=False,
         propagation=False,
         memory=False,
     )
-
-    b_stage_len_list = []
-    for _ in range(n_samples):
-        techniques = [random.choice(benign_stages) for _ in range(len(attack_stages_dict))]
-        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-        b_stage_len_list.append(stage_lens)
-
-    m_stage_len_list = []
-    for _ in range(n_samples):
-        techniques = [random.choice(ttp_choices) for _, ttp_choices in attack_stages_dict.items()]
-        stage_lens = [(technique, random.choice(time_choices)) for technique in techniques]
-        m_stage_len_list.append(stage_lens)
 
     for i in range(7):
 
@@ -817,16 +798,17 @@ def cherrypick_signal_sample_plot(
 
     if plot:
         plt.figure(figsize=(9, 6))
+        max_label_len = max(len(label) for label in model_labels)
         for i in range(len(combos)):
             if i != len(combos) - 1:
                 continue
 
             fpr, tpr, roc_auc = auc_values[i]
-            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle="--", label=f'LAPD {model_labels[i]}: {roc_auc:.3f}')
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle="--", label=f'{"LAPD " + model_labels[i]:<{max_label_len + 5}}: {roc_auc:.3f}')
 
         for i in range(len(combos)):
             fpr, tpr, roc_auc = auc_values[i + len(combos)]
-            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle='-', label=f'LA   {model_labels[i]}: {roc_auc:.3f}')
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, linestyle='-', label=f'{"LA   " + model_labels[i]:<{max_label_len + 5}}: {roc_auc:.3f}')
 
         plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
         plt.xlim([-0.01, 1.01])
@@ -962,10 +944,11 @@ def flow_variations(
 
     if plot:
         fig = plt.figure(figsize=(8, 5))
+        max_label_len = max(len(label) for label in flow_labels)
         for i in range(len(preserve_stages) + 1):
             fpr, tpr, roc_auc = auc_values[i]
 
-            plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{flow_labels[i]}: {roc_auc:.3f}')
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{flow_labels[i]:<{max_label_len}}: {roc_auc:.3f}')
 
         plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
         plt.xlim([-0.01, 1.0])
@@ -1308,7 +1291,7 @@ def main():
 
     TRACE_LENS = False
     MODEL_CURVES = False
-    REAL_INSTANCES = True
+    REAL_INSTANCES = False
     EVADE_DENSITY = False
     SIGNAL_SAMPLES = False
     FLOW_VARIATIONS = False
@@ -1316,7 +1299,7 @@ def main():
     HEATMAP = False
 
     ADFA_GEN = False
-    ADFA_REPLICATE = False
+    ADFA_REPLICATE = True
 
     CHERRYPICK = False
     BENIGN_APP_SCORES = False
@@ -1372,7 +1355,7 @@ def main():
         auc_values = evade_density_plot(**plot_inputs)
 
     if SIGNAL_SAMPLES:
-        auc_values = signal_sample_plot(**plot_inputs, cwd=cwd)
+        auc_values = signal_sample_plot(**plot_inputs)
 
     if FLOW_VARIATIONS:
         auc_values = flow_variations(
@@ -1404,7 +1387,7 @@ def main():
         adfa_plotting.plot_adfa_replicate(cwd, show_plot=False)
 
     if CHERRYPICK:
-        auc_values = cherrypick_signal_sample_plot(**plot_inputs, cwd=cwd)
+        auc_values = cherrypick_signal_sample_plot(**plot_inputs)
 
 
 if __name__ == "__main__":

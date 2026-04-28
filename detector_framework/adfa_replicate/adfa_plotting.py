@@ -13,22 +13,22 @@ PLOT_FILE_NAME = "adfa_replicate.pdf"
 
 # Mapping between curve filename (stem) and plotting label
 LABEL_MAP = {
-    "adfa_data_curve": "ADFA-LD Data",
-    "individual_behavior_curve": "OR Behaviors",
-    "exclude_encryption_curve": "Lifecycles Exclude Enc",
-    "partial_encryption_curve": "Lifecycles Include Enc",
-    "full_encryption_curve": "Lifecycles Only Enc",
-    "lapd_encryption_only_curve": "LAPD Lifecycles Only Enc",
+    "adfa_data_curve": "ADFA Det. | ADFA Malware Actions vs. Benign",
+    "individual_behavior_curve": "ADFA Det. | This Work Ransomware Actions vs. Benign",
+    "exclude_encryption_curve": "ADFA Det. | Ransomware Lifecycles vs. Benign (Excluding Enc.)",
+    "partial_encryption_curve": "ADFA Det. | Ransomware Lifecycles vs. Benign (Including Enc.)",
+    "full_encryption_curve": "ADFA Det. | Ransomware Lifecycles vs. Benign (Only Enc.)",
+    "lapd_encryption_only_curve": "Falcon    | Ransomware Lifecycles vs. Benign (Only Enc.)",
 }
 
 # Plotting parameters for each curve type
 CURVE_PARAMS = {
-    "adfa_data_curve": {"color": "darkorange", "linestyle": "--"},
-    "individual_behavior_curve": {"color": "darkred", "linestyle": "--"},
-    "exclude_encryption_curve": {"color": "darkgreen", "linestyle": "-"},
-    "partial_encryption_curve": {"color": "darkblue", "linestyle": "-"},
+    "adfa_data_curve": {"color": "darkorange", "linestyle": "--", "lw": 3},
+    "individual_behavior_curve": {"color": "red", "linestyle": "--", "lw": 3},
+    "exclude_encryption_curve": {"color": "green", "linestyle": "-"},
+    "partial_encryption_curve": {"color": "blue", "linestyle": "-"},
     "full_encryption_curve": {"color": "purple", "linestyle": "-"},
-    "lapd_encryption_only_curve": {"color": "brown", "linestyle": "-"},
+    "lapd_encryption_only_curve": {"color": "black", "linestyle": ":", "lw": 3},
 }
 
 
@@ -61,34 +61,40 @@ def plot_roc_curves(loaded_data: List[Tuple[Path, Tuple[List[float], List[float]
     """
     Generates the ROC curve plot from the loaded data.
     """
-    fig = plt.figure(figsize=(8, 5))
+    fig = plt.figure(figsize=(8, 6))
     plt.rcParams['font.size'] = 18
 
-    for curve_file, (fpr, tpr, auc) in loaded_data:
-        # Use label from map, fallback to formatted filename stem if not found
+    # Calculate max label length to avoid excessive spacing
+    max_label_len = 0
+    labels = []
+    for curve_file, _ in loaded_data:
         label = LABEL_MAP.get(curve_file.stem, curve_file.stem.replace("_", " ").replace(" curve", ""))
-        
+        labels.append(label)
+        if len(label) > max_label_len:
+            max_label_len = len(label)
+
+    for (curve_file, (fpr, tpr, auc)), label in zip(loaded_data, labels):
         # Get plotting parameters, fallback to defaults if not found
         params = CURVE_PARAMS.get(curve_file.stem, {"color": None, "linestyle": "-"})
         
         plt.plot(
             fpr, tpr, 
-            lw=4, 
-            label=f"{label}: {auc:.3f}", 
+            lw=params.get("lw", 4),
+            label=f"{label:<{max_label_len}}: {auc:.3f}",
             alpha=0.7, 
             color=params.get("color"),
             linestyle=params.get("linestyle")
         )
 
     # Plot diagonal reference line
-    plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
+    # plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
     
     plt.xlim([-0.01, 1.01])
     plt.ylim([-0.01, 1.01])
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
-    plt.legend(loc="lower right", fontsize=14, borderaxespad=1.0)
-    plt.tight_layout()
+    plt.legend(loc="lower center", bbox_to_anchor=(0.44, 1.05), ncol=1, prop={'family': 'monospace', 'size': 12})
+    plt.tight_layout(rect=[0, 0, 1, 1.05])
     plt.grid(True)
     return fig
 

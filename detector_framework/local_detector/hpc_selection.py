@@ -241,8 +241,8 @@ def hpc_stage_analysis():
 
 def main():
     # grab_details()
-    # get_hpc_correlation()
-    hpc_stage_analysis()
+    get_hpc_correlation()
+    # hpc_stage_analysis()
 
 if __name__ == "__main__":
     main()
