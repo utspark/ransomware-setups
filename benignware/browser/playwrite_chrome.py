@@ -121,17 +121,18 @@ def handle_generic(page, pgid, category, urls):
 
 # Dispatch table
 handlers = {
-        "download": handle_download,
         "streaming": handle_streaming,
         "compute": handle_compute,
         "generic": handle_generic,
+        "download": handle_download,
         }
+
+        # ("https://www.thinkbroadband.com/download","http://ipv4.download.thinkbroadband.com/20MB.zip"),
+        # ("https://www.thinkbroadband.com/download","http://ipv4.download.thinkbroadband.com/10MB.zip"),
+        # ("https://www.thinkbroadband.com/download","http://ipv4.download.thinkbroadband.com:8080/50MB.zip"),
+        # ("https://www.thinkbroadband.com/download","http://ipv4.download.thinkbroadband.com/200MB.zip"),
 dl_urls = [
         ("https://nbg1-speed.hetzner.com","100MB.bin"),
-        ("https://www.thinkbroadband.com/download","http://ipv4.download.thinkbroadband.com/10MB.zip"),
-        ("https://www.thinkbroadband.com/download","http://ipv4.download.thinkbroadband.com/20MB.zip"),
-        ("https://www.thinkbroadband.com/download","http://ipv4.download.thinkbroadband.com:8080/50MB.zip"),
-        ("https://www.thinkbroadband.com/download","http://ipv4.download.thinkbroadband.com/200MB.zip"),
         ("https://nbg1-speed.hetzner.com","1GB.bin"),
         ]
 vid_urls = [
@@ -150,15 +151,16 @@ gen_urls = [
         "https://en.wikipedia.org/wiki/Homi_J._Bhabha",
         ]
 urls_by_class = {
-        "download": dl_urls,
         "streaming": vid_urls,
         "compute": wasm_urls,
         "generic": gen_urls,
+        "download": dl_urls,
         }
 
 def run_tab(page, user_id, tab_id=1):
     page_id = f"User{user_id}-Tab{tab_id}"
 
+    # chosen_class = list(urls_by_class.keys())[user_id % len(urls_by_class)]
     chosen_class = random.choice(list(urls_by_class.keys()))
     #chosen_urls = random.sample(urls_by_class[chosen_class], k=3)
     chosen_urls = urls_by_class[chosen_class]

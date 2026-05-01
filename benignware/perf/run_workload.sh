@@ -17,46 +17,57 @@ stat[4]=uops_executed_port.port_0,uops_executed_port.port_1,uops_executed_port.p
 hostname_ext=(${HOSTNAME#*.})
 HOST="node-0.$hostname_ext"
 CURR_DIR=$(pwd)
-OUTDIR=$CURR_DIR/output
+OUTDIR=$CURR_DIR/output2
 mkdir -p $OUTDIR
 
-options=("fileserver" "oltp" "randomrw" "varmail" "videoserver")
+options=("gcc_r" "deepsjeng_r" "leela_r")
+#options=("gcc_r")
+source shrc
 
-filebench_run() {
-    filebench -f workloads/${o}.f > fbench.out 2>&1 &
-    pid=$!
-    sleep 3
-    echo "Start tracer"
-    eval "$CMD &"
-    tracer=$!
-    wait $pid
-    sudo kill -INT $tracer
-    while kill -0 $tracer 2>/dev/null; do sleep 1; done
-    echo "Complete"
+perf_run() {
+        echo "Start tracer"
+        eval "$CMD &"
+        tracer=$!
+        sleep 5
+        runcpu --config=my_gcc.cfg --size=ref --action=run $o
+        #sleep 200
+        sudo kill -INT $tracer
+        while kill -0 $tracer 2>/dev/null; do sleep 1; done
+        echo "Complete"
 }
 
 TRIES=3
 for o in "${options[@]}"; do
+    #runcpu --config=my_gcc.cfg --size=ref --action=run $o &
+    #spec_pid=$!
+    #sleep 5
     for i in $(seq 1 $TRIES); do
         if [[ $1 == "SYSTEM" ]]; then
             echo "Syscall Trace"
+            OUTFNAME=perf_syscall_${o}_$i
             CMD="$FTRACE_CMD -o trace_${o}_$i.dat > strace.out 2>&1"
-            OUTFNAME=filebench_syscall_${o}_$i
-            filebench_run
+            perf_run
             sleep 3
             sudo trace-cmd report -i trace_${o}_$i.dat > $OUTDIR/$OUTFNAME
         elif [[ $1 == "NETWORK" ]]; then
             echo "Network Trace"
-            OUTFNAME=filebench_netcall_${o}_$i
+            OUTFNAME=perf_netcall_${o}_$i
             CMD="$TSHARK_CMD > $OUTDIR/$OUTFNAME 2> ntrace.out"
-            filebench_run
+            perf_run
         elif [[ $1 == "HARDWARE" ]]; then
             echo "Hardware Trace"
             for s in "${stat[@]}"; do
-                OUTFNAME=filebench_hardware_${s}_${o}_${i}
+                OUTFNAME=perf_hardware_${s}_${o}_${i}
                 CMD="$HWPERF_CMD $s -o $OUTDIR/$OUTFNAME > perf.out 2>&1"
-                filebench_run
+                perf_run
             done
         fi
     done
+    #mapfile -t ps_lines < <(ps aux | grep runcpu | grep -v grep | awk '{print $2}')
+    #for pid in "${ps_lines[@]}"; do
+    #    echo "Killing $o: $pid"
+    #    sudo kill -SIGTERM $pid
+    #    while kill -0 $pid 2>/dev/null; do sleep 1; done
+    #done
+
 done

@@ -19,3 +19,7 @@ data/joblib/
 *.bin
 *.zip
 *.deb
+**/*.png
+**/*.jpg
+**/*.pdf
+**/*.csv
