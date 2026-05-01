@@ -22,7 +22,7 @@ sudo rm /etc/containerd/config.toml
 sudo systemctl restart containerd
 
 #Install perf tools
-sudo apt install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r) cpulimit
+sudo apt install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r) cpulimit tshark
 echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
 echo 0 | sudo tee /proc/sys/kernel/nmi_watchdog
 
@@ -35,7 +35,5 @@ echo "1" | sudo tee /sys/devices/system/cpu/cpu*/cpuidle/state*/disable
 sudo systemctl disable ondemand
 sudo systemctl daemon-reload
 sudo systemctl enable cpufrequtils
-
-sudo chsh -s /usr/bin/fish psahu
 
 echo "Close shell and reopen to use docker commands without sudo"
