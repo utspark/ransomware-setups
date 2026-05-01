@@ -231,7 +231,7 @@ def form_feature_frame_joblib(cwd: Path, feature_frames_path: Path, window_size_
 
     #  TODO there should be time alignment of various signals
     #   - because there is not, no use in below functions
-    #   - ask Prateek for time alignment; a trace of some action
+    #   - ask collaborators for time alignment; a trace of some action
     #   - should take the same length across all signals
     #   e.g. AES_128 takes 15 seconds in syscalls and hpc
     # correct_feature_vector_times_2(feature_dict)

@@ -45,23 +45,23 @@ photoprism_run() {
     echo $! > ~/tracer.pid
     sleep 5
     ./marker.py $(cat ~/fd_target.pid)
-    #ssh psahu@$HOST "bash -c 'ps -p \$(cat tracer.pid) -o etime= >> \$(cat fd_target.pid)'"
+    #ssh $USER@$HOST "bash -c 'ps -p \$(cat tracer.pid) -o etime= >> \$(cat fd_target.pid)'"
 
     echo "Start API calls"
 
-    ssh psahu@$WRKHOST "cd $CURR_DIR; ./get_api.py -s $SRVHOST -l > token"
+    ssh $USER@$WRKHOST "cd $CURR_DIR; ./get_api.py -s $SRVHOST -l > token"
     ## Sync/Index files
-    ssh psahu@$WRKHOST "bash -c 'cd $CURR_DIR; ./get_api.py -s $SRVHOST -t \$(cat token) -i'"
-    ssh psahu@$WRKHOST "bash -c 'cd $CURR_DIR; ./get_api.py -s $SRVHOST -t \$(cat token) -api'"
+    ssh $USER@$WRKHOST "bash -c 'cd $CURR_DIR; ./get_api.py -s $SRVHOST -t \$(cat token) -i'"
+    ssh $USER@$WRKHOST "bash -c 'cd $CURR_DIR; ./get_api.py -s $SRVHOST -t \$(cat token) -api'"
     #./get_api.py -s $HOST -t $TOKEN -i
     #./get_api.py -s $HOST -t $TOKEN -api
     ./marker.py $(cat ~/fd_target.pid)
-    #ssh psahu@$HOST "bash -c 'ps -p \$(cat tracer.pid) -o etime= >> \$(cat fd_target.pid)'"
+    #ssh $USER@$HOST "bash -c 'ps -p \$(cat tracer.pid) -o etime= >> \$(cat fd_target.pid)'"
 
     #wrk -t5 -c5 -d15s -s benchmark.lua http://$HOST:2342
-    ssh psahu@$WRKHOST "bash -c 'cd $CURR_DIR; wrk -t5 -c5 -d15s -s benchmark.lua http://$SRVHOST:2342'"
+    ssh $USER@$WRKHOST "bash -c 'cd $CURR_DIR; wrk -t5 -c5 -d15s -s benchmark.lua http://$SRVHOST:2342'"
     ./marker.py $(cat ~/fd_target.pid)
-    #ssh psahu@$HOST "bash -c 'ps -p \$(cat tracer.pid) -o etime= >> \$(cat fd_target.pid)'"
+    #ssh $USER@$HOST "bash -c 'ps -p \$(cat tracer.pid) -o etime= >> \$(cat fd_target.pid)'"
     
     sleep 1
     sudo kill -INT $(cat ~/tracer.pid)
@@ -90,37 +90,37 @@ for i in $(seq 1 $TRIES); do
         for s in "${stat[@]}"; do
             OUTFNAME=media_hardware_${s}_${i}
             CMD="$HWPERF_CMD $s -o $OUTDIR/$OUTFNAME > perf.out 2>&1"
-            ssh psahu@$HOST "echo $OUTDIR/${OUTFNAME}_phase > fd_target.pid"
+            ssh $USER@$HOST "echo $OUTDIR/${OUTFNAME}_phase > fd_target.pid"
             photoprism_run
         done
     fi
-#    ssh psahu@$HOST "bash -c 'nohup taskset -c 1 photoprism start > prism.out 2>&1 & echo \$! > prism.pid'"
+#    ssh $USER@$HOST "bash -c 'nohup taskset -c 1 photoprism start > prism.out 2>&1 & echo \$! > prism.pid'"
 #    sleep 11
 #
 #    echo "Start tracer"
 #    date +%M:%S
-#    ssh psahu@$HOST "bash -c 'nohup $CMD & echo \$! > tracer.pid'"
+#    ssh $USER@$HOST "bash -c 'nohup $CMD & echo \$! > tracer.pid'"
 #    sleep 5
-#    ssh psahu@$HOST "bash -c '$CURR_DIR/marker.py \$(cat fd_target.pid)'"
+#    ssh $USER@$HOST "bash -c '$CURR_DIR/marker.py \$(cat fd_target.pid)'"
 #    
 #    export TOKEN=$(./get_api.py -s $HOST -l)
 #    ## Sync/Index files
 #    ./get_api.py -s $HOST -t $TOKEN -i
 #    ./get_api.py -s $HOST -t $TOKEN -api
-#    ssh psahu@$HOST "bash -c '$CURR_DIR/marker.py \$(cat fd_target.pid)'"
+#    ssh $USER@$HOST "bash -c '$CURR_DIR/marker.py \$(cat fd_target.pid)'"
 #    
 #    wrk -t5 -c5 -d15s -s benchmark.lua http://$HOST:2342
-#    ssh psahu@$HOST "bash -c '$CURR_DIR/marker.py \$(cat fd_target.pid)'"
+#    ssh $USER@$HOST "bash -c '$CURR_DIR/marker.py \$(cat fd_target.pid)'"
 #    
 #    sleep 1
-#    ssh psahu@$HOST "bash -c 'sudo kill -INT \$(cat tracer.pid)'"
+#    ssh $USER@$HOST "bash -c 'sudo kill -INT \$(cat tracer.pid)'"
 #    date +%M:%S
-#    ssh psahu@$HOST "bash -c 'while kill -0 \$(cat tracer.pid) 2>/dev/null; do sleep 1; done'"
+#    ssh $USER@$HOST "bash -c 'while kill -0 \$(cat tracer.pid) 2>/dev/null; do sleep 1; done'"
 #    echo "Complete"
 #    if [[ $1 == "SYSTEM" ]]; then
 #        sleep 3
-#        ssh psahu@$HOST "bash -c 'sudo trace-cmd report -i trace_$i.dat > $OUTDIR/$OUTFNAME'"
+#        ssh $USER@$HOST "bash -c 'sudo trace-cmd report -i trace_$i.dat > $OUTDIR/$OUTFNAME'"
 #    fi
-#    ssh psahu@$HOST "bash -c 'sudo kill -INT \$(cat prism.pid)'"
-#    ssh psahu@$HOST "bash -c 'photoprism reset -y >> prism.out 2>&1'"
+#    ssh $USER@$HOST "bash -c 'sudo kill -INT \$(cat prism.pid)'"
+#    ssh $USER@$HOST "bash -c 'photoprism reset -y >> prism.out 2>&1'"
 done

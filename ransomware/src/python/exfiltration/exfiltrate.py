@@ -19,6 +19,8 @@ sys.path.append(parent_dir)
 
 import marker as sysmark
 
+S3_BUCKET = os.getenv("S3_BUCKET")
+
 # ====== CONFIGURATION ======
 ARCHIVE_DIR = str(Path.home())+"/archives"
 stop_signal = object()
@@ -205,7 +207,7 @@ def run_uploader(file_queue, threads, remote):
     now = datetime.now()
     path_str = now.strftime("%Y%m%d_%H%M%S")
     if remote == 'aws':
-        REMOTE = f"anon-s3:rclone-psahu/uploads/{path_str}/"
+        REMOTE = f"anon-s3:{S3_BUCKET}/uploads/{path_str}/"
     if remote == 'sftp':
         REMOTE = f"backup:/uploads/{path_str}/"
     

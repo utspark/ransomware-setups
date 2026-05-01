@@ -5,7 +5,9 @@ from rclone_python import rclone
 import discover
 import sys
 import logging
+import os
 
+S3_BUCKET = os.getenv("S3_BUCKET")
 rclone.set_log_level(logging.ERROR)
 
 def is_able():
@@ -16,7 +18,7 @@ def is_able():
 
 def copy(file, remote, path):
     if remote == 'aws':
-        rclone.copy(file, 'anon-s3:rclone-psahu/uploads/'+path+'/',pbar=None)
+        rclone.copy(file, f'anon-s3:{S3_BUCKET}/uploads/{path}/',pbar=None)
     if remote == 'sftp':
         rclone.copy(file, 'backup:/uploads/'+path+'/',pbar=None)
 
