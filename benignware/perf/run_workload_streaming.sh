@@ -61,14 +61,12 @@ END {
 }'
 
 ## Run workload
-hostname_ext=(${HOSTNAME#*.})
-HOST="node-0.$hostname_ext"
 CURR_DIR=$(pwd)
 OUTDIR=$CURR_DIR/output_streaming
 mkdir -p $OUTDIR
+cd cpu2017
 
 options=("gcc_r" "deepsjeng_r" "leela_r")
-# options=("gcc_r")
 source shrc
 
 MOUNT_POINT="/mnt/ramdisk"
@@ -111,7 +109,7 @@ perf_run(){
     
     
     start=$EPOCHREALTIME
-    runcpu --config=my_gcc.cfg --size=train --action=run $o >> logs 2>&1
+    runcpu --config=my_gcc.cfg --size=train --action=run $o >> ../logs 2>&1
     end=$EPOCHREALTIME
     duration_ms=$(echo "($end - $start) * 1000" | bc)
     echo "Duration: ${duration_ms} ms" >> $OUTDIR/latency_overhead.log
@@ -130,47 +128,43 @@ perf_run(){
 }
 
 setup_ramdisk
-TRIES=2
-METRIC=$1
-# for METRIC in "SYSTEM" "NETWORK" "HWPERF" "NONE"; do
-echo "Running workload with $TRIES iterations for each option: ${options[*]} for metric $METRIC"
-for i in $(seq 2 $TRIES); do
-    for o in "${options[@]}"; do
-        if [[ $o == "mix" ]]; then
-            args="-u 1 -t 1"
-        else
-            args="-wl $o"
-        fi
-        if [[ $METRIC == "SYSTEM" ]]; then
-            echo "Syscall Trace $o" >> $OUTDIR/latency_overhead.log
-            OUTFNAME=perf_syscall_${o}_$i
-            TRACE_CMD="$FTRACE_CMD"
-            TRACER_PROCESS="trace-cmd"
-            MODE="sys"
-        elif [[ $METRIC == "NETWORK" ]]; then
-            echo "Network Trace $o" >> $OUTDIR/latency_overhead.log
-            OUTFNAME=perf_netcall_${o}_$i
-            TRACE_CMD="$TSHARK_CMD"
-            TRACER_PROCESS="tshark"
-            MODE="net"
-        elif [[ $METRIC == "HWPERF" ]]; then
-            echo "Hardware Performance Trace $o" >> $OUTDIR/latency_overhead.log
-            OUTFNAME=perf_hwperf_${o}_$i
-            TRACE_CMD="$HWPERF_CMD"
-            TRACER_PROCESS="perf"
-            MODE="perf"
-        elif [[ $METRIC == "NONE" ]]; then
-            echo "No Trace $o" >> $OUTDIR/latency_overhead.log
-            TRACE_CMD=""
-        fi
-        if [[ ! -z $TRACE_CMD ]]; then
-            CMD="($TRACE_CMD | mawk -W interactive -v fname=$OUTFNAME -v base=$MOUNT_POINT -v mode=$MODE '$MAWK_SCRIPT') 2>>$OUTDIR/gawk.err"
-        fi
-        perf_run
-        if [[ ! -z $TRACE_CMD ]]; then
-            mkdir -p $OUTDIR/${METRIC}_${o}_$i
-            mv $MOUNT_POINT/* $OUTDIR/${METRIC}_${o}_$i/
-        fi
+TRIES=1
+METRICS=("SYSTEM" "NETWORK" "HWPERF" "NONE")
+for METRIC in "${METRICS[@]}"; do
+    echo "Running workload with $TRIES iterations for each option: ${options[*]} for metric $METRIC"
+    for i in $(seq 1 $TRIES); do
+        for o in "${options[@]}"; do
+            if [[ $METRIC == "SYSTEM" ]]; then
+                echo "Syscall Trace $o" >> $OUTDIR/latency_overhead.log
+                OUTFNAME=perf_syscall_${o}_$i
+                TRACE_CMD="$FTRACE_CMD"
+                TRACER_PROCESS="trace-cmd"
+                MODE="sys"
+            elif [[ $METRIC == "NETWORK" ]]; then
+                echo "Network Trace $o" >> $OUTDIR/latency_overhead.log
+                OUTFNAME=perf_netcall_${o}_$i
+                TRACE_CMD="$TSHARK_CMD"
+                TRACER_PROCESS="tshark"
+                MODE="net"
+            elif [[ $METRIC == "HWPERF" ]]; then
+                echo "Hardware Performance Trace $o" >> $OUTDIR/latency_overhead.log
+                OUTFNAME=perf_hwperf_${o}_$i
+                TRACE_CMD="$HWPERF_CMD"
+                TRACER_PROCESS="perf"
+                MODE="perf"
+            elif [[ $METRIC == "NONE" ]]; then
+                echo "No Trace $o" >> $OUTDIR/latency_overhead.log
+                TRACE_CMD=""
+            fi
+            if [[ ! -z $TRACE_CMD ]]; then
+                CMD="($TRACE_CMD | mawk -W interactive -v fname=$OUTFNAME -v base=$MOUNT_POINT -v mode=$MODE '$MAWK_SCRIPT') 2>>$OUTDIR/gawk.err"
+            fi
+            perf_run
+            if [[ ! -z $TRACE_CMD ]]; then
+                mkdir -p $OUTDIR/${METRIC}_${o}_$i
+                mv $MOUNT_POINT/* $OUTDIR/${METRIC}_${o}_$i/
+            fi
+        done
     done
 done
-# done
+cd ..

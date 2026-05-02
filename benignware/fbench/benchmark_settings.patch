@@ -1,0 +1,66 @@
+diff --git a/workloads/fileserver.f b/workloads/fileserver.f
+index ef51b39..4992e38 100644
+--- a/workloads/fileserver.f
++++ b/workloads/fileserver.f
+@@ -30,7 +30,7 @@ set $filesize=cvar(type=cvar-gamma,parameters=mean:131072;gamma:1.5)
+ set $nthreads=50
+ set $iosize=1m
+ set $meanappendsize=16k
+-set $runtime=60
++set $runtime=30
+ 
+ define fileset name=bigfileset,path=$dir,size=$filesize,entries=$nfiles,dirwidth=$meandirwidth,prealloc=80
+ 
+diff --git a/workloads/oltp.f b/workloads/oltp.f
+index 52d54ec..0753b69 100644
+--- a/workloads/oltp.f
++++ b/workloads/oltp.f
+@@ -83,4 +83,4 @@ define process name=shadow,instances=$nshadows
+ 
+ echo "OLTP Version 3.0  personality successfully loaded"
+ 
+-run 60
++run $runtime
+diff --git a/workloads/randomrw.f b/workloads/randomrw.f
+index b1a71fd..05d419d 100644
+--- a/workloads/randomrw.f
++++ b/workloads/randomrw.f
+@@ -45,3 +45,4 @@ define process name=rand-rw,instances=1
+ }
+ 
+ echo "Random RW Version 3.0 personality successfully loaded"
++run 30
+diff --git a/workloads/varmail.f b/workloads/varmail.f
+index 674719f..46ce31c 100644
+--- a/workloads/varmail.f
++++ b/workloads/varmail.f
+@@ -55,4 +55,4 @@ define process name=filereader,instances=1
+ 
+ echo  "Varmail Version 3.0 personality successfully loaded"
+ 
+-run 60
++run 30
+diff --git a/workloads/videoserver.f b/workloads/videoserver.f
+index e9d1b05..91dd510 100644
+--- a/workloads/videoserver.f
++++ b/workloads/videoserver.f
+@@ -35,10 +35,10 @@
+ 
+ set $dir=/tmp
+ set $eventrate=96
+-set $filesize=10g
+-set $nthreads=48
+-set $numactivevids=32
+-set $numpassivevids=194
++set $filesize=100m
++set $nthreads=16
++set $numactivevids=20
++set $numpassivevids=100
+ set $reuseit=false
+ set $readiosize=256k
+ set $writeiosize=1m
+@@ -75,3 +75,4 @@ define process name=vidreaders,instances=1
+ }
+ 
+ echo  "Video Server Version 3.0 personality successfully loaded"
++run 30

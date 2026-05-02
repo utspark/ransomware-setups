@@ -7,24 +7,27 @@ FTRACE_CMD="sudo trace-cmd record -e syscalls -a"
 HWPERF_CMD="sudo perf stat -C 1 -I 100 -a -e"
 
 declare -A stat
+# Best overall performing counters
+stat[1]=instructions,br_inst_retired.all_branches,avx_insts.all,cache-references
+
+# All tested counters: Uncomment below to run multiple perf stat runs for different counter sets
 # stat[1]=instructions,br_inst_retired.all_branches,avx_insts.all,block:block_rq_issue
-stat[1]=mem-loads,mem-stores,cache-references,LLC-load-misses
-#stat[2]=mem-loads,mem-stores,cache-references,mem_load_retired.l3_miss
+# stat[2]=mem-loads,mem-stores,cache-references,LLC-load-misses
 # stat[3]=uops_executed_port.port_2,uops_executed_port.port_3,uops_executed_port.port_4,uops_executed_port.port_7
 # stat[4]=uops_executed_port.port_0,uops_executed_port.port_1,uops_executed_port.port_5,uops_executed_port.port_6
 
-declare -A cmds
-declare -A exts
-cmds=(["7zip"]="7z a" ["Gzip"]="tar -czf" ["Bzip2"]="tar -cjf" ["zStd"]="tar --zstd -cf" ["Zip"]="zip -q -r")
-exts=(["7zip"]="7z" ["Gzip"]="tr.gz" ["Bzip2"]="tar.bz2" ["zStd"]="tar.zst" ["Zip"]="zip")
-
+## Run workload
 CURR_DIR=$(pwd)
 OUTDIR=$CURR_DIR/output_timed
 mkdir -p "$OUTDIR"
 
+declare -A cmds
+declare -A exts
 options=("7zip" "Gzip" "Bzip2" "zStd" "Zip")
+cmds=(["7zip"]="7z a" ["Gzip"]="tar -czf" ["Bzip2"]="tar -cjf" ["zStd"]="tar --zstd -cf" ["Zip"]="zip -q -r")
+exts=(["7zip"]="7z" ["Gzip"]="tr.gz" ["Bzip2"]="tar.bz2" ["zStd"]="tar.zst" ["Zip"]="zip")
 
-compression_run(){
+compressor_run(){
     if [[ -n "$CMD" ]]; then
         echo "Start tracer"
         eval "$CMD &"
@@ -33,9 +36,8 @@ compression_run(){
     fi
 
     start=$EPOCHREALTIME
-    $1 data.$2 /mnt/home/000/ 2> /dev/null
+    $1 data.$2 /mnt/home/000/ >> logs 2>&1
     end=$EPOCHREALTIME
-
     duration_ms=$(echo "($end - $start) * 1000" | bc)
     echo "Duration: ${duration_ms} ms $METRIC $o" >> "$OUTDIR/latency_overhead.log"
 
@@ -45,35 +47,39 @@ compression_run(){
         while kill -0 "$tracer" 2>/dev/null; do sleep 1; done
         echo "Complete"
     fi
+    rm data.$2
 }
 
-TRIES=2
-for i in $(seq 1 $TRIES); do
-    for o in "${options[@]}"; do
-        if [[ $1 == "SYSTEM" ]]; then
-            echo "Syscall Trace"
-            OUTFNAME=compression_syscall_${o}_$i
-            CMD="$FTRACE_CMD -o trace_${o}_$i.dat > strace.out 2>&1"
-            compression_run "${cmds[$o]}" "${exts[$o]}"
-            sleep 3
-            sudo trace-cmd report -i trace_${o}_$i.dat > "$OUTDIR/$OUTFNAME"
-        elif [[ $1 == "NETWORK" ]]; then
-            echo "Network Trace"
-            OUTFNAME=compression_netcall_${o}_$i
-            CMD="$TSHARK_CMD > $OUTDIR/$OUTFNAME 2> ntrace.out"
-            compression_run "${cmds[$o]}" "${exts[$o]}"
-        elif [[ $1 == "HWPERF" ]]; then
-            echo "Hardware Trace"
-            for s in "${stat[@]}"; do
-                OUTFNAME=compression_hardware_${s}_${o}_$i
-                CMD="$HWPERF_CMD $s -o $OUTDIR/$OUTFNAME > perf.out 2>&1"
-                compression_run "${cmds[$o]}" "${exts[$o]}"
-            done
-        elif [[ $1 == "NONE" ]]; then
-            echo "No Trace"
-            CMD=""
-            compression_run "${cmds[$o]}" "${exts[$o]}"
-        fi
+TRIES=1
+METRICS=("SYSTEM" "NETWORK" "HWPERF" "NONE")
+for METRIC in "${METRICS[@]}"; do
+    echo "Running workload with $TRIES iterations for each option: ${options[*]} for metric $METRIC"
+    for i in $(seq 1 $TRIES); do
+        for o in "${options[@]}"; do
+            if [[ $METRIC == "SYSTEM" ]]; then
+                echo "Syscall Trace"
+                OUTFNAME=compression_syscall_${o}_$i
+                CMD="$FTRACE_CMD -o trace_${o}_$i.dat > strace.out 2>&1"
+                compressor_run "${cmds[$o]}" "${exts[$o]}"
+                sleep 3
+                sudo trace-cmd report -i trace_${o}_$i.dat > "$OUTDIR/$OUTFNAME"
+            elif [[ $METRIC == "NETWORK" ]]; then
+                echo "Network Trace"
+                OUTFNAME=compression_netcall_${o}_$i
+                CMD="$TSHARK_CMD > $OUTDIR/$OUTFNAME 2> ntrace.out"
+                compressor_run "${cmds[$o]}" "${exts[$o]}"
+            elif [[ $METRIC == "HWPERF" ]]; then
+                echo "Hardware Trace"
+                for s in "${stat[@]}"; do
+                    OUTFNAME=compression_hardware_${s}_${o}_$i
+                    CMD="$HWPERF_CMD $s -o $OUTDIR/$OUTFNAME > perf.out 2>&1"
+                    compressor_run "${cmds[$o]}" "${exts[$o]}"
+                done
+            elif [[ $1 == "NONE" ]]; then
+                echo "No Trace"
+                CMD=""
+                compressor_run "${cmds[$o]}" "${exts[$o]}"
+            fi
+        done
     done
-
 done

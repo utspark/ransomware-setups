@@ -65,7 +65,7 @@ def analyze_workload(time_map, workload_name):
 
 def find_all_workloads(benignware_dir='.', prefix='SYSTEM'):
     """
-    Dynamically find all <prefix>_<workload>_2 directories and their metrics.log files.
+    Dynamically find all <prefix>_<workload> directories and their metrics.log files.
     Returns a list of (full_workload_name, filepath) tuples.
     """
     workload_files = []
@@ -76,13 +76,13 @@ def find_all_workloads(benignware_dir='.', prefix='SYSTEM'):
         if not category_path.exists():
             continue
         
-        # Find all {prefix}_*_2 directories
-        for system_dir in category_path.glob(f'{prefix}_*_2'):
+        # Find all {prefix}_* directories
+        for system_dir in category_path.glob(f'{prefix}_*'):
             if system_dir.is_dir():
                 metrics_file = system_dir / 'metrics.log'
                 if metrics_file.exists():
-                    # Extract workload name from directory (e.g., SYSTEM_fileserver_2 -> fileserver)
-                    workload_name = system_dir.name.replace(f'{prefix}_', '').replace('_2', '')
+                    # Extract workload name from directory (e.g., SYSTEM_fileserver -> fileserver)
+                    workload_name = system_dir.name.replace(f'{prefix}_', '')
                     full_name = f"{category}/{workload_name}"
                     workload_files.append((full_name, str(metrics_file)))
     
@@ -99,7 +99,7 @@ def load_all_workloads(benignware_dir='.', prefix='SYSTEM'):
     workload_files = find_all_workloads(benignware_dir, prefix)
     
     if not workload_files:
-        raise ValueError(f"No {prefix}_*_2 directories with metrics.log found!")
+        raise ValueError(f"No {prefix}_* directories with metrics.log found!")
     
     for full_name, filepath in workload_files:
         print(f"Loading {full_name:30} from {filepath}...", end=" ")

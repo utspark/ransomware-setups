@@ -23,3 +23,5 @@ data/joblib/
 **/*.jpg
 **/*.pdf
 **/*.csv
+**/logs
+**/cpu2017/

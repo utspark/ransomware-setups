@@ -7,15 +7,16 @@ FTRACE_CMD="sudo trace-cmd record -e syscalls -a"
 HWPERF_CMD="sudo perf stat -C 1 -I 100 -a -e"
 
 declare -A stat
-stat[1]=instructions,br_inst_retired.all_branches,avx_insts.all,block:block_rq_issue
-stat[2]=mem-loads,mem-stores,cache-references,LLC-load-misses
-#stat[2]=mem-loads,mem-stores,cache-references,mem_load_retired.l3_miss
-stat[3]=uops_executed_port.port_2,uops_executed_port.port_3,uops_executed_port.port_4,uops_executed_port.port_7
-stat[4]=uops_executed_port.port_0,uops_executed_port.port_1,uops_executed_port.port_5,uops_executed_port.port_6
+# Best overall performing counters
+stat[1]=instructions,br_inst_retired.all_branches,avx_insts.all,cache-references
+
+# All tested counters: Uncomment below to run multiple perf stat runs for different counter sets
+# stat[1]=instructions,br_inst_retired.all_branches,avx_insts.all,block:block_rq_issue
+# stat[2]=mem-loads,mem-stores,cache-references,LLC-load-misses
+# stat[3]=uops_executed_port.port_2,uops_executed_port.port_3,uops_executed_port.port_4,uops_executed_port.port_7
+# stat[4]=uops_executed_port.port_0,uops_executed_port.port_1,uops_executed_port.port_5,uops_executed_port.port_6
 
 ## Run workload
-hostname_ext=(${HOSTNAME#*.})
-HOST="node-0.$hostname_ext"
 CURR_DIR=$(pwd)
 OUTDIR=$CURR_DIR/output
 mkdir -p $OUTDIR
@@ -25,7 +26,6 @@ options=("download" "streaming" "compute" "generic" "mix")
 browser_run(){
     echo "Start tracer"
     eval "$CMD &"
-    #sudo trace-cmd record -e syscalls -a -o trace_${o}_${i}.dat > strace.out 2>&1 &
     tracer=$!
     sleep 5
     
@@ -37,32 +37,37 @@ browser_run(){
     echo "Complete"
 }
 
-TRIES=5
-for i in $(seq 1 $TRIES); do
-    for o in "${options[@]}"; do
-        if [[ $o == "mix" ]]; then
-            args="-u 3 -t 2"
-        else
-            args="-wl $o"
-        fi
-        if [[ $1 == "SYSTEM" ]]; then
-            echo "Syscall Trace"
-            CMD="$FTRACE_CMD -o trace_${o}_$i.dat > strace.out 2>&1"
-            browser_run
-            sleep 3
-            sudo trace-cmd report -i trace_${o}_$i.dat > $OUTDIR/$OUTFNAME
-        elif [[ $1 == "NETWORK" ]]; then
-            echo "Network Trace"
-            OUTFNAME=browser_netcall_${o}_$i
-            CMD="$TSHARK_CMD > $OUTDIR/$OUTFNAME 2> ntrace.out"
-            browser_run
-        elif [[ $1 == "HARDWARE" ]]; then
-            echo "Hardware Trace"
-            for s in "${stat[@]}"; do
-                OUTFNAME=browser_hardware_${s}_${o}_${i}
-                CMD="$HWPERF_CMD $s -o $OUTDIR/$OUTFNAME > perf.out 2>&1"
+TRIES=1
+METRICS=("SYSTEM" "NETWORK" "HWPERF")
+for METRIC in "${METRICS[@]}"; do
+    echo "Running workload with $TRIES iterations for each option: ${options[*]} for metric $METRIC"
+    for i in $(seq 1 $TRIES); do
+        for o in "${options[@]}"; do
+            if [[ $o == "mix" ]]; then
+                args="-u 3 -t 2"
+            else
+                args="-wl $o"
+            fi
+            if [[ $1 == "SYSTEM" ]]; then
+                echo "Syscall Trace"
+                OUTFNAME=browser_syscall_${o}_$i
+                CMD="$FTRACE_CMD -o trace_${o}_$i.dat > strace.out 2>&1"
                 browser_run
-            done
-        fi
+                sleep 3
+                sudo trace-cmd report -i trace_${o}_$i.dat > $OUTDIR/$OUTFNAME
+            elif [[ $1 == "NETWORK" ]]; then
+                echo "Network Trace"
+                OUTFNAME=browser_netcall_${o}_$i
+                CMD="$TSHARK_CMD > $OUTDIR/$OUTFNAME 2> ntrace.out"
+                browser_run
+            elif [[ $1 == "HWPERF" ]]; then
+                echo "Hardware Trace"
+                for s in "${stat[@]}"; do
+                    OUTFNAME=browser_hardware_${s}_${o}_${i}
+                    CMD="$HWPERF_CMD $s -o $OUTDIR/$OUTFNAME > perf.out 2>&1"
+                    browser_run
+                done
+            fi
+        done
     done
 done
