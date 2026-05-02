@@ -13,7 +13,10 @@ cp rclone_conf $HOME/.config/rclone/rclone.conf # Edit rclone_config AWS/local s
 sed -i "/^host = [a-z0-9\.-]/c\host = node-2.$hostname_ext" $HOME/.config/rclone/rclone.conf
 
 # Setup node to run ransomware
-sudo apt install -y python3 python3-pip trace-cmd
+sudo apt install -y python3 python3-pip trace-cmd nmap tshark
 pip3 install pycryptodome rclone-python
 #pip3 install -r requirements.txt
+
+# Need to allow kernel to find different process open file-descriptors
+sudo sysctl -w kernel.yama.ptrace_scope=0
 

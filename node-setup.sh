@@ -22,7 +22,7 @@ sudo rm /etc/containerd/config.toml
 sudo systemctl restart containerd
 
 #Install perf tools
-sudo apt install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r) cpulimit tshark
+sudo apt install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r) cpulimit
 echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
 echo 0 | sudo tee /proc/sys/kernel/nmi_watchdog
 
