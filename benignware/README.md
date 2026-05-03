@@ -41,3 +41,30 @@ The `run_workload.sh` runs all the workloads with all the different modes and co
 The `run_workload_timed.sh` is more or less same as the above option, apart from the fact that it also times the total runtime of the benign workload into `latency_overhead.log` with and without each of the tracers. This allows us to evaluate the overhead of using tracing on each application. The `analyze_overheads.py` script collects all such logs and generates the overheads plot.
 
 The `run_workload_streaming.sh` is the most deployment friendly option which creates a 1GB in-memory disk and collects all metrics at a 100ms granularity. The entire script streams the statistics, that is processed by a `mawk` script into files. It also generates a `metrics.log` file that informs the amount of events processed in every 100ms sample and the time it took to process them. We use `analyze_all_metrics.py <METRIC>` to get detailed view of the overheads per metric. or we can use `analyze_combined_metrics.py` to get the plots in our paper of the overheads across all metrics and all benchmarks.
+
+## Post processing
+
+Both ransomware and benignware hardware data needs to be post processed to get all hardware stats in a single row per timestamp.
+
+All benignware needs to run the last 2 cells of `ransomware/plots/process_comb_hw_benign.ipynb`. The different benignware have different configs that needs to be uncommented in the last cell and run for each. Cell 1,2 and 5 are run once, and cell 6 is run for each benignware
+
+For media server, we also need to post process syscall and network data, where in cell 3 and 4 come in -- cell 3 processes syscall and cell 4 processes network.
+
+Finally, all the data needs to be collected in `data/results` for the ML inference pipeline scripts.
+
+Benignware goes into `data/benignware_data` and has the following directory structure
+```
+data
+-- results
+-- -- benignware_data
+-- -- -- browser
+-- -- -- -- syscall_output
+-- -- -- -- netcall_output
+-- -- -- -- hardware_output_parsed
+-- -- -- mediaserver
+-- -- -- -- syscall_output_parsed
+-- -- -- -- netcall_output_parsed
+-- -- -- -- hardware_output_parsed
+...
+```
+Basically, in `output/` of each benign workload, if there is a `_parsed` directory, that is pushed to the final results directory. if not, then the unparsed directory for syscall, netcall and hardware.

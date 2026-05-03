@@ -50,21 +50,27 @@ for METRIC in "${METRICS[@]}"; do
         for o in "${options[@]}"; do
             if [[ $METRIC == "SYSTEM" ]]; then
                 echo "Syscall Trace"
+                TRACEDIR=$OUTDIR/syscall_output
+                mkdir -p $TRACEDIR
                 OUTFNAME=compression_syscall_${o}_$i
                 CMD="$FTRACE_CMD -o trace_${o}_$i.dat > strace.out 2>&1"
                 compressor_run "${cmds[$o]}" "${exts[$o]}"
                 sleep 3
-                sudo trace-cmd report -i trace_${o}_$i.dat > $OUTDIR/$OUTFNAME
+                sudo trace-cmd report -i trace_${o}_$i.dat > $TRACEDIR/$OUTFNAME
             elif [[ $METRIC == "NETWORK" ]]; then
                 echo "Network Trace"
+                TRACEDIR=$OUTDIR/netcall_output
+                mkdir -p $TRACEDIR
                 OUTFNAME=compression_netcall_${o}_$i
-                CMD="$TSHARK_CMD > $OUTDIR/$OUTFNAME 2> ntrace.out"
+                CMD="$TSHARK_CMD > $TRACEDIR/$OUTFNAME 2> ntrace.out"
                 compressor_run "${cmds[$o]}" "${exts[$o]}"
             elif [[ $METRIC == "HWPERF" ]]; then
                 echo "Hardware Trace"
+                TRACEDIR=$OUTDIR/hardware_output
+                mkdir -p $TRACEDIR
                 for s in "${stat[@]}"; do
                     OUTFNAME=compression_hardware_${s}_${o}_$i
-                    CMD="$HWPERF_CMD $s -o $OUTDIR/$OUTFNAME > perf.out 2>&1"
+                    CMD="$HWPERF_CMD $s -o $TRACEDIR/$OUTFNAME > perf.out 2>&1"
                     compressor_run "${cmds[$o]}" "${exts[$o]}"
                 done
             fi

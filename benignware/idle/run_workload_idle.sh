@@ -41,21 +41,27 @@ for METRIC in "${METRICS[@]}"; do
     for i in $(seq 1 $TRIES); do
         if [[ $METRIC == "SYSTEM" ]]; then
             echo "Syscall Trace"
+            TRACEDIR=$OUTDIR/syscall_output
+            mkdir -p $TRACEDIR
             OUTFNAME=idle_syscall_$i
             CMD="$FTRACE_CMD -o trace_idle_$i.dat > strace.out 2>&1"
             run_benchmark
             sleep 3
-            sudo trace-cmd report -i trace_idle_$i.dat > $OUTDIR/$OUTFNAME
+            sudo trace-cmd report -i trace_idle_$i.dat > $TRACEDIR/$OUTFNAME
         elif [[ $METRIC == "NETWORK" ]]; then
             echo "Network Trace"
+            TRACEDIR=$OUTDIR/netcall_output
+            mkdir -p $TRACEDIR
             OUTFNAME=idle_netcall_$i
-            CMD="$TSHARK_CMD > $OUTDIR/$OUTFNAME 2> ntrace.out"
+            CMD="$TSHARK_CMD > $TRACEDIR/$OUTFNAME 2> ntrace.out"
             run_benchmark
         elif [[ $METRIC == "HARDWARE" ]]; then
             echo "Hardware Trace"
+            TRACEDIR=$OUTDIR/hardware_output
+            mkdir -p $TRACEDIR
             for s in "${stat[@]}"; do
                 OUTFNAME=idle_hardware_${s}_${i}
-                CMD="$HWPERF_CMD $s -o $OUTDIR/$OUTFNAME > perf.out 2>&1"
+                CMD="$HWPERF_CMD $s -o $TRACEDIR/$OUTFNAME > perf.out 2>&1"
                 run_benchmark
             done
         fi

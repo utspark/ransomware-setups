@@ -23,7 +23,7 @@ hostname_ext=(${HOSTNAME#*.})
 WRKHOST="node-1.$hostname_ext"
 SRVHOST="node-0.$hostname_ext"
 CURR_DIR=$(pwd)
-OUTDIR=$CURR_DIR/output_new
+OUTDIR=$CURR_DIR/output
 
 mkdir -p $OUTDIR
 st=$(ps aux | grep fd_target | grep -v grep > /dev/null && echo 1 || echo 0)
@@ -75,22 +75,28 @@ TRIES=1
 for i in $(seq 1 $TRIES); do
     if [[ $1 == "SYSTEM" ]]; then
         echo "Syscall Trace"
+        TRACEDIR=$OUTDIR/syscall_output
+        mkdir -p $TRACEDIR
         OUTFNAME=media_syscall_$i
         CMD="$FTRACE_CMD -o trace_$i.dat > strace.out 2>&1"
         photoprism_run
         sleep 3
-        sudo trace-cmd report -i trace_$i.dat > $OUTDIR/$OUTFNAME
+        sudo trace-cmd report -i trace_$i.dat > $TRACEDIR/$OUTFNAME
     elif [[ $1 == "NETWORK" ]]; then
         echo "Network Trace"
+        TRACEDIR=$OUTDIR/netcall_output
+        mkdir -p $TRACEDIR
         OUTFNAME=media_netcall_$i
-        CMD="$TSHARK_CMD > $OUTDIR/$OUTFNAME 2> ntrace.out"
+        CMD="$TSHARK_CMD > $TRACEDIR/$OUTFNAME 2> ntrace.out"
         photoprism_run
     elif [[ $1 == "HARDWARE" ]]; then
         echo "Hardware Trace"
+        TRACEDIR=$OUTDIR/hardware_output
+        mkdir -p $TRACEDIR
         for s in "${stat[@]}"; do
             OUTFNAME=media_hardware_${s}_${i}
             CMD="$HWPERF_CMD $s -o $OUTDIR/$OUTFNAME > perf.out 2>&1"
-            ssh $USER@$HOST "echo $OUTDIR/${OUTFNAME}_phase > fd_target.pid"
+            ssh $USER@$HOST "echo $TRACEDIR/${OUTFNAME}_phase > fd_target.pid"
             photoprism_run
         done
     fi
