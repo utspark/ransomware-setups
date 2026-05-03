@@ -56,14 +56,14 @@ if [[ $1 == "EXFIL" ]]; then
     
     mkdir -p $OUT_DIR
     
-    for i in $(seq 4 $TRIES); do
+    for i in $(seq 1 $TRIES); do
         for s in "${stat[@]}"; do
             for r in "${REMOTE[@]}"; do
                 for t in "${THREADS[@]}"; do
                     for c in "${COMPRESS[@]}"; do
                         echo "Exfil: Remote $r, threads: $t with $c compression"
                         #PROGRAM="../exfiltration/exfiltrate.py -d $DATA_DIR -c $c -t $t -r $r -v $PID"
-                        sudo $HWPERF_CMD $s -o $OUT_DIR/exfil_${c}_{$t}_${r}_${s}_${i} taskset -c 1 ../python/exfiltration/exfiltrate.py -d $DATA_DIR -c $c -t $t -r $r -v ${s}_$i
+                        sudo $HWPERF_CMD $s -o $OUT_DIR/exfil_${c}_${t}_${r}_${s}_${i} taskset -c 1 ../python/exfiltration/exfiltrate.py -d $DATA_DIR -c $c -t $t -r $r -v ${s}_$i
                         sleep 5
                     done
                 done

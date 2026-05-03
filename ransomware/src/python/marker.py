@@ -85,7 +85,8 @@ def invoke_perfmark(file):
     print("Perf marker")
     pid = get_perf_pid()
     elapsed_time = get_process_uptime(pid)
-    with open(f"../../outputs/perf_results/{file}", 'a') as f:
+    stage = file.split('_')[0]
+    with open(f"../../output/hardware/out_{stage}/{file}", 'a') as f:
         f.write(f"{str(elapsed_time)}\n")
 
 def invoke_marker(mark):
