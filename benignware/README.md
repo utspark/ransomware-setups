@@ -27,7 +27,12 @@ This is a photoprism media server that serves a few benchmarck videos and images
 Next we use a 2-server system, where one of the servers (node-1 in our case), runs `wrk` and calls the indexing APIs, and then opens videos and downloads images. As the indexing process runs, the application generates thumbnails.
 We simulate real work by using the load generator to make frequent calls to the photoprism application.
 
-This has a `mediaserver_setup.sh` that needs to be run tbefore running the workload. We also need `wrk` to be installed on the "client" machine.
+Media Server is special since it is a benign workload that has 2 phases that needs to be split for our experiments. Media server also requires a 2-node setup: node-0 and node-1 in our case.
+We need to run `setup_photoprism.sh` in the machine which has tracer tools setup (node-0), and `setup_mediaclient.sh` which works as a load generator as well as media files generator (node-1). We use node-1 as client, since for our NFS server we had node-1 setup the file server, and hence it was easier for us to reuse the files for populating the photoprism media folders.
+
+After the setup, we need to run `start_photoprism.sh` on node-0 and verify that the login token is populated in the file `token`. If not populate it by `./get-api.py -l > token`.
+We also recomment ssh'ing from node-0 to node-1 since the workload run uses ssh.
+
 Depending on specific node setups, the hosts in each `run_workload` files might need to be updated.
 
 ## CPU 2017
@@ -46,7 +51,8 @@ The `run_workload_streaming.sh` is the most deployment friendly option which cre
 
 Both ransomware and benignware hardware data needs to be post processed to get all hardware stats in a single row per timestamp.
 
-All benignware needs to run the last 2 cells of `ransomware/plots/process_comb_hw_benign.ipynb`. The different benignware have different configs that needs to be uncommented in the last cell and run for each. Cell 1,2 and 5 are run once, and cell 6 is run for each benignware
+All benignware needs to run the last 2 cells of `ransomware/plots/process_comb_hw_benign.ipynb`. The different benignware have different configs that needs to be uncommented in the last cell and run for each. Cell 1,2 and 5 are run once, and cell 6 is run for each benignware.
+The basepath for the ransomware-setups needs to be updated in cell 1.
 
 For media server, we also need to post process syscall and network data, where in cell 3 and 4 come in -- cell 3 processes syscall and cell 4 processes network.
 

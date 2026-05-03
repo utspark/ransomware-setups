@@ -5,6 +5,7 @@ import time
 import ctypes
 import sys
 import socket
+import subprocess
 
 # Syscall numbers for x86_64 (Linux 5.15)
 __NR_pidfd_open = 434
@@ -64,11 +65,29 @@ def invoke_syscall(target_pid, target_fd=1):
     os.close(dup_fd)
     os.close(pidfd)
 
+def get_process_uptime(pid: int) -> float:
+    with open("/proc/uptime", "r") as f:
+        uptime_seconds = float(f.readline().split()[0])
+
+    with open(f"/proc/{pid}/stat", "r") as f:
+        fields = f.readline().split()
+        start_time_jiffies = int(fields[22 - 1])  # stat fields are 1-based
+
+    clock_ticks = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
+    start_time_seconds = start_time_jiffies / clock_ticks
+    return uptime_seconds - start_time_seconds
+
+def get_perf_pid():
+	pid = subprocess.check_output("ps aux | grep 'sudo perf' | grep -v grep | awk '{print $2}' | head -n 1", shell=True,text=True).strip()
+	return pid
+
 def invoke_perfmark(file):
-    print(f"Perf marker in {file}")
+    print("Perf marker")
+    pid = get_perf_pid()
+    elapsed_time = get_process_uptime(pid)
+    stage = file.split('_')[0]
     with open(file, 'a') as f:
-        f.write("Phase Marker")
-        f.flush()
+        f.write(f"{str(elapsed_time)}\n")
 
 def invoke_marker(mark):
     if isinstance(mark, int):
@@ -80,7 +99,7 @@ def invoke_marker(mark):
 if __name__ == "__main__":
     try:
         invoke_syscall(int(sys.argv[1]))
-        #invoke_netcall()
+        invoke_netcall()
     except ValueError:
         invoke_perfmark(sys.argv[1])
 
