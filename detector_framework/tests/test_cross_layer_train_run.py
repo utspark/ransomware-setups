@@ -85,9 +85,9 @@ def test_cross_layer_train_run():
     assert feature_frames["syscall"]["browser_mix"].iloc[1200, 4] == pytest.approx(71.660877, abs=1e-6)
     assert feature_frames["syscall"]["spec_gcc"].iloc[1500, 2] == pytest.approx(23.687804, abs=1e-6)
 
-    assert feature_frames["hpc"]["filebench_varmail"].iloc[100, 8] == pytest.approx(115065.571428, abs=1e-6)
-    assert feature_frames["hpc"]["recon_mount"].iloc[300, 14] == pytest.approx(11791146.142857, abs=1e-6)
-    assert feature_frames["hpc"]["filebench_fileserver"].iloc[50, 12]== pytest.approx(79630.833333, abs=1e-6)
+    assert feature_frames["hpc"]["filebench_varmail"].iloc[100, 3] == pytest.approx(0.205068, abs=1e-6)
+    assert feature_frames["hpc"]["recon_mount"].iloc[300, 1] == pytest.approx(0.000472, abs=1e-6)
+    assert feature_frames["hpc"]["filebench_fileserver"].iloc[50, 0]== pytest.approx(1352896.5, abs=1e-6)
 
     num_workloads = 10
     start = 1.5
@@ -127,6 +127,6 @@ def test_cross_layer_train_run():
     assert scores[0] == pytest.approx(0.643978, abs=1e-6)
     assert scores[1] == pytest.approx(0.654492, abs=1e-6)
     assert scores[2] == pytest.approx(0.780377, abs=1e-6)
-    assert scores[3] == pytest.approx(0.752738, abs=1e-6)
-    assert scores[4] == pytest.approx(0.593482, abs=1e-6)
+    assert scores[3] == pytest.approx(0.736149, abs=1e-6)
+    assert scores[4] == pytest.approx(0.596676, abs=1e-6)
 

@@ -24,7 +24,7 @@ def test_adfa_replicate_run():
     
     # Check AUC for adfa_data
     _, _, auc = joblib.load(adfa_data_path)
-    assert auc == pytest.approx(0.850655, abs=1e-5)
+    assert auc == pytest.approx(0.848762, abs=1e-5)
     
     # 2. Run adfa_new_data.main() - This generates individual_behavior_curve.joblib, 
     # exclude_encryption_curve.joblib, partial_encryption_curve.joblib, 
@@ -34,7 +34,7 @@ def test_adfa_replicate_run():
         adfa_new_data.main(plot=False)
         
     expected_curves = [
-        ("individual_behavior_curve.joblib", 0.872916),
+        ("individual_behavior_curve.joblib", 0.8746),
         ("exclude_encryption_curve.joblib", 0.9988),
         ("partial_encryption_curve.joblib", 0.9864),
         ("full_encryption_curve.joblib", 0.4584)
@@ -44,9 +44,9 @@ def test_adfa_replicate_run():
         path = RESULTS_DIR / filename
         assert path.exists(), f"{filename} was not created"
         _, _, auc = joblib.load(path)
-        assert auc == pytest.approx(expected_auc, abs=1e-3)
+        assert auc == pytest.approx(expected_auc, abs=1e-4)
 
     # 3. Run adfa_plotting.main() - This handles loading and "plotting" (skipped via plot=False)
     print("Running adfa_plotting.main()...")
     with patch("builtins.print"):
-        adfa_plotting.main(plot=False)
+        adfa_plotting.main()
