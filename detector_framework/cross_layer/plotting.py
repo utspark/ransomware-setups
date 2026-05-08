@@ -1289,14 +1289,14 @@ def main():
 
     cwd = Path(__file__).resolve().parent.parent.parent
 
-    TRACE_LENS = False
-    MODEL_CURVES = False
-    REAL_INSTANCES = False
-    EVADE_DENSITY = False
-    SIGNAL_SAMPLES = False
-    FLOW_VARIATIONS = False
-    SCORE_OVER_TIME = False
-    HEATMAP = False
+    TRACE_LENS = True
+    MODEL_CURVES = True
+    REAL_INSTANCES = True
+    EVADE_DENSITY = True
+    SIGNAL_SAMPLES = True
+    FLOW_VARIATIONS = True
+    SCORE_OVER_TIME = True
+    HEATMAP = True
 
     ADFA_GEN = False
     ADFA_REPLICATE = True
