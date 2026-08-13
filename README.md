@@ -6,7 +6,7 @@ This repository contains the code for a lifecycle aware ransomware detector proj
 
 `ransomware/` folder contains the code to emulate ransomware lifecycles and collect the behavioral data for the same. More in README.md within this directory.
 
-## Benigneare data collection
+## Benignware data collection
 
 `benignware/` contains a few benign workloads that we use to test our detector accuracy. This also needs to run with data collection with steps in the README.md within benignware subfolder.
 
@@ -20,7 +20,7 @@ Not all files and folders are used, and clean up work in ongoing.
 
 ## Environment Setup
 
-NOTE: Our experiments utilize a 3-node setup on Cloudlab. Using cloudlab allows a SSO login across the three nodes where the storage are shared i.e. file updates from one node is visible across the other node. If this is not the case, then the scripts will change significantly and we would recommend using the pre-collected data to test the ML pipeline only
+NOTE: Our experiments utilize a 3-node setup on Cloudlab. Using Cloudlab allows a SSO login across the three nodes where the storage are shared i.e. file updates from one node is visible across the other node. If this is not the case, then the scripts will change significantly and we would recommend using the pre-collected data to test the ML pipeline only
 
 We expect each node to run `./node-setup.sh` followed by specific scripts below
 
