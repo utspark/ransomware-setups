@@ -501,6 +501,117 @@ def evade_density_plot(model_paths, attack_stages_dict: dict, feature_frames_dic
     return auc_values
 
 
+def evasive_flow_plot(model_paths, attack_stages_dict: dict, feature_frames_dict: dict,
+                       window_size_time, window_stride_time, time_choices: list, plot=True):
+    auc_values = []
+    combos = [((i >> 2) & 1, (i >> 1) & 1, i & 1) for i in range(4)]
+
+    model_labels = [
+        "LA-**",
+        "LA-*D",
+        "LA-P*",
+        "LA-PD",
+        "**-*D",
+    ]
+
+    la_components = []
+
+    for i in range(len(combos)):
+        components = {
+            "lifecycle_awareness": True,
+            "density": True if combos[i][2] else False,
+            "propagation": True if combos[i][1] else False,
+        }
+        la_components.append(components)
+
+    density_descriptor = {
+        "lifecycle_awareness": False,
+        "density": True,
+        "propagation": False,
+    }
+
+    la_components.append(density_descriptor)
+
+    n_samples = 100
+    attack_time = 1
+    benign_stages = detector_framework.config.GENERATION_BENIGN
+
+    evasive_lens = []
+    m_cross_layer_X = []
+    for _ in range(n_samples):
+        min_len = 8
+        evasive_flow = []
+        lifecycle_complete = False
+
+        required_sequence = ["recon", "exfil_1", "exfil_2", "exec_2"]
+        while len(evasive_flow) < min_len or not lifecycle_complete:
+            evasive_flow.append(random.choice(list(attack_stages_dict.keys())))
+            flow_iter = iter(evasive_flow)
+            if all(stage in flow_iter for stage in required_sequence):
+                lifecycle_complete = True
+
+        stage_lens = [(random.choice(attack_stages_dict[stage]), attack_time) for stage in evasive_flow]
+        evasive_lens.append(len(evasive_flow))
+
+        cross_layer_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
+        m_cross_layer_X.append(cross_layer_X)
+
+    b_cross_layer_X = []
+    for i in range(n_samples):
+        techniques = [random.choice(benign_stages) for _ in range(evasive_lens[i])]
+        stage_lens = [(technique, attack_time) for technique in techniques]
+
+        cross_layer_X = cld.build_cross_layer_X(feature_frames_dict, stage_lens, window_size_time, window_stride_time)
+        b_cross_layer_X.append(cross_layer_X)
+
+    for i in tqdm(range(len(la_components))):
+        gd = global_detector.LifecycleDetector(
+            **model_paths,
+            stage_filter=False,
+            **la_components[i]
+        )
+
+        benign_scores = []
+        for j in range(n_samples):
+            proba = gd.score_cross_layer(b_cross_layer_X[j])
+            benign_scores.append(proba)
+
+        malware_scores = []
+        for j in range(n_samples):
+            proba = gd.score_cross_layer(m_cross_layer_X[j])
+            malware_scores.append(proba)
+
+        y_scores = malware_scores + benign_scores
+        y_true = np.zeros(len(y_scores))
+        y_true[:len(malware_scores)] = 1
+
+        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+        roc_auc = auc(fpr, tpr)
+
+        auc_values.append((fpr, tpr, roc_auc))
+
+    if plot:
+        fig = plt.figure(figsize=(8, 5))
+        max_label_len = max(len(label) for label in model_labels)
+        for i in range(len(la_components)):
+            fpr, tpr, roc_auc = auc_values[i]
+            plt.plot(fpr, tpr, lw=4, alpha=0.7, label=f'{model_labels[i]:<{max_label_len}}: {roc_auc:.3f}')
+
+        plt.plot([0, 1], [0, 1], lw=2, color="black", alpha=0.5, linestyle='--')
+        plt.xlim([-0.01, 1.0])
+        plt.ylim([0.0, 1.01])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.legend(loc="lower right", prop={'family': 'monospace'})
+        plt.tight_layout()
+        plt.grid()
+        plt.savefig(Path(__file__).resolve().parent.parent.parent / "data" / "figures" / "evasive_flow.pdf")
+        plt.show(block=True)
+        plt.close(fig)
+
+    return auc_values
+
+
 def signal_sample_plot(
         model_paths, attack_stages_dict: dict, feature_frames_dict: dict,
         window_size_time, window_stride_time, time_choices: list, plot=True):
@@ -1289,14 +1400,15 @@ def main():
 
     cwd = Path(__file__).resolve().parent.parent.parent
 
-    TRACE_LENS = True
-    MODEL_CURVES = True
-    REAL_INSTANCES = True
-    EVADE_DENSITY = True
-    SIGNAL_SAMPLES = True
-    FLOW_VARIATIONS = True
-    SCORE_OVER_TIME = True
-    HEATMAP = True
+    TRACE_LENS = False
+    MODEL_CURVES = False
+    REAL_INSTANCES = False
+    EVADE_DENSITY = False
+    EVASIVE_FLOW = True
+    SIGNAL_SAMPLES = False
+    FLOW_VARIATIONS = False
+    SCORE_OVER_TIME = False
+    HEATMAP = False
 
     ADFA_GEN = False
     ADFA_REPLICATE = True
@@ -1353,6 +1465,9 @@ def main():
 
     if EVADE_DENSITY:
         auc_values = evade_density_plot(**plot_inputs)
+
+    if EVASIVE_FLOW:
+        auc_values = evasive_flow_plot(**plot_inputs)
 
     if SIGNAL_SAMPLES:
         auc_values = signal_sample_plot(**plot_inputs)
